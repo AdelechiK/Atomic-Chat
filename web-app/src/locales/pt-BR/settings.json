@@ -245,6 +245,7 @@
     "changeLocation": "Alterar Localização",
     "openLogs": "Abrir Logs",
     "revealLogs": "Mostrar Logs",
+    "exportLogs": "Exportar Logs",
     "factoryResetTitle": "Redefinir para Configurações de Fábrica",
     "factoryResetDesc": "Isso redefinirá todas as configurações do app para os padrões. Isso não pode ser desfeito. Recomendamos isso apenas se o app estiver corrompido.",
     "cancel": "Cancelar",

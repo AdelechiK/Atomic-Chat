@@ -245,6 +245,7 @@
     "changeLocation": "Thay đổi Vị trí",
     "openLogs": "Mở Nhật ký",
     "revealLogs": "Hiển thị Nhật ký",
+    "exportLogs": "Xuất Nhật ký",
     "factoryResetTitle": "Đặt lại về Cài đặt Gốc",
     "factoryResetDesc": "Điều này sẽ đặt lại tất cả cài đặt ứng dụng về mặc định. Không thể hoàn tác. Chúng tôi chỉ khuyến nghị điều này nếu ứng dụng bị hỏng.",
     "cancel": "Hủy",

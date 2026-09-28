@@ -12,10 +12,36 @@ export interface LogEntry {
   message: string
 }
 
+export type LogSource = 'app' | 'core'
+
+/** One entry of the app's and the core's merged logs, as `read_unified_logs` returns it. */
+export interface UnifiedLogEntry {
+  /** `YYYY-MM-DDTHH:MM:SSZ`, the file header's UTC time as written. */
+  timestamp: string
+  source: LogSource
+  target: string
+  level: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'
+  /** Multi-line entries keep their continuation lines, joined by `\n`. */
+  message: string
+}
+
+export interface LogExport {
+  path: string
+  bytes: number
+}
+
 export interface AppService {
   factoryReset(): Promise<void>
   readLogs(): Promise<LogEntry[]>
   parseLogLine(line: string): LogEntry
+  /** The app's and the core's logs as one timeline, read from disk. */
+  readUnifiedLogs(): Promise<UnifiedLogEntry[]>
+  /**
+   * Ask where to save, then write both logs into that one file. Resolves
+   * `null` when the user cancels the dialog; rejects with the reason when the
+   * file could not be written.
+   */
+  exportLogs(): Promise<LogExport | null>
   getJanDataFolder(): Promise<string | undefined>
   relocateJanDataFolder(path: string): Promise<void>
   getAutostartPreference(): Promise<AutostartPreference>

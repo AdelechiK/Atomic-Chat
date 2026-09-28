@@ -258,6 +258,7 @@
     "changeLocation": "Cambiar ubicación",
     "openLogs": "Abrir registros",
     "revealLogs": "Revelar registros",
+    "exportLogs": "Exportar registros",
     "factoryResetTitle": "Restablecer a configuración de fábrica",
     "factoryResetDesc": "Esto restablecerá toda la configuración de la aplicación a sus valores predeterminados. Esta acción no se puede deshacer. Solo recomendamos esto si la aplicación está corrupta.",
     "cancel": "Cancelar",

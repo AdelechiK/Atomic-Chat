@@ -251,6 +251,7 @@
     "changeLocation": "Changer l'emplacement",
     "openLogs": "Ouvrir les journaux",
     "revealLogs": "Afficher les journaux",
+    "exportLogs": "Exporter les journaux",
     "factoryResetTitle": "Réinitialiser aux paramètres d'usine",
     "factoryResetDesc": "Cela réinitialisera tous les paramètres de l'application à leurs valeurs par défaut. Cette action ne peut pas être annulée. Nous ne le recommandons que si l'application est corrompue.",
     "cancel": "Annuler",

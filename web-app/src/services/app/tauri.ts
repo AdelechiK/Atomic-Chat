@@ -8,9 +8,10 @@ import {
   BACKEND_PRESERVE_KEYS,
   localStorageKey,
 } from '@/constants/localStorage'
-import type { LogEntry } from './types'
+import type { LogEntry, LogExport, UnifiedLogEntry } from './types'
 import { DefaultAppService } from './default'
 import { normalizeRemoteAccessStatus } from '@/lib/remoteLan'
+import { logExportFileName } from '@/lib/log-time'
 import type { RemoteAccessStatus } from '@/types/remoteAccess'
 
 /**
@@ -80,6 +81,21 @@ export class TauriAppService extends DefaultAppService {
   async readLogs(): Promise<LogEntry[]> {
     const logData: string = (await invoke('read_logs')) ?? ''
     return logData.split('\n').map(this.parseLogLine)
+  }
+
+  async readUnifiedLogs(): Promise<UnifiedLogEntry[]> {
+    return (await invoke<UnifiedLogEntry[]>('read_unified_logs')) ?? []
+  }
+
+  async exportLogs(): Promise<LogExport | null> {
+    const path = await invoke<string | null>('save_dialog', {
+      options: {
+        defaultPath: logExportFileName(new Date()),
+        filters: [{ name: 'Log', extensions: ['log'] }],
+      },
+    })
+    if (!path) return null
+    return await invoke<LogExport>('export_logs', { path })
   }
 
   async getInstallerType(): Promise<string | undefined> {

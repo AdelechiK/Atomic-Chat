@@ -76,6 +76,8 @@ vi.mock('@/hooks/useGeneralSetting', () => ({
 const mockCheckForUpdate = vi.fn()
 const mockOpenerOpen = vi.fn()
 const mockRevealItemInDir = vi.fn()
+const mockExportLogs = vi.fn()
+const mockOpenPath = vi.fn()
 
 vi.mock('@/hooks/useAppUpdater', () => ({
   useAppUpdater: () => ({
@@ -288,7 +290,8 @@ describe('General Settings Route', () => {
         factoryReset: vi.fn(),
         getJanDataFolder: vi.fn().mockResolvedValue('/test/data/folder'),
         relocateJanDataFolder: vi.fn(),
-      } as ReturnType<ServiceHub['app']>,
+        exportLogs: mockExportLogs,
+      } as unknown as ReturnType<ServiceHub['app']>,
       models: {
         stopAllModels: vi.fn(),
       } as ReturnType<ServiceHub['models']>,
@@ -304,6 +307,7 @@ describe('General Settings Route', () => {
       opener: {
         open: mockOpenerOpen,
         revealItemInDir: mockRevealItemInDir,
+        openPath: mockOpenPath,
       } as ReturnType<ServiceHub['opener']>,
     })
     // Reset the mock to return a promise that resolves immediately by default
@@ -537,6 +541,39 @@ describe('General Settings Route', () => {
       })
       expect(revealLogsButton).toBeInTheDocument()
     }
+  })
+
+  it('exports the logs from the App Logs row and says where they went', async () => {
+    const { toast } = await import('sonner')
+    mockExportLogs.mockResolvedValue({
+      path: 'C:\\Users\\me\\Desktop\\atomic-chat-logs.log',
+      bytes: 42,
+    })
+    mockOpenPath.mockResolvedValue(undefined)
+    const Component = GeneralRoute.component as React.ComponentType
+    await act(async () => {
+      render(<Component />)
+    })
+
+    const exportButton = screen
+      .getAllByTestId('button')
+      .find((button) => button.textContent?.includes('exportLogs'))!
+    await act(async () => {
+      fireEvent.click(exportButton)
+    })
+
+    expect(mockExportLogs).toHaveBeenCalledTimes(1)
+    expect(toast.success).toHaveBeenCalledWith(
+      'logs:exported',
+      expect.objectContaining({
+        description: 'C:\\Users\\me\\Desktop\\atomic-chat-logs.log',
+      })
+    )
+    const options = vi.mocked(toast.success).mock.calls[0][1] as {
+      action: { onClick: () => void }
+    }
+    options.action.onClick()
+    expect(mockOpenPath).toHaveBeenCalledWith('C:\\Users\\me\\Desktop')
   })
 
   it('should show correct file explorer text for Windows', async () => {

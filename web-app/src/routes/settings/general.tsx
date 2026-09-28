@@ -17,12 +17,14 @@ import ChangeDataFolderLocation from '@/containers/dialogs/ChangeDataFolderLocat
 import LocalModelLocationsCard from '@/containers/LocalModelLocationsCard'
 import { FactoryResetDialog } from '@/containers/dialogs'
 import { useServiceHub } from '@/hooks/useServiceHub'
+import { useExportLogs } from '@/hooks/useExportLogs'
 import {
   IconBrandDiscord,
   IconBrandGithub,
   IconExternalLink,
   IconFolder,
   IconLogs,
+  IconDownload,
   IconCopy,
   IconCopyCheck,
 } from '@tabler/icons-react'
@@ -71,6 +73,7 @@ function General() {
     (state) => state.setGloballyEnabled
   )
   const serviceHub = useServiceHub()
+  const { exportLogs, exporting: exportingLogs } = useExportLogs()
   const { setProductAnalytic, productAnalytic } = useAnalytic()
 
   const openFileTitle = (): string => {
@@ -571,7 +574,7 @@ function General() {
                 description={t('settings:dataFolder.appLogsDesc')}
                 className="items-start flex-row gap-y-2"
                 actions={
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -602,6 +605,19 @@ function General() {
                     >
                       <IconLogs size={12} className="text-muted-foreground" />
                       <span>{t('settings:general.openLogs')}</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void exportLogs()}
+                      disabled={exportingLogs}
+                      title={t('settings:general.exportLogs')}
+                    >
+                      <IconDownload
+                        size={12}
+                        className="text-muted-foreground"
+                      />
+                      <span>{t('settings:general.exportLogs')}</span>
                     </Button>
                   </div>
                 }

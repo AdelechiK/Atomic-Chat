@@ -263,6 +263,7 @@
     "changeLocation": "場所を変更",
     "openLogs": "ログを開く",
     "revealLogs": "ログを表示",
+    "exportLogs": "ログをエクスポート",
     "factoryResetTitle": "工場出荷時の設定にリセット",
     "factoryResetDesc": "これにより、すべてのアプリ設定がデフォルトにリセットされます。この操作は元に戻せません。アプリが破損している場合にのみ、この操作をお勧めします。",
     "cancel": "キャンセル",

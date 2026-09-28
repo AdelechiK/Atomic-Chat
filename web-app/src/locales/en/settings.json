@@ -369,6 +369,7 @@
     "changeLocation": "Change Location",
     "openLogs": "Open Logs",
     "revealLogs": "Reveal Logs",
+    "exportLogs": "Export Logs",
     "factoryResetTitle": "Reset to Factory Settings",
     "factoryResetDesc": "This will reset all app settings to their defaults. This can't be undone. We only recommend this if the app is corrupted.",
     "cancel": "Cancel",

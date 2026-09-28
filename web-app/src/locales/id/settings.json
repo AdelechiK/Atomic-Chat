@@ -245,6 +245,7 @@
     "changeLocation": "Ubah Lokasi",
     "openLogs": "Buka Log",
     "revealLogs": "Tampilkan Log",
+    "exportLogs": "Ekspor Log",
     "factoryResetTitle": "Setel Ulang ke Pengaturan Pabrik",
     "factoryResetDesc": "Ini akan mengatur ulang semua pengaturan aplikasi ke default. Tindakan ini tidak dapat dibatalkan. Kami hanya merekomendasikan ini jika aplikasi rusak.",
     "cancel": "Batal",

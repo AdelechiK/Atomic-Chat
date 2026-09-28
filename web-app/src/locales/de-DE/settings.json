@@ -245,6 +245,7 @@
     "changeLocation": "Ort ändern",
     "openLogs": "Logs öffnen",
     "revealLogs": "Logs anzeigen",
+    "exportLogs": "Logs exportieren",
     "factoryResetTitle": "Auf Werkseinstellungen zurücksetzen",
     "factoryResetDesc": "Dadurch werden alle App-Einstellungen auf die Standardeinstellungen zurückgesetzt. Dieser Vorgang kann nicht rückgängig gemacht werden. Wir empfehlen dies nur, wenn die App beschädigt ist.",
     "cancel": "Abbrechen",

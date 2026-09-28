@@ -10,6 +10,7 @@ pub mod e2e;
 pub mod extensions;
 pub mod filesystem;
 pub mod http;
+pub mod logs;
 pub mod mcp;
 #[cfg(target_os = "windows")]
 pub mod notifications;

@@ -262,6 +262,7 @@
     "changeLocation": "위치 변경",
     "openLogs": "로그 열기",
     "revealLogs": "로그 표시",
+    "exportLogs": "로그 내보내기",
     "factoryResetTitle": "공장 초기화",
     "factoryResetDesc": "모든 앱 설정을 기본값으로 초기화합니다. 이 작업은 되돌릴 수 없습니다. 앱이 손상된 경우에만 권장합니다.",
     "cancel": "취소",

@@ -245,6 +245,7 @@
     "changeLocation": "更改位置",
     "openLogs": "打開日誌",
     "revealLogs": "顯示日誌",
+    "exportLogs": "匯出日誌",
     "factoryResetTitle": "重置為出廠設定",
     "factoryResetDesc": "這將重置所有應用程式設定為預設值。此操作無法撤銷。我們只建議在應用程式損壞時使用。",
     "cancel": "取消",
