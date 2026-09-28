@@ -146,7 +146,12 @@
     "freeOf": "可用，共",
     "driverVersion": "驅動程式版本",
     "computeCapability": "計算能力",
-    "systemMonitor": "系統監視器"
+    "systemMonitor": "系統監視器",
+    "detectionSource": {
+      "probe": "Detected by the Atomic core probe",
+      "override": "Detected by an injected override"
+    },
+    "detectionGap": "The core sees {{coreCount}} of {{usageCount}} GPUs; backend selection uses {{coreCount}}. Refresh to re-detect."
   },
   "httpsProxy": {
     "proxy": "代理",

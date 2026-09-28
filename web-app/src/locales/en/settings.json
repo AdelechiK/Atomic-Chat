@@ -171,7 +171,12 @@
     "freeOf": "free of",
     "driverVersion": "Driver Version",
     "computeCapability": "Compute Capability",
-    "systemMonitor": "System Monitor"
+    "systemMonitor": "System Monitor",
+    "detectionSource": {
+      "probe": "Detected by the Atomic core probe",
+      "override": "Detected by an injected override"
+    },
+    "detectionGap": "The core sees {{coreCount}} of {{usageCount}} GPUs; backend selection uses {{coreCount}}. Refresh to re-detect."
   },
   "httpsProxy": {
     "proxy": "Proxy",

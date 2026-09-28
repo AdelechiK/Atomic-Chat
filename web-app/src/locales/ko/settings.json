@@ -157,7 +157,12 @@
     "freeOf": "사용 가능 / 전체",
     "driverVersion": "드라이버 버전",
     "computeCapability": "컴퓨트 능력",
-    "systemMonitor": "시스템 모니터"
+    "systemMonitor": "시스템 모니터",
+    "detectionSource": {
+      "probe": "Detected by the Atomic core probe",
+      "override": "Detected by an injected override"
+    },
+    "detectionGap": "The core sees {{coreCount}} of {{usageCount}} GPUs; backend selection uses {{coreCount}}. Refresh to re-detect."
   },
   "httpsProxy": {
     "proxy": "프록시",

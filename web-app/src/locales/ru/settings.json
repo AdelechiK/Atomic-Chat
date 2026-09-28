@@ -167,7 +167,12 @@
     "freeOf": "свободно из",
     "driverVersion": "Версия драйвера",
     "computeCapability": "Вычислительная мощность",
-    "systemMonitor": "Системный монитор"
+    "systemMonitor": "Системный монитор",
+    "detectionSource": {
+      "probe": "Detected by the Atomic core probe",
+      "override": "Detected by an injected override"
+    },
+    "detectionGap": "The core sees {{coreCount}} of {{usageCount}} GPUs; backend selection uses {{coreCount}}. Refresh to re-detect."
   },
   "httpsProxy": {
     "proxy": "Прокси",

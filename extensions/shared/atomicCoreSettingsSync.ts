@@ -27,14 +27,8 @@ export interface PersistedSetting {
   controllerProps: { value?: unknown }
 }
 
-export interface HardwareFacts {
-  gpus?: unknown[]
-  cpu?: { extensions?: string[] }
-  os_type?: string
-}
-
 export interface CoreSettingsSyncOptions {
-  core: Pick<CoreRuntime, 'getStatus' | 'importSettings' | 'getSettings' | 'acknowledgeSettings' | 'sendHardwareOverride'>
+  core: Pick<CoreRuntime, 'getStatus' | 'importSettings' | 'getSettings' | 'acknowledgeSettings'>
   readSettings: () => Promise<PersistedSetting[]>
   writeSettings: (settings: PersistedSetting[]) => Promise<void>
   /**
@@ -42,8 +36,6 @@ export interface CoreSettingsSyncOptions {
    * descriptor, and a mirror must not start owner-side work such as a backend download.
    */
   setMirroring: (active: boolean) => void
-  /** Hardware facts for the core; omitted by a provider whose runtime does not select a backend. */
-  systemInfo?: () => Promise<HardwareFacts | undefined>
 }
 
 /** Key order and `undefined` fields do not make two settings objects different. */
@@ -107,19 +99,12 @@ export function createCoreSettingsSync(options: CoreSettingsSyncOptions) {
     if (result.status === 'conflict')
       throw new Error(`Atomic core settings conflict: ${result.conflicts.map((c) => c.key).join(', ')}`)
     await mirror()
-    if (options.systemInfo) {
-      const info = await options.systemInfo()
-      await options.core.sendHardwareOverride({
-        gpus: info?.gpus ?? [],
-        ...(info?.cpu?.extensions ? { cpu_extensions: info.cpu.extensions } : {}),
-        ...(info?.os_type ? { os_type: info.os_type } : {}),
-      })
-    }
   }
 
   /**
-   * Import, mirror and send hardware facts once per core attachment and settings state. A new core
-   * generation or a changed setting prepares again; a failure is not remembered.
+   * Import and mirror once per core attachment and settings state. A new core generation or a
+   * changed setting prepares again; a failure is not remembered. Hardware facts are the core's own
+   * since ADR 2026-09-27; nothing is sent.
    */
   async function ensureReady(): Promise<void> {
     const [values, status] = await Promise.all([currentValues(), options.core.getStatus()])
