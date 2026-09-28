@@ -975,6 +975,7 @@ export class ModelFactory {
       case 'meta':
       case 'openrouter':
       case 'aimlapi':
+      case 'edenai':
       case 'huggingface':
       case 'nvidia':
       case 'ollama':
