@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "Potrwa {{range}}",
+    "tight": "pamięci jest na styk",
+    "exceeds": "Wymaga ~{{required}} GB pamięci, dostępne {{available}} GB.",
+    "exceedsSwap": "Generowanie trafi do pliku wymiany i może trwać godzinami.",
+    "exceedsAdvice": "Zmniejsz rozdzielczość lub długość albo wybierz mniejszy model.",
+    "historyShort": "na podstawie wcześniejszych",
+    "history": "Szacunek na podstawie wcześniejszych generowań na tym komputerze",
+    "units": {
+      "s": "s",
+      "min": "min",
+      "h": "godz."
+    }
+  },
+  "confirmExceeds": {
+    "title": "Ten klip nie zmieści się w pamięci",
+    "body": "Generowanie trafi do pliku wymiany: komputer zwolni, a klip może powstawać godzinami. Możesz je zatrzymać w każdej chwili.",
+    "confirm": "Mimo to generuj"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "zostało {{duration}}",
+    "finishing": "Kończenie klipu…",
+    "slowdown": {
+      "title": "Generowanie mocno zwolniło",
+      "body": "Prawdopodobnie brakuje pamięci. Niższa rozdzielczość lub krótszy klip przyspieszą pracę.",
+      "stop": "Zatrzymaj"
     }
   },
   "gallery": {

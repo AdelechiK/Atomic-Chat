@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "Leva {{range}}",
+    "tight": "memória no limite",
+    "exceeds": "Precisa de ~{{required}} GB de memória; há {{available}} GB disponíveis.",
+    "exceedsSwap": "A geração vai usar a memória de troca e pode levar horas.",
+    "exceedsAdvice": "Reduza a resolução ou a duração, ou escolha um modelo menor.",
+    "historyShort": "pelas execuções anteriores",
+    "history": "Estimado pelas suas gerações anteriores neste computador",
+    "units": {
+      "s": "s",
+      "min": "min",
+      "h": "h"
+    }
+  },
+  "confirmExceeds": {
+    "title": "Este clipe não cabe na memória",
+    "body": "A geração vai usar a memória de troca: o computador fica lento e o clipe pode levar horas. Você pode interromper a qualquer momento.",
+    "confirm": "Gerar mesmo assim"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "faltam {{duration}}",
+    "finishing": "Finalizando o clipe…",
+    "slowdown": {
+      "title": "A geração ficou muito mais lenta",
+      "body": "Provavelmente falta memória. Uma resolução menor ou um clipe mais curto serão mais rápidos.",
+      "stop": "Parar"
     }
   },
   "gallery": {

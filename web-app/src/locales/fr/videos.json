@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "Durée : {{range}}",
+    "tight": "mémoire juste",
+    "exceeds": "Nécessite ~{{required}} Go de mémoire, {{available}} Go disponibles.",
+    "exceedsSwap": "La génération débordera dans le swap et peut durer des heures.",
+    "exceedsAdvice": "Réduisez la résolution ou la durée, ou choisissez un modèle plus petit.",
+    "historyShort": "d'après les générations passées",
+    "history": "Estimé d'après vos générations passées sur cet ordinateur",
+    "units": {
+      "s": "s",
+      "min": "min",
+      "h": "h"
+    }
+  },
+  "confirmExceeds": {
+    "title": "Ce clip ne tient pas en mémoire",
+    "body": "La génération débordera dans le swap : l'ordinateur ralentira et le clip peut prendre des heures. Vous pouvez l'arrêter à tout moment.",
+    "confirm": "Générer quand même"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "encore {{duration}}",
+    "finishing": "Finalisation du clip…",
+    "slowdown": {
+      "title": "La génération a fortement ralenti",
+      "body": "La mémoire manque probablement. Une résolution plus basse ou un clip plus court iront plus vite.",
+      "stop": "Arrêter"
     }
   },
   "gallery": {

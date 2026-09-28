@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "Займёт {{range}}",
+    "tight": "памяти впритык",
+    "exceeds": "Нужно ~{{required}} ГБ памяти, доступно {{available}} ГБ.",
+    "exceedsSwap": "Генерация уйдёт в своп и может идти часами.",
+    "exceedsAdvice": "Уменьшите разрешение или длительность либо выберите модель меньше.",
+    "historyShort": "по прошлым генерациям",
+    "history": "Оценка по прошлым генерациям на этом компьютере",
+    "units": {
+      "s": "с",
+      "min": "мин",
+      "h": "ч"
+    }
+  },
+  "confirmExceeds": {
+    "title": "Ролик не поместится в память",
+    "body": "Генерация уйдёт в своп: компьютер замедлится, а ролик может делаться часами. Её можно остановить в любой момент.",
+    "confirm": "Всё равно генерировать"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "осталось {{duration}}",
+    "finishing": "Завершаем ролик…",
+    "slowdown": {
+      "title": "Генерация сильно замедлилась",
+      "body": "Вероятно, не хватает памяти. С меньшим разрешением или более коротким роликом будет быстрее.",
+      "stop": "Остановить"
     }
   },
   "gallery": {

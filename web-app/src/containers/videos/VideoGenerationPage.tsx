@@ -26,6 +26,10 @@ import {
 import { useVideoGalleryStore } from '@/stores/video-gallery-store'
 import { useVideoGenerationStore } from '@/stores/video-generation-store'
 import { VideoGalleryGrid } from './VideoGalleryGrid'
+import {
+  VideoGenerationProgress,
+  VideoSlowdownWarning,
+} from './VideoGenerationProgress'
 import { VideoPromptForm } from './VideoPromptForm'
 import { VideoViewer } from './VideoViewer'
 
@@ -86,6 +90,8 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
     (state) => state.generationStartedAtMs
   )
   const jobError = useVideoGenerationStore((state) => state.lastError)
+  const stopRequested = useVideoGenerationStore((state) => state.stopRequested)
+  const stopGeneration = useVideoGenerationStore((state) => state.stop)
   const clearJobError = useVideoGenerationStore((state) => state.clearError)
   const requestPoster = useVideoGenerationStore((state) => state.requestPoster)
   const patchForm = useVideoForm((state) => state.patch)
@@ -101,6 +107,8 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
     status?.model.state === 'loaded' &&
     status.model.loaded?.modality === 'video'
   const showLivePreview = generating && viewerMode === 'live'
+  // An older core never says; absent reads as no slowdown.
+  const slowedDown = generating && currentJob?.progress?.slowdown === true
   const pendingSize = {
     width: currentJob?.request.width || draftWidth,
     height: currentJob?.request.height || draftHeight,
@@ -275,6 +283,14 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
             />
           </div>
         )}
+        {slowedDown && (
+          <div className="shrink-0 px-6 pt-3">
+            <VideoSlowdownWarning
+              stopping={stopRequested}
+              onStop={() => void stopGeneration()}
+            />
+          </div>
+        )}
 
         {gallery.initialized && gallery.items.length === 0 && !generating ? (
           <div className="min-h-0 flex-1">
@@ -293,14 +309,22 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
               data-testid="video-viewer-section"
             >
               {showLivePreview ? (
-                <ImageGenerationPlaceholder
-                  variant="viewer"
-                  kind="video"
-                  width={pendingSize.width}
-                  height={pendingSize.height}
-                  progress={currentJob?.progress ?? null}
-                  startedAtMs={pendingStartedAtMs}
-                />
+                <div className="flex size-full min-h-0 flex-col">
+                  <div className="min-h-0 flex-1">
+                    <ImageGenerationPlaceholder
+                      variant="viewer"
+                      kind="video"
+                      width={pendingSize.width}
+                      height={pendingSize.height}
+                      progress={currentJob?.progress ?? null}
+                      startedAtMs={pendingStartedAtMs}
+                    />
+                  </div>
+                  <VideoGenerationProgress
+                    job={currentJob}
+                    startedAtMs={pendingStartedAtMs}
+                  />
+                </div>
               ) : (
                 <VideoViewer
                   item={gallery.selected}

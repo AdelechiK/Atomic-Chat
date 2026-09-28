@@ -35,6 +35,7 @@ import type {
   LoadDiffusionModelRequest,
   LoadedDiffusionModel,
   VideoCapabilities,
+  VideoEstimate,
   VideoGalleryPage,
   VideoGenerateRequest,
   VideoJob,
@@ -234,6 +235,22 @@ export class TauriDiffusionService extends DefaultDiffusionService {
     request: VideoGenerateRequest
   ): Promise<{ jobId: string }> {
     return coreCall<{ jobId: string }>('POST', '/video/jobs', request)
+  }
+
+  /** Any refusal counts as no estimate: a core without the route answers 404, and the form works as before. */
+  override async estimateVideo(
+    request: VideoGenerateRequest
+  ): Promise<VideoEstimate | null> {
+    try {
+      const { estimate } = await coreCall<{ estimate: VideoEstimate }>(
+        'POST',
+        '/video/estimate',
+        request
+      )
+      return estimate ?? null
+    } catch {
+      return null
+    }
   }
 
   override async getVideoJob(jobId: string): Promise<VideoJob | null> {

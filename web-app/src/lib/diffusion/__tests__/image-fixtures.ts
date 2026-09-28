@@ -316,6 +316,7 @@ export function makeFakeDiffusion(
       throw { code: 'MODEL_INCOMPATIBLE', message: 'The loaded model generates images, not video.' }
     }),
     generateVideo: vi.fn(async () => ({ jobId: 'vjob-1' })),
+    estimateVideo: vi.fn(async () => null),
     getVideoJob: vi.fn(async () => null),
     cancelVideoJob: vi.fn(async () => ({ cancelled: true, serverStopped: true })),
     listVideoGallery: vi.fn(async () => ({ items: [], hasMore: false, total: 0 })),

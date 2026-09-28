@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "約需 {{range}}",
+    "tight": "記憶體吃緊",
+    "exceeds": "需要約 {{required}} GB 記憶體，可用 {{available}} GB。",
+    "exceedsSwap": "生成將使用交換空間，可能需要數小時。",
+    "exceedsAdvice": "請降低解析度或長度，或選擇較小的模型。",
+    "historyShort": "依據過去的執行",
+    "history": "依據這台電腦過去的生成記錄估算",
+    "units": {
+      "s": "秒",
+      "min": "分鐘",
+      "h": "小時"
+    }
+  },
+  "confirmExceeds": {
+    "title": "此片段超出記憶體",
+    "body": "生成將使用交換空間：電腦會變慢，片段可能需要數小時。你可以隨時停止。",
+    "confirm": "仍要生成"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "剩餘 {{duration}}",
+    "finishing": "正在完成片段…",
+    "slowdown": {
+      "title": "生成速度明顯變慢",
+      "body": "可能是記憶體不足。降低解析度或縮短片段會更快。",
+      "stop": "停止"
     }
   },
   "gallery": {
