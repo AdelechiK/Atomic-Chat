@@ -28,6 +28,10 @@ const CodeBlockContext = createContext<CodeBlockContextType>({
   code: '',
 })
 
+// The number is drawn by a `::before` pseudo-element from `data-line-number`
+// rather than a text node: a selection copies text nodes (and WebKit copies
+// `user-select: none` text too), so every copied line came out prefixed with
+// its number (#280). Generated content is never part of a selection.
 const lineNumberTransformer: ShikiTransformer = {
   name: 'line-numbers',
   line(node, line) {
@@ -41,9 +45,13 @@ const lineNumberTransformer: ShikiTransformer = {
           'mr-4',
           'text-right',
           'text-muted-foreground',
+          'select-none',
+          'before:content-[attr(data-line-number)]',
         ],
+        dataLineNumber: String(line),
+        ariaHidden: 'true',
       },
-      children: [{ type: 'text', value: String(line) }],
+      children: [],
     })
   },
 }
