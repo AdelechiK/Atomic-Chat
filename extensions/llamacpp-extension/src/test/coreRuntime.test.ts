@@ -68,7 +68,6 @@ describe('TurboQuant runtime in the core', () => {
       'POST /settings/llamacpp/import': () => ({ status: 'imported', applied: [], conflicts: [], revision: 1 }),
       'GET /settings/llamacpp': () => ({ provider: 'llamacpp', revision: 2, values: { ctx_size: 4096 } }),
       'POST /settings/llamacpp/acknowledge': () => ({}),
-      'PUT /hardware/override': () => ({}),
       'POST /models/llamacpp/org/m/load': () => ({ session, created: true }),
     })
     const loaded = await extension().load('org/m', { ctx_size: 8192 }, false, true)
@@ -82,7 +81,6 @@ describe('TurboQuant runtime in the core', () => {
       'POST /settings/llamacpp/import',
       'GET /settings/llamacpp',
       'POST /settings/llamacpp/acknowledge',
-      'PUT /hardware/override',
       'POST /models/llamacpp/org/m/load',
     ])
     expect(calls.at(-1)?.body).toEqual({ overrides: { ctx_size: 8192 }, isEmbedding: false, bypassAutoUnload: true })
@@ -313,12 +311,20 @@ describe('TurboQuant runtime in the core', () => {
       refreshOptimalBackendCache: (o?: { hardwareHasNoGpu?: boolean }) => Promise<unknown>
     }
 
-    it('stores a detection in the core first, then keeps the local copy at the revision it got', async () => {
+    it('asks the core for a refresh and mirrors the record the core stored, never writing it itself', async () => {
+      // ADR 2026-09-27: the core detects, resolves and persists; the extension only mirrors.
       const calls = core({
-        'PUT /backends/llamacpp/optimal': (body) => {
-          const { optimal } = body as { optimal: unknown }
-          return { status: 'updated', current: { revision: 4, optimal } }
-        },
+        'POST /backends/llamacpp/recommendation': () => ({
+          provider: 'llamacpp',
+          mode: 'refresh',
+          outcome: 'cpu_optimal',
+          detection: { kind: 'cpu-optimal' },
+          record: cpuRecord,
+          revision: 4,
+          optimal: cpuRecord,
+          recommendation: null,
+          elapsed_ms: 1,
+        }),
       })
       const ext = extension() as unknown as OptimalInternals
       ext.config = { version_backend: 'b10018-1.3.0/linux-x64-vulkan' }
@@ -326,27 +332,40 @@ describe('TurboQuant runtime in the core', () => {
 
       const record = await ext.refreshOptimalBackendCache({ hardwareHasNoGpu: true })
 
-      expect(calls).toEqual([
-        { method: 'PUT', path: '/backends/llamacpp/optimal', body: { optimal: record, expected_revision: 3 } },
-      ])
-      expect(localStorage.setItem).toHaveBeenCalledWith(KEY, JSON.stringify(record))
+      expect(record).toEqual(cpuRecord)
+      expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['POST /backends/llamacpp/recommendation'])
+      expect(calls[0]?.body).toMatchObject({
+        mode: 'refresh',
+        assume_no_gpu: true,
+        current_backend: 'b10018-1.3.0/linux-x64-vulkan',
+      })
+      expect(localStorage.setItem).toHaveBeenCalledWith(KEY, JSON.stringify(cpuRecord))
       expect(ext.optimalRevision).toBe(4)
     })
 
-    it('takes the core record and rethrows when a newer revision won, leaving the local copy on it', async () => {
+    it('keeps the previous record and revision when the core could not complete the detection', async () => {
       core({
-        'PUT /backends/llamacpp/optimal': () =>
-          Promise.reject({ code: 'CONFLICT', message: 'revision changed' }),
-        'GET /backends/llamacpp/optimal': () => ({ revision: 7, optimal: cpuRecord }),
+        'POST /backends/llamacpp/recommendation': () => ({
+          provider: 'llamacpp',
+          mode: 'refresh',
+          outcome: 'detection_failed',
+          detection: { kind: 'detection-failed' },
+          record: null,
+          revision: 7,
+          optimal: cpuRecord,
+          recommendation: null,
+          elapsed_ms: 20_000,
+        }),
       })
       const ext = extension() as unknown as OptimalInternals
       ext.config = { version_backend: 'b10018-1.3.0/linux-x64-cuda-13.3' }
+      ext.optimalRevision = 7
 
       await expect(ext.refreshOptimalBackendCache({ hardwareHasNoGpu: true })).rejects.toThrow(
-        'revision changed [CONFLICT]'
+        'BACKEND_DETECTION_FAILED'
       )
       expect(ext.optimalRevision).toBe(7)
-      expect(vi.mocked(localStorage.setItem).mock.calls).toEqual([[KEY, JSON.stringify(cpuRecord)]])
+      expect(localStorage.setItem).not.toHaveBeenCalled()
     })
 
     it('adopts the stored record at startup, from the snapshot when there is one', async () => {

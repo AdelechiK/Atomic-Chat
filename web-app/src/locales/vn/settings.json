@@ -146,7 +146,12 @@
     "freeOf": "trống",
     "driverVersion": "Phiên bản trình điều khiển",
     "computeCapability": "Khả năng tính toán",
-    "systemMonitor": "Giám sát hệ thống"
+    "systemMonitor": "Giám sát hệ thống",
+    "detectionSource": {
+      "probe": "Detected by the Atomic core probe",
+      "override": "Detected by an injected override"
+    },
+    "detectionGap": "The core sees {{coreCount}} of {{usageCount}} GPUs; backend selection uses {{coreCount}}. Refresh to re-detect."
   },
   "httpsProxy": {
     "proxy": "Proxy",

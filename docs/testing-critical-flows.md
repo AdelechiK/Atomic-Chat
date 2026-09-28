@@ -22,11 +22,15 @@ Line coverage cannot raise a grade by itself.
 
 Production entrypoints:
 
-- `tauri-plugin-hardware` reports OS, architecture, GPUs, drivers, CUDA, and
-  Vulkan capabilities.
-- Both llama.cpp plugins map those facts through provider-specific
-  `get_supported_features`, `determine_supported_backends`, and
-  `prioritize_backends` paths.
+- The core probes OS, architecture, CPU flags, GPUs and drivers
+  (`GET /hardware/info`) and maps those facts to each provider's catalog,
+  recommendation and update check
+  (`POST /backends/:provider/{catalog,recommendation,updates}`);
+  `tauri-plugin-hardware` only polls GPU usage for the System Monitor.
+- Both llama.cpp plugins still carry the provider-specific
+  `get_supported_features`, `determine_supported_backends` and
+  `prioritize_backends` commands, deprecated: their tables are the source of
+  the fixtures that pin the core's port.
 - Both llama.cpp extensions filter their provider manifest and map internal
   backend ids to exact archive URLs.
 - `web-app/src/lib/utils.ts` selects the product-default provider.
@@ -50,11 +54,26 @@ Existing evidence:
   selected backends resolve to published manifest assets.
 - The TurboQuant extension now covers remote-manifest transport fallback and
   hardware recommendation parity with upstream.
+- The Rust decision tables of both plugins are pinned as the fixture sets
+  `tests/fixtures/core-contracts/backend-select/` (upstream, 165 cases) and
+  `backend-select-llamacpp/` (TurboQuant, 174 cases), emitted by each plugin's
+  `backend_select_fixture_dump.rs`: driver floors (550 / 551.61 / 581.14 /
+  581.15 / 581.42; the fork's 527.41), the compute-capability vetoes (5.2 /
+  6.1 / 7.0 / 7.5 / 10.0 / 12.0, one old card vetoing the host), the Windows
+  ROCm PCI table and the Linux ROCm facts, every `os-arch` row including the
+  `Unsupported system type` error, priority with and without VRAM, numeric tag
+  ordering, legacy id migration and the `version_backend` setting update. The
+  core replays them (test/contract/backend-select.test.ts there); one shape
+  divergence is recorded in each set's `known_divergence`.
 
 Gap:
 
-- The shared profile fixture does not yet drive both Rust feature detection and
-  TypeScript asset selection in one cross-language test.
+- The six machine profiles now run through the Rust feature detection as the
+  `features_profile_*` fixture cases, but nothing yet joins them to the
+  TypeScript asset selection in one cross-language test. The
+  `windows-x64-amd-rdna3-rocm` profile's `device_id` 30284 is `0x764c`, not
+  the `0x744c` its comment claims, so the Rust gate and the core both report
+  `rocm: false` for it.
 - macOS Intel has no published TurboQuant tag in the current fork release
   catalog. The build now skips that pairing, but there is no executable test
   for the build-time branch.

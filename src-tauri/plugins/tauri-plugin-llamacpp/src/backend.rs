@@ -197,6 +197,7 @@ pub struct SupportedBackendsResult {
     merged_backends: Vec<BackendInfo>,
 }
 
+/// Deprecated: decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); kept as the fixture source for the core's contract tests.
 #[tauri::command]
 pub fn determine_supported_backends(
     os_type: String,
@@ -341,6 +342,7 @@ fn compare_backend_versions_for_sort(
     left.backend.cmp(&right.backend)
 }
 
+/// Deprecated: decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); kept as the fixture source for the core's contract tests.
 #[tauri::command]
 pub async fn list_supported_backends(
     remote_backend_versions: Vec<BackendInfo>,
@@ -570,6 +572,7 @@ fn host_has_rocm_runtime() -> bool {
     false
 }
 
+/// Deprecated: decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); kept as the fixture source for the core's contract tests.
 #[tauri::command]
 pub fn get_supported_features(
     os_type: String,
@@ -701,6 +704,7 @@ pub struct BackendConfigResult {
     pub settings_updated: bool,
 }
 
+/// Deprecated: decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); kept as the fixture source for the core's contract tests.
 #[tauri::command]
 pub fn find_latest_version_for_backend(
     version_backends: Vec<BackendInfo>,
@@ -723,6 +727,7 @@ pub fn find_latest_version_for_backend(
     ))
 }
 
+/// Deprecated: decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); kept as the fixture source for the core's contract tests.
 #[tauri::command]
 pub async fn prioritize_backends(
     version_backends: Vec<BackendInfo>,
@@ -858,6 +863,7 @@ pub fn parse_backend_version(version_string: String) -> u32 {
     numeric.parse::<u32>().unwrap_or(0)
 }
 
+/// Deprecated: decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); kept as the fixture source for the core's contract tests.
 #[tauri::command]
 pub async fn check_backend_for_updates(
     current_backend_string: String,
@@ -979,6 +985,7 @@ pub async fn remove_old_backend_versions(
     Ok(removed_paths)
 }
 
+/// Deprecated: decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); kept as the fixture source for the core's contract tests.
 #[tauri::command]
 pub fn should_migrate_backend(
     stored_backend_type: String,
@@ -1026,6 +1033,7 @@ pub struct SettingUpdateResult {
     pub backend: Option<String>,
 }
 
+/// Deprecated: decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); kept as the fixture source for the core's contract tests.
 #[tauri::command]
 pub fn handle_setting_update(
     key: String,
@@ -2151,3 +2159,7 @@ mod tests {
         assert_eq!(result, None);
     }
 }
+
+#[cfg(test)]
+#[path = "backend_select_fixture_dump.rs"]
+mod backend_select_fixture_dump;
