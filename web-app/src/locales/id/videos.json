@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "Butuh {{range}}",
+    "tight": "memori pas-pasan",
+    "exceeds": "Butuh ~{{required}} GB memori, tersedia {{available}} GB.",
+    "exceedsSwap": "Pembuatan akan memakai swap dan bisa berjalan berjam-jam.",
+    "exceedsAdvice": "Turunkan resolusi atau durasi, atau pilih model yang lebih kecil.",
+    "historyShort": "dari riwayat",
+    "history": "Perkiraan dari pembuatan sebelumnya di komputer ini",
+    "units": {
+      "s": "dtk",
+      "min": "mnt",
+      "h": "jam"
+    }
+  },
+  "confirmExceeds": {
+    "title": "Klip ini tidak muat di memori",
+    "body": "Pembuatan akan memakai swap: komputer melambat dan klip bisa memakan waktu berjam-jam. Anda bisa menghentikannya kapan saja.",
+    "confirm": "Tetap buat"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "sisa {{duration}}",
+    "finishing": "Menyelesaikan klip…",
+    "slowdown": {
+      "title": "Pembuatan melambat drastis",
+      "body": "Kemungkinan memori tidak cukup. Resolusi lebih rendah atau klip lebih pendek akan lebih cepat.",
+      "stop": "Hentikan"
     }
   },
   "gallery": {

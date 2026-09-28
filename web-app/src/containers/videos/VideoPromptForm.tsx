@@ -54,7 +54,9 @@ import { useTranslation } from '@/i18n/react-i18next-compat'
 import { cn } from '@/lib/utils'
 import { durationOptions } from '@/lib/video/duration'
 import { useImageGenerationStore } from '@/stores/image-generation-store'
+import { ConfirmVideoExceedsMemory } from './ConfirmVideoExceedsMemory'
 import { VideoDurationSelect } from './VideoDurationSelect'
+import { VideoEstimateLine } from './VideoEstimateLine'
 import { VideoResolutionSelect } from './VideoResolutionSelect'
 
 /** Until a model reports its presets: LTX's landscape default. */
@@ -291,6 +293,9 @@ export const VideoPromptForm = memo(function VideoPromptForm({
             onGenerate={() => void generation.generate()}
             onStop={() => void generation.stop()}
           />
+          <VideoEstimateLine estimate={generation.estimate} />
+          {/* Portalled out of the form: its buttons never submit it. */}
+          <ConfirmVideoExceedsMemory {...generation.confirmation} />
         </div>
 
         {showNegative && (

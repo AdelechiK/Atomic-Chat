@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "所要時間 {{range}}",
+    "tight": "メモリがぎりぎりです",
+    "exceeds": "約 {{required}} GB のメモリが必要です（使用可能 {{available}} GB）。",
+    "exceedsSwap": "スワップが発生し、数時間かかる場合があります。",
+    "exceedsAdvice": "解像度や長さを下げるか、より小さいモデルを選んでください。",
+    "historyShort": "過去の実行から",
+    "history": "このコンピューターでの過去の生成から推定",
+    "units": {
+      "s": "秒",
+      "min": "分",
+      "h": "時間"
+    }
+  },
+  "confirmExceeds": {
+    "title": "このクリップはメモリに収まりません",
+    "body": "生成はスワップを使うため、コンピューターが遅くなり、数時間かかる場合があります。いつでも停止できます。",
+    "confirm": "それでも生成"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "残り {{duration}}",
+    "finishing": "クリップを仕上げています…",
+    "slowdown": {
+      "title": "生成が大幅に遅くなりました",
+      "body": "メモリが不足している可能性があります。解像度を下げるか短いクリップにすると速くなります。",
+      "stop": "停止"
     }
   },
   "gallery": {

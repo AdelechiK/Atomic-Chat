@@ -15,6 +15,7 @@ import {
   captureImageGenerate,
   captureVideoGalleryAction,
   captureVideoGenerate,
+  videoEstimateProps,
 } from '../telemetry'
 
 describe('diffusion telemetry', () => {
@@ -36,6 +37,11 @@ describe('diffusion telemetry', () => {
       steps: 8,
       duration_ms: 65_000,
       error_code: null,
+      estimate_verdict: 'fits',
+      estimate_low_s: 300,
+      estimate_high_s: 600,
+      estimate_basis: 'heuristic',
+      slowdown_seen: false,
     })
     expect(captured.events).toEqual([
       [
@@ -53,6 +59,11 @@ describe('diffusion telemetry', () => {
           steps: 8,
           duration_ms: 65_000,
           error_code: null,
+          estimate_verdict: 'fits',
+          estimate_low_s: 300,
+          estimate_high_s: 600,
+          estimate_basis: 'heuristic',
+          slowdown_seen: false,
         },
       ],
     ])
@@ -62,6 +73,37 @@ describe('diffusion telemetry', () => {
     expect(keys).not.toContain('path')
     // The names PostHog has typed for other events are never reused bare.
     expect(keys).not.toContain('status')
+  })
+
+  it('reads the estimate fields off a job: none without an estimate, no range when it exceeds', () => {
+    expect(videoEstimateProps({ progress: null })).toEqual({
+      estimate_verdict: 'none',
+      estimate_low_s: null,
+      estimate_high_s: null,
+      estimate_basis: null,
+      slowdown_seen: false,
+    })
+    expect(
+      videoEstimateProps({
+        estimate: {
+          memory: {
+            requiredBytes: 2,
+            budgetBytes: 1,
+            pool: 'unified',
+            verdict: 'exceeds',
+          },
+          seconds: null,
+          basis: 'history',
+        },
+        progress: { slowdown: true },
+      })
+    ).toEqual({
+      estimate_verdict: 'exceeds',
+      estimate_low_s: null,
+      estimate_high_s: null,
+      estimate_basis: 'history',
+      slowdown_seen: true,
+    })
   })
 
   it('sends a gallery action under the video event name', () => {

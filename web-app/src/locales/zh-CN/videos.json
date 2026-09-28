@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "约需 {{range}}",
+    "tight": "内存紧张",
+    "exceeds": "需要约 {{required}} GB 内存，可用 {{available}} GB。",
+    "exceedsSwap": "生成将使用交换空间，可能需要数小时。",
+    "exceedsAdvice": "请降低分辨率或时长，或选择更小的模型。",
+    "historyShort": "基于以往运行",
+    "history": "根据本机以往的生成记录估算",
+    "units": {
+      "s": "秒",
+      "min": "分钟",
+      "h": "小时"
+    }
+  },
+  "confirmExceeds": {
+    "title": "此片段超出内存",
+    "body": "生成将使用交换空间：电脑会变慢，片段可能需要数小时。你可以随时停止。",
+    "confirm": "仍然生成"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "剩余 {{duration}}",
+    "finishing": "正在完成片段…",
+    "slowdown": {
+      "title": "生成速度明显变慢",
+      "body": "可能是内存不足。降低分辨率或缩短片段会更快。",
+      "stop": "停止"
     }
   },
   "gallery": {

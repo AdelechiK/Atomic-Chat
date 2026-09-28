@@ -1,10 +1,15 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/shallow'
 
 import { parseSeedText } from '@/hooks/useImageForm'
+import { useVideoEstimate } from '@/hooks/useVideoEstimate'
 import { useVideoForm } from '@/hooks/useVideoForm'
 import { useVideoSetting } from '@/hooks/useVideoSetting'
-import type { VideoGenerateRequest, VideoJob } from '@/services/diffusion/types'
+import type {
+  VideoEstimate,
+  VideoGenerateRequest,
+  VideoJob,
+} from '@/services/diffusion/types'
 import { useImageGenerationStore } from '@/stores/image-generation-store'
 import { useVideoGenerationStore } from '@/stores/video-generation-store'
 
@@ -15,6 +20,21 @@ export type VideoGenerateDisabledReason =
   | 'modelLoading'
   | 'emptyPrompt'
   | 'busy'
+
+/** What `ConfirmVideoExceedsMemory` renders from. */
+export type VideoExceedsConfirmation = {
+  open: boolean
+  /** Kept through the closing animation so the figures do not blank out. */
+  estimate: VideoEstimate | null
+  onCancel: () => void
+  onConfirm: () => void
+}
+
+type PendingLaunch = {
+  estimate: VideoEstimate
+  request: VideoGenerateRequest
+  seed: number | null
+}
 
 export type VideoGenerationHandle = {
   generating: boolean
@@ -27,15 +47,23 @@ export type VideoGenerationHandle = {
   /** The request the form would submit right now. */
   request: VideoGenerateRequest
   seed: number | null
+  /** The core's estimate of the draft; null while there is none. */
+  estimate: VideoEstimate | null
+  /** Asked before a draft whose estimate exceeds memory starts. */
+  confirmation: VideoExceedsConfirmation
   generate: () => Promise<void>
   stop: () => Promise<void>
 }
 
 /**
  * Bridges the persisted Video form and the video job store: builds the
- * request, decides whether Generate is allowed (and why not), and forwards
- * the two verbs. No state of its own. Busy means either page is generating:
- * the two share one engine session.
+ * request, decides whether Generate is allowed (and why not), keeps the
+ * core's estimate of the draft, and forwards the two verbs. Busy means
+ * either page is generating: the two share one engine session.
+ *
+ * A draft the core says exceeds memory is not started straight away: the
+ * `confirmation` asks first, Cancel is its default answer, and "Generate
+ * anyway" starts exactly the draft that was asked about.
  */
 export function useVideoGeneration(): VideoGenerationHandle {
   const form = useVideoForm(
@@ -110,6 +138,13 @@ export function useVideoGeneration(): VideoGenerationHandle {
     }
   }, [form, capabilities])
 
+  const estimates = useVideoEstimate(
+    request,
+    modelReady ? (loaded?.modelId ?? null) : null
+  )
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pending, setPending] = useState<PendingLaunch | null>(null)
+
   const disabledReason: VideoGenerateDisabledReason | null =
     generating || imageGenerating
       ? 'busy'
@@ -123,10 +158,24 @@ export function useVideoGeneration(): VideoGenerationHandle {
               ? 'emptyPrompt'
               : null
 
+  const { current } = estimates
   const generate = useCallback(async () => {
     if (disabledReason) return
+    const estimate = await current()
+    if (estimate?.memory.verdict === 'exceeds') {
+      setPending({ estimate, request, seed })
+      setConfirmOpen(true)
+      return
+    }
     await startGeneration({ request, seed })
-  }, [disabledReason, startGeneration, request, seed])
+  }, [disabledReason, current, startGeneration, request, seed])
+
+  const onCancel = useCallback(() => setConfirmOpen(false), [])
+  const onConfirm = useCallback(() => {
+    setConfirmOpen(false)
+    if (pending)
+      void startGeneration({ request: pending.request, seed: pending.seed })
+  }, [pending, startGeneration])
 
   return {
     generating,
@@ -137,6 +186,13 @@ export function useVideoGeneration(): VideoGenerationHandle {
     disabledReason,
     request,
     seed,
+    estimate: estimates.estimate,
+    confirmation: {
+      open: confirmOpen,
+      estimate: pending?.estimate ?? null,
+      onCancel,
+      onConfirm,
+    },
     generate,
     stop,
   }

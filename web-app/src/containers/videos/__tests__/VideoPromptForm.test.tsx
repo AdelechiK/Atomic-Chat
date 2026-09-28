@@ -10,6 +10,7 @@ import {
 import {
   LTX_Q4_ID,
   makeVideoCapabilities,
+  makeVideoEstimate,
   makeVideoLoadedStatus,
   makeWanCapabilities,
 } from '@/lib/diffusion/__tests__/video-fixtures'
@@ -22,7 +23,13 @@ vi.mock('@/i18n/react-i18next-compat', () => ({
         ? `${values?.seconds}s · ${values?.frames} frames`
         : key === 'videos:form.fps'
           ? `${values?.fps} fps`
-          : key,
+          : key === 'videos:estimate.duration'
+            ? `Takes ${values?.range}`
+            : key === 'videos:estimate.exceeds'
+              ? `Needs ${values?.required} GB, ${values?.available} GB available`
+              : key.startsWith('videos:estimate.units.')
+                ? key.slice('videos:estimate.units.'.length)
+                : key,
   }),
 }))
 vi.mock('@tanstack/react-router', () => ({
@@ -228,5 +235,89 @@ describe('VideoPromptForm', () => {
     })
     expect(useImageSetting.getState().keepModelLoaded).toBe(true)
     expect(fake.configure).toHaveBeenCalled()
+  })
+
+  describe('the estimate', () => {
+    it('reads a range of time when the clip fits', async () => {
+      fake.estimateVideo.mockResolvedValue(makeVideoEstimate('fits'))
+      render(<VideoPromptForm />)
+      const line = await screen.findByTestId('video-estimate')
+      expect(line).toHaveAttribute('data-verdict', 'fits')
+      expect(line).toHaveTextContent('Takes ~4–7 min')
+      expect(line).not.toHaveTextContent('videos:estimate.tight')
+      expect(
+        screen.queryByTestId('video-estimate-history')
+      ).not.toBeInTheDocument()
+      // The form's numbers go to the core, never the prompt.
+      expect(fake.estimateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'estimate',
+          width: 768,
+          height: 512,
+          frames: 121,
+          steps: 8,
+        })
+      )
+    })
+
+    it('warns when memory is tight, and marks an estimate made from this machine’s clips', async () => {
+      fake.estimateVideo.mockResolvedValue(
+        makeVideoEstimate('tight', { basis: 'history' })
+      )
+      render(<VideoPromptForm />)
+      const line = await screen.findByTestId('video-estimate')
+      expect(line).toHaveAttribute('data-verdict', 'tight')
+      expect(line).toHaveTextContent('Takes ~4–7 min')
+      expect(line).toHaveTextContent('videos:estimate.tight')
+      expect(screen.getByTestId('video-estimate-history')).toHaveTextContent(
+        'videos:estimate.historyShort'
+      )
+    })
+
+    it('says what an exceeding clip needs against what there is, and what to change', async () => {
+      fake.estimateVideo.mockResolvedValue(makeVideoEstimate('exceeds'))
+      render(<VideoPromptForm />)
+      const line = await screen.findByTestId('video-estimate')
+      expect(line).toHaveAttribute('data-verdict', 'exceeds')
+      expect(line).toHaveTextContent('Needs 27.3 GB, 13.6 GB available')
+      expect(line).toHaveTextContent('videos:estimate.exceedsSwap')
+      expect(line).toHaveTextContent('videos:estimate.exceedsAdvice')
+    })
+
+    it('shows nothing when the core has no estimate, and Generate works as before', async () => {
+      fake.estimateVideo.mockResolvedValue(null)
+      useVideoForm.setState({ prompt: 'a cat' })
+      render(<VideoPromptForm />)
+      await vi.waitFor(() => expect(fake.estimateVideo).toHaveBeenCalled())
+      await act(async () => {})
+      expect(screen.queryByTestId('video-estimate')).not.toBeInTheDocument()
+      await act(async () => {
+        await userEvent.click(screen.getByTestId('image-generate'))
+      })
+      expect(fake.generateVideo).toHaveBeenCalledTimes(1)
+      expect(
+        screen.queryByTestId('video-exceeds-dialog')
+      ).not.toBeInTheDocument()
+    })
+
+    it('asks before generating a clip that exceeds memory', async () => {
+      fake.estimateVideo.mockResolvedValue(makeVideoEstimate('exceeds'))
+      useVideoForm.setState({ prompt: 'a cat' })
+      render(<VideoPromptForm />)
+      await screen.findByTestId('video-estimate')
+      await act(async () => {
+        await userEvent.click(screen.getByTestId('image-generate'))
+      })
+      expect(screen.getByTestId('video-exceeds-dialog')).toHaveTextContent(
+        'Needs 27.3 GB, 13.6 GB available'
+      )
+      expect(fake.generateVideo).not.toHaveBeenCalled()
+      await act(async () => {
+        await userEvent.click(screen.getByText('videos:confirmExceeds.confirm'))
+      })
+      expect(fake.generateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'a cat', frames: 121 })
+      )
+    })
   })
 })

@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "Potrvá {{range}}",
+    "tight": "paměti je těsně",
+    "exceeds": "Potřebuje ~{{required}} GB paměti, k dispozici je {{available}} GB.",
+    "exceedsSwap": "Přejde do swapu a může běžet celé hodiny.",
+    "exceedsAdvice": "Snižte rozlišení nebo délku, nebo vyberte menší model.",
+    "historyShort": "podle minulých běhů",
+    "history": "Odhad podle vašich minulých generování na tomto počítači",
+    "units": {
+      "s": "s",
+      "min": "min",
+      "h": "h"
+    }
+  },
+  "confirmExceeds": {
+    "title": "Klip se nevejde do paměti",
+    "body": "Generování přejde do swapu: počítač se zpomalí a klip může trvat hodiny. Kdykoli ho můžete zastavit.",
+    "confirm": "Přesto generovat"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "zbývá {{duration}}",
+    "finishing": "Dokončuji klip…",
+    "slowdown": {
+      "title": "Generování se výrazně zpomalilo",
+      "body": "Počítači nejspíš dochází paměť. S nižším rozlišením nebo kratším klipem to půjde rychleji.",
+      "stop": "Zastavit"
     }
   },
   "gallery": {

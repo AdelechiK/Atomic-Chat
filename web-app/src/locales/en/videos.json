@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "Takes {{range}}",
+    "tight": "memory is tight",
+    "exceeds": "Needs ~{{required}} GB of memory, {{available}} GB available.",
+    "exceedsSwap": "It will spill into swap and may run for hours.",
+    "exceedsAdvice": "Lower the resolution or the length, or pick a smaller model.",
+    "historyShort": "from past runs",
+    "history": "Estimated from your past generations on this computer",
+    "units": {
+      "s": "s",
+      "min": "min",
+      "h": "h"
+    }
+  },
+  "confirmExceeds": {
+    "title": "This clip won't fit in memory",
+    "body": "The generation will spill into swap: the computer slows down and the clip may take hours. You can stop it at any time.",
+    "confirm": "Generate anyway"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "{{duration}} left",
+    "finishing": "Finishing the clip…",
+    "slowdown": {
+      "title": "Generation has slowed down sharply",
+      "body": "The computer is probably out of memory. A lower resolution or a shorter clip will go faster.",
+      "stop": "Stop"
     }
   },
   "gallery": {

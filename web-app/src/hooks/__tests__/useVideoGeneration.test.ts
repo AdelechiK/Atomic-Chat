@@ -7,6 +7,7 @@ import {
 } from '@/lib/diffusion/__tests__/image-fixtures'
 import {
   makeVideoCapabilities,
+  makeVideoEstimate,
   makeVideoLoadedStatus,
   makeWanCapabilities,
   LTX_Q4_ID,
@@ -19,8 +20,10 @@ import { useVideoGenerationStore } from '@/stores/video-generation-store'
 import { useVideoGeneration } from '../useVideoGeneration'
 
 describe('useVideoGeneration', () => {
+  let fake: ReturnType<typeof makeFakeDiffusion>
   beforeEach(() => {
-    seedServiceHub({ diffusion: makeFakeDiffusion() })
+    fake = makeFakeDiffusion()
+    seedServiceHub({ diffusion: fake })
     useImageGenerationStore.getState().reset()
     useVideoGenerationStore.getState().reset()
     useVideoForm.setState({ ...DEFAULT_VIDEO_FORM, prompt: 'a lighthouse' })
@@ -122,5 +125,51 @@ describe('useVideoGeneration', () => {
     act(() => useVideoForm.setState({ prompt: '' }))
     await act(() => result.current.generate())
     expect(start).toHaveBeenCalledTimes(1)
+  })
+
+  describe('before a clip that may not fit', () => {
+    const arrange = (verdict: 'fits' | 'tight' | 'exceeds' | null) => {
+      fake.estimateVideo.mockResolvedValue(
+        verdict === null ? null : makeVideoEstimate(verdict)
+      )
+      const start = vi.fn(async () => {})
+      useVideoGenerationStore.setState({ startGeneration: start })
+      return { start, hook: renderHook(() => useVideoGeneration()) }
+    }
+
+    it.each(['fits', 'tight', null] as const)(
+      'starts at once when the estimate is %s',
+      async (verdict) => {
+        const { start, hook } = arrange(verdict)
+        await act(() => hook.result.current.generate())
+        expect(start).toHaveBeenCalledTimes(1)
+        expect(hook.result.current.confirmation.open).toBe(false)
+      }
+    )
+
+    it('asks when it exceeds memory, and a cancel starts nothing', async () => {
+      const { start, hook } = arrange('exceeds')
+      await act(() => hook.result.current.generate())
+      expect(start).not.toHaveBeenCalled()
+      expect(hook.result.current.confirmation).toMatchObject({
+        open: true,
+        estimate: makeVideoEstimate('exceeds'),
+      })
+      act(() => hook.result.current.confirmation.onCancel())
+      expect(hook.result.current.confirmation.open).toBe(false)
+      expect(start).not.toHaveBeenCalled()
+    })
+
+    it('starts the draft that was asked about once the user says so anyway', async () => {
+      useVideoForm.setState({ seedText: '11' })
+      const { start, hook } = arrange('exceeds')
+      await act(() => hook.result.current.generate())
+      const asked = hook.result.current.request
+      // The draft moves on behind the dialog; the answer is about the one that was asked.
+      act(() => useVideoForm.setState({ prompt: 'a different prompt' }))
+      act(() => hook.result.current.confirmation.onConfirm())
+      expect(start).toHaveBeenCalledWith({ request: asked, seed: 11 })
+      expect(hook.result.current.confirmation.open).toBe(false)
+    })
   })
 })

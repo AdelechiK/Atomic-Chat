@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "Dauert {{range}}",
+    "tight": "Speicher ist knapp",
+    "exceeds": "Benötigt ~{{required}} GB Speicher, verfügbar sind {{available}} GB.",
+    "exceedsSwap": "Die Generierung weicht in den Auslagerungsspeicher aus und kann Stunden dauern.",
+    "exceedsAdvice": "Verringere Auflösung oder Länge oder wähle ein kleineres Modell.",
+    "historyShort": "aus früheren Läufen",
+    "history": "Geschätzt aus deinen früheren Generierungen auf diesem Computer",
+    "units": {
+      "s": "s",
+      "min": "Min.",
+      "h": "Std."
+    }
+  },
+  "confirmExceeds": {
+    "title": "Dieser Clip passt nicht in den Speicher",
+    "body": "Die Generierung weicht in den Auslagerungsspeicher aus: Der Computer wird langsam, und der Clip kann Stunden dauern. Du kannst sie jederzeit stoppen.",
+    "confirm": "Trotzdem generieren"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "noch {{duration}}",
+    "finishing": "Clip wird fertiggestellt…",
+    "slowdown": {
+      "title": "Die Generierung ist stark langsamer geworden",
+      "body": "Vermutlich reicht der Speicher nicht. Mit geringerer Auflösung oder kürzerem Clip geht es schneller.",
+      "stop": "Stoppen"
     }
   },
   "gallery": {

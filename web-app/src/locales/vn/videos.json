@@ -60,6 +60,25 @@
       "busy": "A generation is already running."
     }
   },
+  "estimate": {
+    "duration": "Mất {{range}}",
+    "tight": "bộ nhớ sát giới hạn",
+    "exceeds": "Cần ~{{required}} GB bộ nhớ, còn trống {{available}} GB.",
+    "exceedsSwap": "Quá trình tạo sẽ dùng swap và có thể kéo dài hàng giờ.",
+    "exceedsAdvice": "Giảm độ phân giải hoặc thời lượng, hoặc chọn mô hình nhỏ hơn.",
+    "historyShort": "theo các lần trước",
+    "history": "Ước tính theo các lần tạo trước trên máy tính này",
+    "units": {
+      "s": "giây",
+      "min": "phút",
+      "h": "giờ"
+    }
+  },
+  "confirmExceeds": {
+    "title": "Clip này không vừa bộ nhớ",
+    "body": "Quá trình tạo sẽ dùng swap: máy tính chậm lại và clip có thể mất hàng giờ. Bạn có thể dừng bất cứ lúc nào.",
+    "confirm": "Vẫn tạo"
+  },
   "progress": {
     "generatingVideo": "Generating video",
     "finalizingVideo": "Encoding video…",
@@ -76,6 +95,13 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "còn {{duration}}",
+    "finishing": "Đang hoàn tất clip…",
+    "slowdown": {
+      "title": "Quá trình tạo chậm đi đáng kể",
+      "body": "Có thể máy thiếu bộ nhớ. Độ phân giải thấp hơn hoặc clip ngắn hơn sẽ nhanh hơn.",
+      "stop": "Dừng"
     }
   },
   "gallery": {

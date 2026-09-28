@@ -33,8 +33,9 @@ decision is reversed, add a new one that says which record it supersedes.
 
 ---
 
-## Local image & video generation (12)
+## Local image & video generation (13)
 
+- **2026-09-28** — [Show the core's video estimate, and confirm before a clip that swaps](2026-09-28-show-a-video-estimate-and-confirm-before-swapping.md)
 - **2026-09-22** — [Wire the chat side of the GPU arbitration at the model-load chokepoint](2026-09-22-wire-the-chat-side-of-the-gpu-arbitration.md) — `releaseGpuForChat` was defined by the 2026-09-10 record and called from nowhere.
 
 - **2026-09-21** — [Gate Qwen-Image-2.1 on the installed engine](2026-09-21-gate-qwen-image-2-1-on-installed-engine.md)

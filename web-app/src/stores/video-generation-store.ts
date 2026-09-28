@@ -5,7 +5,10 @@ import { i18n } from '@/i18n/react-i18next-compat'
 import { toDiffusionError } from '@/lib/diffusion/errors'
 import { shouldReportGenerateError } from '@/lib/diffusion/generation-stop'
 import { parseArtifactId } from '@/lib/diffusion/models'
-import { captureVideoGenerate } from '@/lib/diffusion/telemetry'
+import {
+  captureVideoGenerate,
+  videoEstimateProps,
+} from '@/lib/diffusion/telemetry'
 import { notifyThreadCompleted } from '@/lib/notifications'
 import { capturePosterForClip, PosterBackfillQueue } from '@/lib/video/poster'
 import { validateVideoRequest } from '@/lib/video/validate'
@@ -185,6 +188,7 @@ export const useVideoGenerationStore = create<VideoGenerationState>()((
       steps: job.request.steps,
       duration_ms: duration,
       error_code: job.error?.code ?? null,
+      ...videoEstimateProps(job),
     })
   }
 
