@@ -39,6 +39,7 @@
       "title": "Edit",
       "hint": "Change an image with an instruction"
     },
+    "choose": "Mode",
     "unavailable": "Запущенная модель не поддерживает этот режим",
     "unavailableSelected": "Выбранная модель не поддерживает этот режим",
     "compatibleModelTitle": "Для режима «{{workflow}}» нужна совместимая модель",

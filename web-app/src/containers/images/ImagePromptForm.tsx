@@ -2,6 +2,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type KeyboardEvent,
   type ReactNode,
@@ -53,12 +54,17 @@ import {
 } from '@/hooks/useImageSetting'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import type { DimConstraints } from '@/lib/diffusion/size'
-import { workflowSpec } from '@/lib/diffusion/workflows'
+import {
+  IMAGE_WORKFLOWS,
+  workflowPath,
+  workflowSpec,
+} from '@/lib/diffusion/workflows'
 import { cn } from '@/lib/utils'
 import { useImageGenerationStore } from '@/stores/image-generation-store'
 import { ImageField, ImageFieldHint } from './ImageField'
 import { ImageApiSettingsCard } from './ImageApiSettingsCard'
 import { ImageWorkflowInputs } from './ImageWorkflowInputs'
+import { MediaModeSelect } from './MediaModeSelect'
 import { WORKFLOW_ICONS } from './workflowIcons'
 import { ImageGenerateButton } from './ImageGenerateButton'
 import { ImageModelPicker } from './ImageModelPicker'
@@ -181,7 +187,16 @@ export const ImagePromptForm = memo(function ImagePromptForm({
   const showGuidance = capabilities?.supportsGuidance ?? false
   const busy = generation.generating
   const spec = workflowSpec(form.workflow)
-  const WorkflowIcon = WORKFLOW_ICONS[form.workflow]
+  const modes = useMemo(
+    () =>
+      IMAGE_WORKFLOWS.map(({ id }) => ({
+        id,
+        icon: WORKFLOW_ICONS[id],
+        title: t(`images:workflow.${id}.title`),
+        hint: t(`images:workflow.${id}.hint`),
+      })),
+    [t]
+  )
   const isEdit = form.workflow === 'edit'
   const idleLabel = (minutes: number) =>
     minutes === 0
@@ -241,20 +256,16 @@ export const ImagePromptForm = memo(function ImagePromptForm({
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-6 pt-4 pb-4 [scrollbar-gutter:stable]"
         data-testid="image-form-scroller"
       >
-        {/* The sidebar names the section; this names what the column does. */}
+        {/* The sidebar names the section; the heading picks what the column
+            does. The route stays the source of truth, so a pick navigates. */}
         <div className="mb-1 flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <h2
-              className="flex items-center gap-2 font-studio text-xl font-medium leading-none"
-              data-testid="image-workflow-title"
-            >
-              <WorkflowIcon size={18} className="shrink-0" />
-              {t(`images:workflow.${form.workflow}.title`)}
-            </h2>
-            <p className="text-xs leading-snug text-muted-foreground">
-              {t(`images:workflow.${form.workflow}.hint`)}
-            </p>
-          </div>
+          <MediaModeSelect
+            modes={modes}
+            value={form.workflow}
+            onChange={(id) => navigate({ to: workflowPath(id) })}
+            label={t('images:workflow.choose')}
+            testIdPrefix="image"
+          />
           {capabilities && (
             <Tooltip>
               <TooltipTrigger asChild>

@@ -88,7 +88,7 @@ describe('VideoPromptForm', () => {
 
   it('keeps Generate disabled until there is a prompt, then submits the video request', async () => {
     render(<VideoPromptForm />)
-    expect(screen.getByTestId('video-form-title')).toHaveTextContent('videos:form.title')
+    expect(screen.getByTestId('video-workflow-title')).toHaveTextContent('videos:form.title')
     expect(screen.getByTestId('image-generate')).toBeDisabled()
 
     await act(async () => {
@@ -114,6 +114,25 @@ describe('VideoPromptForm', () => {
       })
     )
     expect(screen.getByTestId('image-stop')).toBeInTheDocument()
+  })
+
+  it('heads the column with the same mode selector as Images; image-to-video is listed as coming', async () => {
+    render(<VideoPromptForm />)
+    expect(screen.getByTestId('video-workflow-select')).toHaveAttribute('data-mode', 'create')
+
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('video-workflow-select'))
+    })
+    expect(screen.getByTestId('video-workflow-option-create')).toHaveAttribute('data-selected', 'true')
+    const imageToVideo = screen.getByTestId('video-workflow-option-image-to-video')
+    expect(imageToVideo).toHaveAttribute('data-disabled')
+    expect(imageToVideo).toHaveTextContent('videos:workflow.imageToVideo.title')
+    expect(imageToVideo).toHaveTextContent('videos:workflow.soon')
+
+    await act(async () => {
+      await userEvent.click(imageToVideo)
+    })
+    expect(screen.getByTestId('video-workflow-select')).toHaveAttribute('data-mode', 'create')
   })
 
   it('submits on Ctrl+Enter', async () => {

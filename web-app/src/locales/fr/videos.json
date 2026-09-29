@@ -52,6 +52,14 @@
       "busy": "A generation is already running."
     }
   },
+  "workflow": {
+    "choose": "Mode",
+    "imageToVideo": {
+      "title": "Image to video",
+      "hint": "Animate a still image"
+    },
+    "soon": "Soon"
+  },
   "estimate": {
     "duration": "Durée : {{range}}",
     "tight": "mémoire juste",

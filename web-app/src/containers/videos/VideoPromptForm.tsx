@@ -10,9 +10,10 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   IconChevronDown,
   IconChevronRight,
-  IconMovie,
+  IconPhotoVideo,
   IconRestore,
   IconSettings,
+  IconSparkles,
 } from '@tabler/icons-react'
 import { useShallow } from 'zustand/shallow'
 
@@ -38,6 +39,10 @@ import { ImageModelPicker } from '@/containers/images/ImageModelPicker'
 import { ImageParamSlider } from '@/containers/images/ImageParamSlider'
 import { AdvancedSelect } from '@/containers/images/ImagePromptForm'
 import { ImageSeedField } from '@/containers/images/ImageSeedField'
+import {
+  MediaModeSelect,
+  type MediaMode,
+} from '@/containers/images/MediaModeSelect'
 import { useImageEngine } from '@/hooks/useImageEngine'
 import {
   IMAGE_IDLE_UNLOAD_OPTIONS,
@@ -53,6 +58,7 @@ import { useVideoSetting } from '@/hooks/useVideoSetting'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { cn } from '@/lib/utils'
 import { durationOptions } from '@/lib/video/duration'
+import type { VideoWorkflowId } from '@/services/diffusion/types'
 import { useImageGenerationStore } from '@/stores/image-generation-store'
 import { ConfirmVideoExceedsMemory } from './ConfirmVideoExceedsMemory'
 import { VideoDurationSelect } from './VideoDurationSelect'
@@ -174,6 +180,25 @@ export const VideoPromptForm = memo(function VideoPromptForm({
     capabilities.supportsNegativePrompt
   const showDistilledGuidance = capabilities?.supportsGuidance ?? false
   const busy = generation.generating
+  const modes = useMemo(
+    (): MediaMode<VideoWorkflowId>[] => [
+      {
+        id: 'create',
+        icon: IconSparkles,
+        title: t('videos:form.title'),
+        hint: t('videos:form.hint'),
+      },
+      {
+        id: 'image-to-video',
+        icon: IconPhotoVideo,
+        title: t('videos:workflow.imageToVideo.title'),
+        hint: t('videos:workflow.imageToVideo.hint'),
+        disabled: true,
+        badge: t('videos:workflow.soon'),
+      },
+    ],
+    [t]
+  )
   const idleLabel = (minutes: number) =>
     minutes === 0
       ? t('settings:media.idleNever')
@@ -232,19 +257,17 @@ export const VideoPromptForm = memo(function VideoPromptForm({
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-6 pt-4 pb-4 [scrollbar-gutter:stable]"
         data-testid="video-form-scroller"
       >
+        {/* The same mode heading as Images. Only `create` is served; the
+            core parses and refuses `image-to-video` until it lands, so it is
+            listed as coming and cannot be picked. */}
         <div className="mb-1 flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <h2
-              className="flex items-center gap-2 font-studio text-xl font-medium leading-none"
-              data-testid="video-form-title"
-            >
-              <IconMovie size={18} className="shrink-0" />
-              {t('videos:form.title')}
-            </h2>
-            <p className="text-xs leading-snug text-muted-foreground">
-              {t('videos:form.hint')}
-            </p>
-          </div>
+          <MediaModeSelect
+            modes={modes}
+            value="create"
+            onChange={() => {}}
+            label={t('videos:workflow.choose')}
+            testIdPrefix="video"
+          />
           {capabilities && (
             <Tooltip>
               <TooltipTrigger asChild>

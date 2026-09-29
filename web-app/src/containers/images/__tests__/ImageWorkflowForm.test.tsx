@@ -19,8 +19,9 @@ vi.mock('@/i18n/react-i18next-compat', () => ({
         : key,
   }),
 }))
+const navigate = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigate,
   Link: ({ to, children }: { to: string; children: React.ReactNode }) => (
     <a href={to}>{children}</a>
   ),
@@ -98,6 +99,7 @@ describe('ImagePromptForm per workflow', () => {
   })
 
   beforeEach(async () => {
+    navigate.mockClear()
     localStorage.clear()
     await useImageForm.persist.rehydrate()
     await useImageSetting.persist.rehydrate()
@@ -141,6 +143,28 @@ describe('ImagePromptForm per workflow', () => {
     ).toBeInTheDocument()
     expect(screen.getByTestId('image-source-dropzone')).toBeInTheDocument()
     expect(screen.getByTestId('image-generate')).toBeDisabled()
+  })
+
+  it('picks the workflow in the heading, which navigates to its route', async () => {
+    useImageForm.setState({ workflow: 'transform' })
+    render(<ImagePromptForm />)
+
+    await userEvent.click(screen.getByTestId('image-workflow-select'))
+    for (const workflow of ALL_WORKFLOWS) {
+      expect(
+        screen.getByTestId(`image-workflow-option-${workflow}`)
+      ).toHaveTextContent(`images:workflow.${workflow}.title`)
+    }
+    expect(
+      screen.getByTestId('image-workflow-option-transform')
+    ).toHaveAttribute('data-selected', 'true')
+
+    await userEvent.click(screen.getByTestId('image-workflow-option-inpaint'))
+    expect(navigate).toHaveBeenCalledWith({ to: '/images/inpaint' })
+
+    await userEvent.click(screen.getByTestId('image-workflow-select'))
+    await userEvent.click(screen.getByTestId('image-workflow-option-create'))
+    expect(navigate).toHaveBeenLastCalledWith({ to: '/images/' })
   })
 
   it('keeps the embedded Image Generation API available for a source workflow', async () => {

@@ -39,6 +39,7 @@
       "title": "Edit",
       "hint": "Change an image with an instruction"
     },
+    "choose": "Mode",
     "unavailable": "The loaded model cannot do this",
     "unavailableSelected": "The selected model cannot do this"
   },
