@@ -160,11 +160,10 @@ export async function lanAddresses(dataFolder: string): Promise<string[]> {
   return ((await res.json()) as { addresses: string[] }).addresses
 }
 
-/** Opens Settings → Remote & LAN the way a user does. */
+/** Opens Remote & LAN on the API screen the way a user does. */
 export async function openRemoteLan(session: Session): Promise<void> {
   const browser = session.app.browser
-  await browser.$('//*[normalize-space(text())="Settings"]').click()
-  const entry = browser.$('//a[normalize-space(.)="Remote & LAN"]')
+  const entry = browser.$('//a[normalize-space(.)="API"]')
   await entry.waitForClickable({ timeout: 30_000 })
   await entry.click()
   await browser.$('section[aria-label="Remote access"]').waitForDisplayed({ timeout: 30_000 })

@@ -1,5 +1,5 @@
 /**
- * Settings → Remote & LAN on the core. Remote access starts a Cloudflare quick
+ * API → Remote & LAN on the core. Remote access starts a Cloudflare quick
  * tunnel in front of the Local API Server, shows the public URL with a QR
  * code, serves the API through it, and stops it; without an API key it asks
  * first. When the tunnel cannot register, or the program is missing, the card

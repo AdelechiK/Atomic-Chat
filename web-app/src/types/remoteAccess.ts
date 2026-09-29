@@ -1,5 +1,5 @@
 /**
- * Domain types for Settings → Remote & LAN.
+ * Domain types for Remote & LAN on the API screen.
  *
  * The wire shape comes from the core's tunnel manager (`atomic-chat-core`,
  * `src/remote-access/`, `RemoteAccessStatus` in its contracts), relayed by
