@@ -91,9 +91,11 @@ export const ImageModelPicker = memo(function ImageModelPicker({
   // its adjacent status control can start it again without reopening the list.
 
   const loadedName = status?.model.loaded?.displayName ?? null
+  const selectLabel =
+    modality === 'video' ? t('videos:model.select') : t('images:model.select')
   const name = showArtifact
-    ? (displayArtifact.family?.name ?? loadedName ?? t('images:model.select'))
-    : t('images:model.select')
+    ? (displayArtifact.family?.name ?? loadedName ?? selectLabel)
+    : selectLabel
   const detail = showArtifact ? displayArtifact.quant?.label : null
   const stateLabel = displayArtifact.loaded
     ? t('images:model.loaded')
@@ -112,7 +114,7 @@ export const ImageModelPicker = memo(function ImageModelPicker({
           <button
             type="button"
             title={stateLabel ?? undefined}
-            aria-label={t('images:model.select')}
+            aria-label={selectLabel}
             aria-expanded={open}
             data-testid="image-models-toggle"
             className="inline-flex h-9 min-w-0 flex-1 items-center gap-2 rounded-xl border bg-background px-2.5 text-sm transition-colors duration-150 ease-out hover:bg-secondary/50 active:scale-[0.99]"

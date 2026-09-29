@@ -3,6 +3,9 @@
     "title": "Video",
     "loading": "Getting things ready…"
   },
+  "model": {
+    "select": "Select video model"
+  },
   "setup": {
     "model": {
       "title": "Choose a video model",
