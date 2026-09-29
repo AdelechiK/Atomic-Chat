@@ -41,6 +41,7 @@ import {
 import {
   collectInstalledModels,
   filterInstalledBySearch,
+  withStaffPicks,
 } from '@/lib/hub-installed'
 import { getMemoryBudgetBytes } from '@/lib/model-card'
 import { extractModelName } from '@/lib/models'
@@ -312,10 +313,19 @@ function HubContent() {
   //
   // Reading `providers` reactively (rather than via `getState()`) is what makes
   // a downloaded/deleted model appear or vanish immediately (ATO-180).
+  //
+  // The staff picks claim their downloads too: onboarding offers picks the
+  // catalog does not index, and the Hub must recognise the file it fetched.
+  const installedCatalog = useMemo(
+    () => withStaffPicks(sources, staffPickModels),
+    [sources, staffPickModels]
+  )
   const installedModels = useMemo(
     () =>
-      showOnlyDownloaded ? collectInstalledModels(sources, providers) : [],
-    [showOnlyDownloaded, sources, providers]
+      showOnlyDownloaded
+        ? collectInstalledModels(installedCatalog, providers)
+        : [],
+    [showOnlyDownloaded, installedCatalog, providers]
   )
 
   const installedResults = useMemo(
