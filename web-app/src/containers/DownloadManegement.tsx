@@ -46,6 +46,9 @@ import {
 import { cancelTransfer } from '@/services/diffusion/transfer'
 import { useImageGenerationStore } from '@/stores/image-generation-store'
 import { useImageForm } from '@/hooks/useImageForm'
+import { notifyWhenAway } from '@/lib/notifications'
+import { describeFinishedDownload } from '@/lib/downloadNotification'
+import type { DiffusionCatalog } from '@/services/diffusion-catalog-registry'
 
 type DiffusionDownloadKind = 'model' | 'engine'
 
@@ -107,6 +110,30 @@ function captureDownloadTerminal(
   } catch (telemetryError) {
     console.debug('model_download terminal telemetry failed:', telemetryError)
   }
+}
+
+/**
+ * OS notification for a finished download, shown only while the user is away
+ * from the window (the toast covers a focused one). Must run before the row is
+ * removed: both success events may arrive for one download, and only the
+ * first still finds its row.
+ */
+function notifyDownloadFinished(
+  state: DownloadState,
+  catalog: DiffusionCatalog | null,
+  t: (key: string, options?: Record<string, unknown>) => string
+): void {
+  const { downloads, localDownloadingModels } = useDownloadStore.getState()
+  const hasRow =
+    state.modelId in downloads || localDownloadingModels.has(state.modelId)
+  if (!hasRow) return
+  const notification = describeFinishedDownload(
+    state.modelId,
+    (state as unknown as { downloadType?: string }).downloadType,
+    catalog,
+    t
+  )
+  if (notification) notifyWhenAway(notification.title, notification.body)
 }
 
 export function DownloadManagement() {
@@ -665,6 +692,7 @@ export function DownloadManagement() {
     async (state: DownloadState) => {
       console.debug('onFileDownloadSuccess', state)
 
+      notifyDownloadFinished(state, imageCatalog, t)
       captureDownloadTerminal('completed', state.modelId, {
         downloadType: (state as unknown as { downloadType?: string })
           ?.downloadType,
@@ -707,6 +735,7 @@ export function DownloadManagement() {
       clearPausedDownload,
       clearResumeParams,
       clearDownloadOrigin,
+      imageCatalog,
       t,
     ]
   )
@@ -715,6 +744,7 @@ export function DownloadManagement() {
     async (state: DownloadState) => {
       console.debug('onFileDownloadAndVerificationSuccess', state)
 
+      notifyDownloadFinished(state, imageCatalog, t)
       captureDownloadTerminal('completed', state.modelId, {
         downloadType: (state as unknown as { downloadType?: string })
           ?.downloadType,
@@ -760,6 +790,7 @@ export function DownloadManagement() {
       clearPausedDownload,
       clearResumeParams,
       clearDownloadOrigin,
+      imageCatalog,
       t,
     ]
   )

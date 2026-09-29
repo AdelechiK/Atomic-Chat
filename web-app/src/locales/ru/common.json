@@ -674,5 +674,12 @@
       "notLoaded": "Не загружена — первое сообщение её запустит",
       "failed": "Не удалось загрузить"
     }
+  },
+  "desktopNotification": {
+    "modelReadyTitle": "Модель скачана",
+    "modelReadyBody": "{{name}} готова к работе.",
+    "engineReadyTitle": "Движок установлен",
+    "chatEngineReadyBody": "llama.cpp готов запускать модели.",
+    "mediaEngineReadyBody": "Движок изображений и видео готов."
   }
 }

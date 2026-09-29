@@ -394,5 +394,12 @@
     "title": "外掛程式",
     "emptySkills": "尚無技能",
     "manageSkills": "管理技能"
+  },
+  "desktopNotification": {
+    "modelReadyTitle": "模型已下載",
+    "modelReadyBody": "{{name}} 已可使用。",
+    "engineReadyTitle": "引擎已安裝",
+    "chatEngineReadyBody": "llama.cpp 已可執行模型。",
+    "mediaEngineReadyBody": "圖像與影片引擎已就緒。"
   }
 }

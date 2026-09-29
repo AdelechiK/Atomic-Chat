@@ -77,7 +77,7 @@ vi.mock('@/services/diffusion/install', () => ({
   selectDiffusionBackendForHost: install.select,
   resolveSdcppManifest: install.manifest,
 }))
-vi.mock('@/lib/notifications', () => ({ notifyThreadCompleted: vi.fn() }))
+vi.mock('@/lib/notifications', () => ({ notifyWhenAway: vi.fn() }))
 const captured = vi.hoisted(() => ({
   events: [] as Array<[string, Record<string, unknown>]>,
 }))

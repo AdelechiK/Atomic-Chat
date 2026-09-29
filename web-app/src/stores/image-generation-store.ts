@@ -29,7 +29,7 @@ import {
 } from '@/lib/diffusion/telemetry'
 import { validateImageRequest } from '@/lib/diffusion/validate'
 import { describeHardware, type HardwareProfile } from '@/lib/hardware-tier'
-import { notifyThreadCompleted } from '@/lib/notifications'
+import { notifyWhenAway } from '@/lib/notifications'
 import {
   supportsDiffusionFamily,
   MODERN_IMAGE_ENGINE_TAG,
@@ -387,8 +387,7 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
 
   const notifyIfUnfocused = (count: number) => {
     if (count <= 0) return
-    if (typeof document !== 'undefined' && document.hasFocus()) return
-    void notifyThreadCompleted(
+    notifyWhenAway(
       i18n.t('images:notifications.readyTitle'),
       i18n.t('images:notifications.readyBody', { count })
     )
