@@ -86,7 +86,6 @@
       "cancelled": "Cancelled"
     },
     "remaining": "残り {{duration}}",
-    "finishing": "クリップを仕上げています…",
     "slowdown": {
       "title": "生成が大幅に遅くなりました",
       "body": "メモリが不足している可能性があります。解像度を下げるか短いクリップにすると速くなります。",

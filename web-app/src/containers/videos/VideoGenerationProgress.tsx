@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react'
 import { IconAlertTriangle } from '@tabler/icons-react'
 
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
+import { ImageGenerationPlaceholder } from '@/containers/images/ImageGenerationPlaceholder'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { durationUnits, remainingSeconds } from '@/lib/video/estimate'
 import { formatDuration } from '@/lib/video/format-duration'
@@ -10,17 +10,23 @@ import type { VideoJob } from '@/services/diffusion/types'
 
 type VideoGenerationProgressProps = {
   job: VideoJob | null
+  /** The clip's frame size, so the preview frame has the clip's shape. */
+  width: number
+  height: number
   /** The page's clock origin for the clip, used until the core reports. */
   startedAtMs: number
 }
 
 /**
- * The bar and the time left under the live preview of a clip: the core's
- * whole-job fraction and ETA, "Finishing the clip…" while the decode runs
- * past its forecast. The step and the elapsed time are the placeholder's.
+ * The live preview of a clip, with everything about the job inside its frame:
+ * the phase, the core's whole-job fraction as a bar, and the step, the
+ * elapsed time and the time left on one line. Past its forecast the decode
+ * has no time left to show; the phase already says what is running.
  */
 export const VideoGenerationProgress = memo(function VideoGenerationProgress({
   job,
+  width,
+  height,
   startedAtMs,
 }: VideoGenerationProgressProps) {
   const { t } = useTranslation()
@@ -31,40 +37,25 @@ export const VideoGenerationProgress = memo(function VideoGenerationProgress({
     return () => window.clearInterval(timer)
   }, [])
 
-  if (!job) return null
-  const progress = job.progress
-  const remaining = remainingSeconds(job, now, startedAtMs)
-  const decoding =
-    progress?.phase === 'decoding' || progress?.phase === 'postprocessing'
-  const text =
-    remaining !== null
-      ? t('videos:progress.remaining', {
-          duration: formatDuration(remaining, durationUnits(t)),
-        })
-      : decoding
-        ? t('videos:progress.finishing')
-        : null
+  const remaining = job ? remainingSeconds(job, now, startedAtMs) : null
 
   return (
-    <div
-      className="mx-auto w-full max-w-md shrink-0 space-y-1 px-6 pb-4"
-      data-testid="video-job-progress"
-    >
-      <Progress
-        aria-label={t('images:progress.label')}
-        value={Math.round((progress?.fraction ?? 0) * 100)}
-        className="h-1 bg-muted"
-      />
-      {text && (
-        <p
-          className="truncate text-center text-[11px] leading-4 tabular-nums text-muted-foreground"
-          aria-live="polite"
-          data-testid="video-job-remaining"
-        >
-          {text}
-        </p>
-      )}
-    </div>
+    <ImageGenerationPlaceholder
+      variant="viewer"
+      kind="video"
+      width={width}
+      height={height}
+      progress={job?.progress ?? null}
+      startedAtMs={startedAtMs}
+      fraction={job ? (job.progress?.fraction ?? 0) : null}
+      remaining={
+        remaining !== null
+          ? t('videos:progress.remaining', {
+              duration: formatDuration(remaining, durationUnits(t)),
+            })
+          : null
+      }
+    />
   )
 })
 

@@ -86,7 +86,6 @@
       "cancelled": "Cancelled"
     },
     "remaining": "{{duration}} 남음",
-    "finishing": "클립 마무리 중…",
     "slowdown": {
       "title": "생성 속도가 크게 느려졌습니다",
       "body": "메모리가 부족한 것 같습니다. 해상도를 낮추거나 더 짧은 클립이면 더 빠릅니다.",

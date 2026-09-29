@@ -86,7 +86,6 @@
       "cancelled": "Cancelled"
     },
     "remaining": "{{duration}} left",
-    "finishing": "Finishing the clip…",
     "slowdown": {
       "title": "Generation has slowed down sharply",
       "body": "The computer is probably out of memory. A lower resolution or a shorter clip will go faster.",

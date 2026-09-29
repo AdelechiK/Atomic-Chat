@@ -86,7 +86,6 @@
       "cancelled": "Cancelled"
     },
     "remaining": "noch {{duration}}",
-    "finishing": "Clip wird fertiggestellt…",
     "slowdown": {
       "title": "Die Generierung ist stark langsamer geworden",
       "body": "Vermutlich reicht der Speicher nicht. Mit geringerer Auflösung oder kürzerem Clip geht es schneller.",

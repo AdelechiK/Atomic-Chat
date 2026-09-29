@@ -33,9 +33,10 @@ decision is reversed, add a new one that says which record it supersedes.
 
 ---
 
-## Local image & video generation (14)
+## Local image & video generation (15)
 
 - **2026-09-29** — [Install the media engine in one click, with no setup tour](2026-09-29-install-the-media-engine-in-one-click.md)
+- **2026-09-29** — [Keep the video progress inside the preview frame](2026-09-29-keep-the-video-progress-inside-the-preview-frame.md)
 - **2026-09-28** — [Show the core's video estimate, and confirm before a clip that swaps](2026-09-28-show-a-video-estimate-and-confirm-before-swapping.md)
 - **2026-09-22** — [Wire the chat side of the GPU arbitration at the model-load chokepoint](2026-09-22-wire-the-chat-side-of-the-gpu-arbitration.md) — `releaseGpuForChat` was defined by the 2026-09-10 record and called from nowhere.
 

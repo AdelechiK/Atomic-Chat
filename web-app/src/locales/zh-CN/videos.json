@@ -86,7 +86,6 @@
       "cancelled": "Cancelled"
     },
     "remaining": "剩余 {{duration}}",
-    "finishing": "正在完成片段…",
     "slowdown": {
       "title": "生成速度明显变慢",
       "body": "可能是内存不足。降低分辨率或缩短片段会更快。",
