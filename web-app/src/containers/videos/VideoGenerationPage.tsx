@@ -82,8 +82,8 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
     state.lastErrorModality === 'video' ? state.lastError : null
   )
   const clearModelError = useImageGenerationStore((state) => state.clearError)
-  const openSetup = useImageGenerationStore((state) => state.openSetup)
   const loadModel = useImageGenerationStore((state) => state.loadModel)
+  const installEngine = useImageGenerationStore((state) => state.installEngine)
   const generating = useVideoGenerationStore((state) => state.generating)
   const currentJob = useVideoGenerationStore((state) => state.currentJob)
   const generationStartedAtMs = useVideoGenerationStore(
@@ -170,11 +170,11 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
           void useImageGenerationStore.getState().updateEngine()
           return
         case 'install':
-          openSetup(1, 'video')
+          void installEngine()
           return
         case 'download':
           if (engine.installed) setModelsOpen(true)
-          else openSetup(1, 'video')
+          else void installEngine()
           return
         case 'openSettings':
           void navigate({ to: route.settings.media })
@@ -203,8 +203,8 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
       capabilities,
       clearError,
       engine.installed,
+      installEngine,
       navigate,
-      openSetup,
       patchForm,
       serviceHub,
       status?.videoOutputDir,

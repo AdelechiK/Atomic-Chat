@@ -46,30 +46,11 @@
     "chooseCompatibleModel": "Выбрать модель"
   },
   "setup": {
-    "step": "Step {{current}} of {{total}}",
-    "back": "Back",
-    "next": "Next",
     "done": "Done",
     "doneBlocked": "Install the engine and at least one model first.",
-    "intro": {
-      "title": "Создавайте изображения локально",
-      "description": "Превращайте идеи в изображения, не отправляя промпты наружу.",
-      "bulletLocal": "Опишите своими словами, что хотите увидеть.",
-      "bulletRecipes": "Выберите размер, а затем доработайте или повторите результат.",
-      "bulletApi": "Промпты и созданные изображения остаются на этом компьютере."
-    },
     "engine": {
-      "title": "Установите движок изображений",
-      "description": "Установите stable-diffusion.cpp для локальной генерации.",
-      "rowTitle": "stable-diffusion.cpp",
-      "rowDescription": "Локальный движок изображений для этого компьютера.",
-      "installingDescription": "Устанавливаем stable-diffusion.cpp…",
-      "readyDescription": "Готов к локальной генерации изображений.",
-      "install": "Установить",
       "checking": "Проверяем…",
-      "installed": "Installed",
       "unsupported": "There is no image engine build for this computer yet.",
-      "unsupportedShort": "Not available",
       "failed": "The engine could not be installed.",
       "progress": "{{current}} / {{total}} GB",
       "backend": "{{backend}} · {{tag}}",
@@ -89,10 +70,6 @@
       "title": "Создайте первое изображение",
       "description": "Приватная студия изображений прямо на компьютере. Нужны всего две быстрые загрузки.",
       "engine": "Установите движок",
-      "engineDescription": "Небольшой рендерер для локального создания изображений.",
-      "model": "Выберите модель",
-      "modelDescription": "Выберите стиль и качество будущих изображений.",
-      "button": "Начать настройку",
       "downloadModel": "Скачать модель"
     }
   },

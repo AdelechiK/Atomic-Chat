@@ -349,7 +349,10 @@ describe('VideoGenerationPage', () => {
     expect(useImageGenerationStore.getState().lastError?.code).toBe('MODEL_LOAD_FAILED')
   })
 
-  it('routes the install and download actions to the wizard for video', async () => {
+  it('installs the engine straight from the install action, with no wizard', async () => {
+    const install = vi
+      .spyOn(useImageGenerationStore.getState(), 'installEngine')
+      .mockResolvedValue()
     useImageGenerationStore.setState({
       status: makeStatus({ install: { state: 'not-installed' } }),
       lastError: { code: 'ENGINE_MISSING', message: 'x' },
@@ -357,11 +360,9 @@ describe('VideoGenerationPage', () => {
     })
     await renderPage()
     await userEvent.click(screen.getByRole('button', { name: 'images:errors.actions.install' }))
-    expect(useImageGenerationStore.getState()).toMatchObject({
-      setupOpen: true,
-      setupStep: 1,
-      setupModality: 'video',
-    })
+    expect(install).toHaveBeenCalledOnce()
+    expect(useImageGenerationStore.getState().setupOpen).toBe(false)
+    install.mockRestore()
   })
 
   it('offers to load the recipe model from the viewer', async () => {

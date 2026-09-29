@@ -43,27 +43,10 @@
     "unavailableSelected": "The selected model cannot do this"
   },
   "setup": {
-    "step": "Step {{current}} of {{total}}",
-    "back": "Back",
-    "next": "Next",
     "done": "Done",
     "doneBlocked": "Install the engine and at least one model first.",
-    "intro": {
-      "title": "Make images on this computer",
-      "description": "Type a prompt, pick a size, and the image is rendered locally.",
-      "bulletLocal": "Runs on this computer — prompts never leave it.",
-      "bulletRecipes": "Every image keeps its settings, so you can redo or tweak it.",
-      "bulletApi": "Also available to other apps at localhost:1337/v1/images."
-    },
     "engine": {
-      "title": "Install the image engine",
-      "description": "A small renderer (stable-diffusion.cpp) built for this computer.",
-      "rowTitle": "stable-diffusion.cpp",
-      "rowDescription": "Build for {{backend}} · downloaded once, updated with the app.",
-      "install": "Install",
-      "installed": "Installed",
       "unsupported": "There is no image engine build for this computer yet.",
-      "unsupportedShort": "Not available",
       "failed": "The engine could not be installed.",
       "progress": "{{current}} / {{total}} GB",
       "backend": "{{backend}} · {{tag}}",
@@ -82,9 +65,7 @@
     "card": {
       "title": "Set up image generation",
       "description": "Two things are needed before the first image: the engine and a model.",
-      "engine": "Install the image engine",
-      "model": "Download an image model",
-      "button": "Set up"
+      "engine": "Install the image engine"
     }
   },
   "model": {

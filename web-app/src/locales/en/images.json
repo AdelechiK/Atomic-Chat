@@ -46,30 +46,11 @@
     "chooseCompatibleModel": "Choose model"
   },
   "setup": {
-    "step": "Step {{current}} of {{total}}",
-    "back": "Back",
-    "next": "Next",
     "done": "Done",
     "doneBlocked": "Install the engine and at least one model first.",
-    "intro": {
-      "title": "Create images locally",
-      "description": "Turn an idea into an image without sending your prompt anywhere.",
-      "bulletLocal": "Describe what you want to see in your own words.",
-      "bulletRecipes": "Choose a size, then refine or reuse any result.",
-      "bulletApi": "Your prompts and generated images stay on this computer."
-    },
     "engine": {
-      "title": "Install the image engine",
-      "description": "Install stable-diffusion.cpp to create images locally.",
-      "rowTitle": "stable-diffusion.cpp",
-      "rowDescription": "Local image engine for this computer.",
-      "installingDescription": "Installing stable-diffusion.cpp…",
-      "readyDescription": "Ready to create images locally.",
-      "install": "Install",
       "checking": "Checking…",
-      "installed": "Installed",
       "unsupported": "There is no image engine build for this computer yet.",
-      "unsupportedShort": "Not available",
       "failed": "The engine could not be installed.",
       "progress": "{{current}} / {{total}} GB",
       "backend": "{{backend}} · {{tag}}",
@@ -89,10 +70,6 @@
       "title": "Create your first image",
       "description": "A private image studio that runs on your computer. Two quick downloads are all it needs.",
       "engine": "Install the image engine",
-      "engineDescription": "The small renderer that creates images locally.",
-      "model": "Choose an image model",
-      "modelDescription": "Pick the look and quality you want to generate with.",
-      "button": "Start setup",
       "downloadModel": "Download model"
     }
   },

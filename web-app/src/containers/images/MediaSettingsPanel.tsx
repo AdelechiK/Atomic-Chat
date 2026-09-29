@@ -352,7 +352,7 @@ export function MediaSettingsPanel() {
           <CardItem
             title={t('settings:media.noModels')}
             actions={
-              <Button variant="outline" size="sm" onClick={() => openSetup(2)}>
+              <Button variant="outline" size="sm" onClick={() => openSetup()}>
                 {t('images:model.download')}
               </Button>
             }
