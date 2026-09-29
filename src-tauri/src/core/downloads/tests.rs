@@ -1120,3 +1120,107 @@ async fn proxy_test_says_so_when_no_proxy_would_skip_the_proxy_entirely() {
 
     assert_eq!(result.kind, "bypassed");
 }
+
+/// First request: never answered, the connection left open. Every later one
+/// gets the whole file.
+async fn spawn_silent_then_serving_download_server() -> (
+    String,
+    Arc<AtomicUsize>,
+    tokio::task::JoinHandle<Result<(), hyper::Error>>,
+) {
+    let request_count = Arc::new(AtomicUsize::new(0));
+    let service_count = request_count.clone();
+    let make_service = make_service_fn(move |_| {
+        let service_count = service_count.clone();
+        async move {
+            Ok::<_, Infallible>(service_fn(move |_request: Request<Body>| {
+                let service_count = service_count.clone();
+                async move {
+                    if service_count.fetch_add(1, Ordering::SeqCst) == 0 {
+                        std::future::pending::<()>().await;
+                    }
+                    Ok::<_, Infallible>(
+                        Response::builder()
+                            .status(StatusCode::OK)
+                            .header(CONTENT_LENGTH, "6")
+                            .body(Body::from("abcdef"))
+                            .unwrap(),
+                    )
+                }
+            }))
+        }
+    });
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = Server::from_tcp(listener).unwrap().serve(make_service);
+    (
+        format!("http://{address}/model.gguf"),
+        request_count,
+        tokio::spawn(server),
+    )
+}
+
+/// Field log, 2026-09-29: a Hugging Face download showed 100% and never
+/// finished, `Started downloading` its last line. A body that stops sending
+/// without closing the connection is now a stream error like any other: the
+/// download resumes from the bytes on disk instead of waiting forever.
+#[tokio::test]
+async fn a_body_that_stops_sending_is_resumed_from_the_bytes_on_disk() {
+    let (url, server) = spawn_stalling_download_server().await;
+    let save_path = test_download_path("model.gguf");
+    let item = DownloadItem {
+        url,
+        save_path: save_path.to_string_lossy().into_owned(),
+        proxy: None,
+        sha256: None,
+        size: Some(6),
+        model_id: Some("test/model".to_string()),
+    };
+    let app = mock_app();
+
+    let started = std::time::Instant::now();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        download_single_file_for_test(app.handle().clone(), &item, &save_path, 6),
+    )
+    .await
+    .expect("a stalled body still hangs the download")
+    .unwrap();
+
+    assert_eq!(tokio::fs::read(&save_path).await.unwrap(), b"abcdef");
+    assert!(
+        started.elapsed() >= std::time::Duration::from_secs(2),
+        "resumed before the stall timeout: the first connection did not stall"
+    );
+    assert!(!sidecar_path(&save_path, "tmp").exists());
+    server.abort();
+}
+
+/// The same for a server that accepts the connection and never answers it.
+#[tokio::test]
+async fn a_request_that_is_never_answered_is_retried() {
+    let (url, request_count, server) = spawn_silent_then_serving_download_server().await;
+    let save_path = test_download_path("model.gguf");
+    let item = DownloadItem {
+        url,
+        save_path: save_path.to_string_lossy().into_owned(),
+        proxy: None,
+        sha256: None,
+        size: Some(6),
+        model_id: Some("test/model".to_string()),
+    };
+    let app = mock_app();
+
+    tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        download_single_file_for_test(app.handle().clone(), &item, &save_path, 6),
+    )
+    .await
+    .expect("an unanswered request still hangs the download")
+    .unwrap();
+
+    assert_eq!(tokio::fs::read(&save_path).await.unwrap(), b"abcdef");
+    assert_eq!(request_count.load(Ordering::SeqCst), 2);
+    server.abort();
+}

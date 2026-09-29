@@ -39,6 +39,36 @@ pub fn sidecar_path(save_path: &Path, ext: &str) -> PathBuf {
 const MAX_STREAM_RETRIES: u32 = 5;
 #[cfg(not(test))]
 const RETRY_BASE_DELAY_MS: u64 = 1_000;
+
+/// How long a download may go without a byte — no response headers, or no next
+/// chunk of the body — before the connection counts as dead and the retry
+/// ladder resumes it from the bytes already on disk.
+///
+/// Field log, 2026-09-29: a 2.4 GB GGUF from Hugging Face showed 100% and never
+/// finished; the log had `Started downloading` and nothing after it. The client
+/// has only a connect timeout (reqwest 0.11 has no read timeout, and
+/// `RequestBuilder::timeout` would cap the whole multi-gigabyte body), so a
+/// connection the CDN stopped feeding without closing it left `stream.next()`
+/// waiting forever, with no error for the retries to act on.
+#[cfg(not(test))]
+const STALL_TIMEOUT: Duration = Duration::from_secs(60);
+#[cfg(test)]
+const STALL_TIMEOUT: Duration = Duration::from_secs(2);
+
+fn stall_message(what: &str) -> String {
+    format!("no {what} for {}s", STALL_TIMEOUT.as_secs())
+}
+
+/// `send()` bounded by [`STALL_TIMEOUT`]: a server that accepted the
+/// connection and never answered is a retryable failure, not a hang.
+async fn send_before_stall(
+    request: reqwest::RequestBuilder,
+) -> Result<reqwest::Response, DownloadRequestError> {
+    match tokio::time::timeout(STALL_TIMEOUT, request.send()).await {
+        Ok(result) => result.map_err(|error| DownloadRequestError::Retryable(error.to_string())),
+        Err(_) => Err(DownloadRequestError::Retryable(stall_message("response"))),
+    }
+}
 const RETRY_RESET_PROGRESS_BYTES: u64 = 1024 * 1024;
 
 /// Relays `DownloadStage` updates to the task's progress channel.
@@ -1012,14 +1042,15 @@ async fn download_single_file(
                 log::info!("Download cancelled: {}", item.url);
                 return Err("Download cancelled".to_string());
             }
-            next = stream.next() => next,
+            next = tokio::time::timeout(STALL_TIMEOUT, stream.next()) => next,
         };
         let stream_error = match next {
-            None if expected_size > 0 && total_transferred < expected_size => Some(format!(
+            Err(_) => Some(stall_message("data")),
+            Ok(None) if expected_size > 0 && total_transferred < expected_size => Some(format!(
                 "stream ended after {total_transferred} of {expected_size} bytes"
             )),
-            None => break,
-            Some(Ok(chunk)) => {
+            Ok(None) => break,
+            Ok(Some(Ok(chunk))) => {
                 if cancel_token.is_cancelled() {
                     if !keep_partial_on_cancel && !should_resume {
                         tokio::fs::remove_dir_all(&save_path.parent().unwrap())
@@ -1063,7 +1094,7 @@ async fn download_single_file(
                 }
                 None
             }
-            Some(Err(error)) => Some(error.to_string()),
+            Ok(Some(Err(error))) => Some(error.to_string()),
         };
 
         if let Some(stream_error) = stream_error {
@@ -1286,12 +1317,12 @@ async fn request_download_response(
     expected_size: u64,
 ) -> Result<reqwest::Response, DownloadRequestError> {
     if start_bytes > 0 {
-        let resp = client
-            .get(url)
-            .header(RANGE, format!("bytes={start_bytes}-"))
-            .send()
-            .await
-            .map_err(|error| DownloadRequestError::Retryable(error.to_string()))?;
+        let resp = send_before_stall(
+            client
+                .get(url)
+                .header(RANGE, format!("bytes={start_bytes}-")),
+        )
+        .await?;
         match resp.status() {
             reqwest::StatusCode::PARTIAL_CONTENT => {
                 validate_content_range(&resp, start_bytes, expected_size)?;
@@ -1320,11 +1351,7 @@ async fn request_download_response(
             }
         }
     } else {
-        let resp = client
-            .get(url)
-            .send()
-            .await
-            .map_err(|error| DownloadRequestError::Retryable(error.to_string()))?;
+        let resp = send_before_stall(client.get(url)).await?;
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
