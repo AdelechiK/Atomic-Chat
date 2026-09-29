@@ -72,6 +72,10 @@ export class DefaultAppService implements AppService {
     return undefined
   }
 
+  async getCoreVersion(): Promise<string | undefined> {
+    return undefined
+  }
+
   // Remote & LAN access is desktop only. Web has no tunnel to report on, so
   // these stay inert: always off, nothing to start, no addresses.
   async getRemoteAccessStatus(): Promise<RemoteAccessStatus> {

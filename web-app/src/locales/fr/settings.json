@@ -243,6 +243,7 @@
     "noUpdateAvailable": "Vous utilisez la dernière version",
     "updateError": "Échec de la vérification des mises à jour",
     "appVersion": "Version de l'application",
+    "coreVersion": "Version du cœur",
     "checkForUpdates": "Vérifier les mises à jour",
     "checkForUpdatesDesc": "Vérifiez si une nouvelle version de Atomic Bot est disponible.",
     "checkingForUpdates": "Vérification des mises à jour...",

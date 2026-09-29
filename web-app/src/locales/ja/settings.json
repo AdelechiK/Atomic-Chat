@@ -255,6 +255,7 @@
     "noUpdateAvailable": "最新バージョンを実行しています",
     "updateError": "アップデートの確認に失敗しました",
     "appVersion": "アプリのバージョン",
+    "coreVersion": "コアのバージョン",
     "checkForUpdates": "アップデートを確認",
     "checkForUpdatesDesc": "Atomic Botの新しいバージョンが利用可能かどうかを確認します。",
     "checkingForUpdates": "アップデートを確認中...",

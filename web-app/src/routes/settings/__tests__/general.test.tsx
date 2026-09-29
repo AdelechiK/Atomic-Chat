@@ -78,6 +78,7 @@ const mockOpenerOpen = vi.fn()
 const mockRevealItemInDir = vi.fn()
 const mockExportLogs = vi.fn()
 const mockOpenPath = vi.fn()
+const mockGetCoreVersion = vi.fn()
 
 vi.mock('@/hooks/useAppUpdater', () => ({
   useAppUpdater: () => ({
@@ -291,6 +292,7 @@ describe('General Settings Route', () => {
         getJanDataFolder: vi.fn().mockResolvedValue('/test/data/folder'),
         relocateJanDataFolder: vi.fn(),
         exportLogs: mockExportLogs,
+        getCoreVersion: mockGetCoreVersion,
       } as unknown as ReturnType<ServiceHub['app']>,
       models: {
         stopAllModels: vi.fn(),
@@ -314,6 +316,7 @@ describe('General Settings Route', () => {
     mockCheckForUpdate.mockResolvedValue(null)
     mockOpenerOpen.mockResolvedValue(undefined)
     mockRevealItemInDir.mockResolvedValue(undefined)
+    mockGetCoreVersion.mockResolvedValue('0.7.1')
   })
 
   it('should render the general settings page', async () => {
@@ -334,6 +337,38 @@ describe('General Settings Route', () => {
     })
 
     expect(screen.getByText('v1.0.0')).toBeInTheDocument()
+  })
+
+  it('renders the core version right under the app version', async () => {
+    const Component = GeneralRoute.component as React.ComponentType
+    await act(async () => {
+      render(<Component />)
+    })
+
+    const titles = screen
+      .getAllByTestId('card-item')
+      .map((el) => el.getAttribute('data-title'))
+    const appRow = titles.indexOf('settings:general.appVersion')
+    expect(titles[appRow + 1]).toBe('settings:general.coreVersion')
+    expect(screen.getByText('v0.7.1')).toBeInTheDocument()
+  })
+
+  it('leaves the core version out when the app cannot tell it', async () => {
+    mockGetCoreVersion.mockResolvedValue(undefined)
+    const Component = GeneralRoute.component as React.ComponentType
+    await act(async () => {
+      render(<Component />)
+    })
+
+    expect(screen.getByText('v1.0.0')).toBeInTheDocument()
+    expect(
+      screen
+        .getAllByTestId('card-item')
+        .some(
+          (el) =>
+            el.getAttribute('data-title') === 'settings:general.coreVersion'
+        )
+    ).toBe(false)
   })
 
   // TODO: This test is currently commented out due to missing implementation
