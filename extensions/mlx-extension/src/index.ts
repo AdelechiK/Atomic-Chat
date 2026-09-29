@@ -1315,7 +1315,15 @@ export default class mlx_extension extends AIEngine {
             downloadType: 'Model',
           })
         },
-        resumeDownload ?? false
+        resumeDownload ?? false,
+        // The downloader's stages (connecting, retrying, stalled) reach the
+        // row only through this.
+        (stage: unknown) =>
+          events.emit(DownloadEvent.onFileDownloadUpdate, {
+            modelId,
+            downloadType: 'Model',
+            stage,
+          })
       )
 
       // Emit download success event so DownloadManagement clears the download state
@@ -2042,7 +2050,13 @@ export default class mlx_extension extends AIEngine {
             downloadType: 'Model',
           })
         },
-        false
+        false,
+        (stage: unknown) =>
+          events.emit(DownloadEvent.onFileDownloadUpdate, {
+            modelId: downloadModelId,
+            downloadType: 'Model',
+            stage,
+          })
       )
     }
 

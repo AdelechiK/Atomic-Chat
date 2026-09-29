@@ -17,11 +17,12 @@ interface DownloadItem {
 
 /**
  * What the Rust downloader is doing while it has no bytes to report. Emitted
- * during the preflight/GET retry ladders, which used to run in silence — see
- * `DownloadStage` in `src-tauri/src/core/downloads/models.rs`.
+ * during the preflight/GET retry ladders, which used to run in silence, and
+ * when an open transfer goes quiet (`stalled`) — see `DownloadStage` in
+ * `src-tauri/src/core/downloads/models.rs`.
  */
 export type DownloadStage = {
-  kind: 'connecting' | 'retrying'
+  kind: 'connecting' | 'retrying' | 'stalled'
   attempt: number
   maxAttempts: number
 }

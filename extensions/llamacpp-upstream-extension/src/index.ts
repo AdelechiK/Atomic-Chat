@@ -3464,7 +3464,16 @@ export default class llamacpp_upstream_extension extends AIEngine {
           downloadItems,
           this.createDownloadTaskId(modelId),
           onProgress,
-          resumeDownload ?? false
+          resumeDownload ?? false,
+          // The downloader's stages (connecting, retrying, stalled) reach the
+          // row only through this; without it a dead connection read as a
+          // live download with a frozen ETA.
+          (stage: unknown) =>
+            events.emit(DownloadEvent.onFileDownloadUpdate, {
+              modelId,
+              downloadType: 'Model',
+              stage,
+            })
         )
 
         // If we reach here, download completed successfully (including validation)
@@ -3761,7 +3770,13 @@ export default class llamacpp_upstream_extension extends AIEngine {
         [downloadItem],
         this.createDownloadTaskId(`${modelId}-mtp-draft`),
         onProgress,
-        false
+        false,
+        (stage: unknown) =>
+          events.emit(DownloadEvent.onFileDownloadUpdate, {
+            modelId,
+            downloadType: 'Model',
+            stage,
+          })
       )
       events.emit(DownloadEvent.onFileDownloadAndVerificationSuccess, {
         modelId,
@@ -3902,7 +3917,13 @@ export default class llamacpp_upstream_extension extends AIEngine {
         [downloadItem],
         this.createDownloadTaskId(`${modelId}-dflash-draft`),
         onProgress,
-        false
+        false,
+        (stage: unknown) =>
+          events.emit(DownloadEvent.onFileDownloadUpdate, {
+            modelId,
+            downloadType: 'Model',
+            stage,
+          })
       )
       events.emit(DownloadEvent.onFileDownloadAndVerificationSuccess, {
         modelId,
@@ -3932,8 +3953,8 @@ export default class llamacpp_upstream_extension extends AIEngine {
    * re-download.
    *
    * Only the artifacts of *this* download are removed (the target file plus its
-   * `.tmp` / `.url` partials), and the directory itself goes only when nothing
-   * else is left in it.
+   * `.tmp` / `.url` / `.parts` partials), and the directory itself goes only
+   * when nothing else is left in it.
    *
    * @param modelId The model whose directory was being written into
    * @param items The download items this import queued
@@ -3946,9 +3967,10 @@ export default class llamacpp_upstream_extension extends AIEngine {
       const janDataFolderPath = await getJanDataFolderPath()
 
       for (const item of items) {
-        // `.tmp` is the in-flight file and `.url` the resume marker, named by
-        // the Rust downloader as `<save_path>.tmp` / `<save_path>.url`.
-        for (const suffix of ['', '.tmp', '.url']) {
+        // `.tmp` is the in-flight file, `.url` the resume marker and `.parts`
+        // the range map of a multi-connection download, named by the Rust
+        // downloader as `<save_path>.tmp` / `.url` / `.parts`.
+        for (const suffix of ['', '.tmp', '.url', '.parts']) {
           const path = await joinPath([
             janDataFolderPath,
             `${item.save_path}${suffix}`,
