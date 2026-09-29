@@ -97,7 +97,6 @@
       "cancelled": "Cancelled"
     },
     "remaining": "quedan {{duration}}",
-    "finishing": "Terminando el clip…",
     "slowdown": {
       "title": "La generación se ha ralentizado mucho",
       "body": "Probablemente falta memoria. Con menos resolución o un clip más corto irá más rápido.",

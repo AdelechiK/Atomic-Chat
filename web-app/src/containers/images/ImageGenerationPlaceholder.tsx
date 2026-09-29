@@ -1,5 +1,6 @@
 import { memo, useEffect, useState, type CSSProperties } from 'react'
 
+import { Progress } from '@/components/ui/progress'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import type { ImageJobProgress } from '@/services/diffusion/types'
 import { cn } from '@/lib/utils'
@@ -20,6 +21,13 @@ type ImageGenerationPlaceholderProps = {
   index?: number
   /** Which words the status uses: an image is "generated", a clip is "encoded". */
   kind?: 'image' | 'video'
+  /**
+   * Viewer only: the whole job's 0–1 fraction, drawn as a bar inside the frame
+   * under the status. Omitted, there is no bar (an image job has no fraction).
+   */
+  fraction?: number | null
+  /** Viewer only: the time left, worded, added to the step and elapsed line. */
+  remaining?: string | null
 }
 
 type Translation = ReturnType<typeof useTranslation>['t']
@@ -182,6 +190,8 @@ export const ImageGenerationPlaceholder = memo(
     startedAtMs,
     index = 0,
     kind = 'image',
+    fraction = null,
+    remaining = null,
   }: ImageGenerationPlaceholderProps) {
     const { t } = useTranslation()
     const [now, setNow] = useState(Date.now())
@@ -252,17 +262,37 @@ export const ImageGenerationPlaceholder = memo(
           >
             {announcement}
           </span>
-          <div
-            className="absolute inset-0 flex flex-col items-center justify-center gap-4 [container-type:size]"
-            aria-hidden="true"
-          >
+          {/* Everything about the job sits in the frame: the status, the bar
+              and one line of step, elapsed and time left. The words are the
+              announcement's, so only the bar stays in the accessibility tree. */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 [container-type:size]">
             <DottedGenerationField />
-            <div className="space-y-0.5 text-center">
-              <p className="text-xs font-medium text-foreground/80">
+            <div className="flex w-full flex-col items-center gap-0.5 px-3 text-center">
+              <p
+                className="max-w-full truncate text-xs font-medium text-foreground/80"
+                aria-hidden="true"
+              >
                 {copy.status}
               </p>
-              <p className="text-[11px] tabular-nums text-muted-foreground/80">
+              {fraction !== null && (
+                <Progress
+                  aria-label={t('images:progress.label')}
+                  value={Math.round(fraction * 100)}
+                  className="my-1.5 h-1 w-[min(12rem,55cqw)] bg-muted"
+                  data-testid="image-generation-progress-bar"
+                />
+              )}
+              <p
+                className="max-w-full truncate text-[11px] tabular-nums text-muted-foreground/80"
+                aria-hidden="true"
+                data-testid="image-generation-progress-detail"
+              >
                 {copy.detail ? `${copy.detail} · ${elapsed}` : elapsed}
+                {remaining && (
+                  <span data-testid="image-generation-remaining">
+                    {` · ${remaining}`}
+                  </span>
+                )}
               </p>
             </div>
           </div>

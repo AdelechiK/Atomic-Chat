@@ -97,7 +97,6 @@
       "cancelled": "Cancelled"
     },
     "remaining": "zbývá {{duration}}",
-    "finishing": "Dokončuji klip…",
     "slowdown": {
       "title": "Generování se výrazně zpomalilo",
       "body": "Počítači nejspíš dochází paměť. S nižším rozlišením nebo kratším klipem to půjde rychleji.",

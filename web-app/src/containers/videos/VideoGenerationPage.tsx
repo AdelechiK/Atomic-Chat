@@ -7,7 +7,6 @@ import HeaderPage from '@/containers/HeaderPage'
 import { route } from '@/constants/routes'
 import { ImageEmptyState } from '@/containers/images/ImageEmptyState'
 import { ImageErrorBanner } from '@/containers/images/ImageErrorBanner'
-import { ImageGenerationPlaceholder } from '@/containers/images/ImageGenerationPlaceholder'
 import { ImageSetupCard } from '@/containers/images/ImageSetupCard'
 import { useImageEngine } from '@/hooks/useImageEngine'
 import { useServiceHub } from '@/hooks/useServiceHub'
@@ -309,22 +308,12 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
               data-testid="video-viewer-section"
             >
               {showLivePreview ? (
-                <div className="flex size-full min-h-0 flex-col">
-                  <div className="min-h-0 flex-1">
-                    <ImageGenerationPlaceholder
-                      variant="viewer"
-                      kind="video"
-                      width={pendingSize.width}
-                      height={pendingSize.height}
-                      progress={currentJob?.progress ?? null}
-                      startedAtMs={pendingStartedAtMs}
-                    />
-                  </div>
-                  <VideoGenerationProgress
-                    job={currentJob}
-                    startedAtMs={pendingStartedAtMs}
-                  />
-                </div>
+                <VideoGenerationProgress
+                  job={currentJob}
+                  width={pendingSize.width}
+                  height={pendingSize.height}
+                  startedAtMs={pendingStartedAtMs}
+                />
               ) : (
                 <VideoViewer
                   item={gallery.selected}

@@ -97,7 +97,6 @@
       "cancelled": "Cancelled"
     },
     "remaining": "còn {{duration}}",
-    "finishing": "Đang hoàn tất clip…",
     "slowdown": {
       "title": "Quá trình tạo chậm đi đáng kể",
       "body": "Có thể máy thiếu bộ nhớ. Độ phân giải thấp hơn hoặc clip ngắn hơn sẽ nhanh hơn.",

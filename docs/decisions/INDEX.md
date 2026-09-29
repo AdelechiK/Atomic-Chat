@@ -9,7 +9,7 @@ decision is reversed, add a new one that says which record it supersedes.
 2. Add one line to the right section of this index.
 3. Do **not** paste the record body into `AGENTS.md`.
 
-359 records, 2026-05-19 → 2026-09-28.
+360 records, 2026-05-19 → 2026-09-29.
 
 ---
 
@@ -33,8 +33,9 @@ decision is reversed, add a new one that says which record it supersedes.
 
 ---
 
-## Local image & video generation (13)
+## Local image & video generation (14)
 
+- **2026-09-29** — [Keep the video progress inside the preview frame](2026-09-29-keep-the-video-progress-inside-the-preview-frame.md)
 - **2026-09-28** — [Show the core's video estimate, and confirm before a clip that swaps](2026-09-28-show-a-video-estimate-and-confirm-before-swapping.md)
 - **2026-09-22** — [Wire the chat side of the GPU arbitration at the model-load chokepoint](2026-09-22-wire-the-chat-side-of-the-gpu-arbitration.md) — `releaseGpuForChat` was defined by the 2026-09-10 record and called from nowhere.
 

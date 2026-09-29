@@ -97,7 +97,6 @@
       "cancelled": "Cancelled"
     },
     "remaining": "sisa {{duration}}",
-    "finishing": "Menyelesaikan klip…",
     "slowdown": {
       "title": "Pembuatan melambat drastis",
       "body": "Kemungkinan memori tidak cukup. Resolusi lebih rendah atau klip lebih pendek akan lebih cepat.",

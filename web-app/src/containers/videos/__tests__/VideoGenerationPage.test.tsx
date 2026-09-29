@@ -235,25 +235,32 @@ describe('VideoGenerationPage', () => {
       })
     }
 
-    it('fills the bar from the fraction and says how long the whole clip has left', async () => {
+    it('fills the bar inside the preview frame and puts the time left on the step line', async () => {
       running({ etaSeconds: 750, fraction: 0.4 })
       await renderPage()
-      expect(screen.getByTestId('video-job-remaining')).toHaveTextContent(
-        'осталось ~13 мин'
-      )
+      const preview = screen.getByTestId('image-generation-preview')
+      expect(
+        within(preview).getByTestId('image-generation-progress-detail')
+      ).toHaveTextContent('videos:progress.step · 60 s · осталось ~13 мин')
       // The shared bar moves its indicator rather than setting aria-valuenow.
-      const indicator = screen
-        .getByTestId('video-job-progress')
+      const indicator = within(preview)
+        .getByTestId('image-generation-progress-bar')
         .querySelector('[data-slot="progress-indicator"]')
       expect(indicator).toHaveStyle({ transform: 'translateX(-60%)' })
       expect(screen.queryByTestId('video-slowdown')).not.toBeInTheDocument()
     })
 
-    it('says the clip is being finished once the decode runs past its forecast', async () => {
+    it('says the phase once when the decode runs past its forecast', async () => {
       running({ phase: 'decoding', step: 8, etaSeconds: null, fraction: 0.9 })
       await renderPage()
-      expect(screen.getByTestId('video-job-remaining')).toHaveTextContent(
-        'videos:progress.finishing'
+      const preview = screen.getByTestId('image-generation-preview')
+      expect(preview).toHaveTextContent('videos:progress.phase.decoding')
+      expect(
+        within(preview).queryByTestId('image-generation-remaining')
+      ).not.toBeInTheDocument()
+      // Nothing outside the frame repeats it.
+      expect(screen.getByTestId('video-viewer-section').textContent).toBe(
+        preview.textContent
       )
     })
 
@@ -272,7 +279,7 @@ describe('VideoGenerationPage', () => {
       })
       await renderPage()
       // The middle of 450–1800 s is 900 s: fifteen minutes, less the moment since the start.
-      expect(screen.getByTestId('video-job-remaining')).toHaveTextContent(
+      expect(screen.getByTestId('image-generation-remaining')).toHaveTextContent(
         'осталось ~15 мин'
       )
     })
