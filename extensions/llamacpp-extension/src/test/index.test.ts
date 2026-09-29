@@ -396,8 +396,53 @@ describe('llamacpp_extension', () => {
         '/path/to/jan/llamacpp/models/test-model/model.gguf',
         '/path/to/jan/llamacpp/models/test-model/model.gguf.tmp',
         '/path/to/jan/llamacpp/models/test-model/model.gguf.url',
+        '/path/to/jan/llamacpp/models/test-model/model.gguf.parts',
       ])
       expect(removed).not.toContain('/path/to/jan/llamacpp/models/test-model')
+    })
+
+    // Field feedback, 2026-09-29: a dead connection read as a live download,
+    // because the model pull never passed the downloader's stages on.
+    it('passes the downloader stages to the model row', async () => {
+      const { getJanDataFolderPath, joinPath, fs, events } = await import(
+        '@janhq/core'
+      )
+      const stage = { kind: 'stalled', attempt: 0, maxAttempts: 5 }
+      const mockDownloadManager = {
+        downloadFiles: vi.fn(
+          async (
+            _items: unknown,
+            _taskId: string,
+            _onProgress: unknown,
+            _resume: boolean,
+            onStage?: (stage: unknown) => void
+          ) => {
+            onStage?.(stage)
+            throw new Error('Download cancelled')
+          }
+        ),
+        cancelDownload: vi.fn().mockResolvedValue(undefined),
+      }
+      window.core.extensionManager.getByName = vi
+        .fn()
+        .mockReturnValue(mockDownloadManager)
+      vi.mocked(getJanDataFolderPath).mockResolvedValue('/path/to/jan')
+      vi.mocked(joinPath).mockImplementation((paths) =>
+        Promise.resolve(paths.join('/'))
+      )
+      vi.mocked(fs.existsSync).mockResolvedValue(false)
+
+      await expect(
+        extension.import('test-model', {
+          modelPath: 'https://example.com/model.gguf',
+        })
+      ).rejects.toThrow()
+
+      expect(events.emit).toHaveBeenCalledWith('onFileDownloadUpdate', {
+        modelId: 'test-model',
+        downloadType: 'Model',
+        stage,
+      })
     })
 
     it('removes the model folder when the failed download left it empty', async () => {

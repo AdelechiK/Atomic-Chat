@@ -1,4 +1,8 @@
-import { useDownloadStore, type DownloadStage } from '@/hooks/useDownloadStore'
+import {
+  useDownloadStore,
+  type DownloadProgressProps,
+  type DownloadStage,
+} from '@/hooks/useDownloadStore'
 import { useAppUpdater } from '@/hooks/useAppUpdater'
 import { useGeneralSetting } from '@/hooks/useGeneralSetting'
 import { useProxyConfig } from '@/hooks/useProxyConfig'
@@ -20,6 +24,7 @@ import {
   wasDownloadCancellationRequested,
 } from '@/lib/downloadCancellation'
 import {
+  averageBytesPerSecond,
   classifyDownloadFailure,
   downloadKind,
   finalizeDownloadOnce,
@@ -57,9 +62,22 @@ function diffusionDownloadKind(id: string): DiffusionDownloadKind | null {
 function captureDownloadTerminal(
   status: 'completed' | 'failed' | 'cancelled',
   id: string,
-  opts: { downloadType?: string; error?: string; totalBytes?: number } = {}
+  opts: {
+    downloadType?: string
+    error?: string
+    totalBytes?: number
+    /** The store's row, for handlers that remove it before reporting. */
+    transfer?: DownloadProgressProps
+  } = {}
 ): void {
   if (!finalizeDownloadOnce(id)) return
+
+  // The extensions' terminal events carry no byte counts, so the size used to
+  // come from `state.size` and was always missing: every terminal event of the
+  // 30 days to 2026-09-29 read `size_bucket: 'unknown'`. The store's row has
+  // the total, and what the run did on the way.
+  const transfer = opts.transfer ?? useDownloadStore.getState().downloads[id]
+  const totalBytes = opts.totalBytes || transfer?.total
 
   const kind = downloadKind(id, opts.downloadType)
   if (status === 'completed' && kind === 'model') {
@@ -75,8 +93,11 @@ function captureDownloadTerminal(
       download_kind: kind,
       model_id: normalizeModelId(id),
       quant: quantFromModelId(id),
-      size_bucket: sizeBucket(opts.totalBytes),
+      size_bucket: sizeBucket(totalBytes),
       duration_ms: takeDownloadDuration(id),
+      avg_bytes_per_second: averageBytesPerSecond(transfer),
+      stall_count: transfer?.stalls ?? 0,
+      retry_count: transfer?.retries ?? 0,
       failure_reason:
         status === 'completed'
           ? undefined
@@ -321,6 +342,8 @@ export function DownloadManagement() {
         downloadType?: string
       }
       const err = anyState?.error || ''
+      // Read before the row is removed below; the terminal event reports it.
+      const transfer = useDownloadStore.getState().downloads[state.modelId]
 
       // The Rust downloader opens the "verifying…" toast itself and never
       // closes it. A failure that lands after it (disk error while hashing, a
@@ -355,6 +378,7 @@ export function DownloadManagement() {
           downloadType: anyState?.downloadType,
           error: err,
           totalBytes: state.size?.total,
+          transfer,
         }
       )
 
