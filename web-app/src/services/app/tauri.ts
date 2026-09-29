@@ -108,6 +108,24 @@ export class TauriAppService extends DefaultAppService {
     }
   }
 
+  /**
+   * The core may still be starting when Settings opens; the pin is what it
+   * will attach as, since the supervisor refuses a core of another version.
+   * Mobile registers no `atomic_core_status`, so the invoke rejects there.
+   */
+  async getCoreVersion(): Promise<string | undefined> {
+    try {
+      const status = await invoke<{
+        expected_version?: string | null
+        attached?: { version?: string } | null
+      }>('atomic_core_status')
+      return status?.attached?.version || status?.expected_version || undefined
+    } catch (error) {
+      console.debug('atomic_core_status unavailable:', error)
+      return undefined
+    }
+  }
+
   async getJanDataFolder(): Promise<string | undefined> {
     try {
       const appConfiguration: AppConfiguration | undefined =

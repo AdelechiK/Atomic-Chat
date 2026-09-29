@@ -222,6 +222,45 @@ describe('TauriAppService', () => {
     await expect(appService.getInstallerType()).resolves.toBeUndefined()
   })
 
+  describe('getCoreVersion', () => {
+    it('reports the attached core version over the pin', async () => {
+      ipcHandler.mockReturnValue({
+        running: true,
+        expected_version: '0.7.1',
+        attached: { version: '0.7.2', pid: 42 },
+      })
+
+      await expect(appService.getCoreVersion()).resolves.toBe('0.7.2')
+      expect(ipcHandler).toHaveBeenCalledWith('atomic_core_status', {})
+    })
+
+    it('falls back to the pin while the core is not attached yet', async () => {
+      ipcHandler.mockReturnValue({
+        running: false,
+        expected_version: '0.7.1',
+        attached: null,
+      })
+
+      await expect(appService.getCoreVersion()).resolves.toBe('0.7.1')
+    })
+
+    it('is undefined with neither an attached core nor a pin', async () => {
+      ipcHandler.mockReturnValue({
+        running: false,
+        expected_version: null,
+        attached: null,
+      })
+
+      await expect(appService.getCoreVersion()).resolves.toBeUndefined()
+    })
+
+    it('is undefined where the status command does not exist', async () => {
+      ipcHandler.mockRejectedValue(new Error('command not found'))
+
+      await expect(appService.getCoreVersion()).resolves.toBeUndefined()
+    })
+  })
+
   it('passes readYaml arguments through real invoke', async () => {
     ipcHandler.mockReturnValue({ enabled: true })
 

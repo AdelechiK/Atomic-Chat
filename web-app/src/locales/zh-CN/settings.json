@@ -237,6 +237,7 @@
     "noUpdateAvailable": "您正在运行最新版本",
     "updateError": "检查更新失败",
     "appVersion": "应用版本",
+    "coreVersion": "核心版本",
     "checkForUpdates": "检查更新",
     "checkForUpdatesDesc": "检查是否有更新版本的 Atomic Bot 可用。",
     "checkingForUpdates": "正在检查更新...",

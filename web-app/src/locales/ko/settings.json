@@ -254,6 +254,7 @@
     "noUpdateAvailable": "최신 버전을 사용 중입니다",
     "updateError": "업데이트 확인에 실패했습니다",
     "appVersion": "앱 버전",
+    "coreVersion": "코어 버전",
     "checkForUpdates": "업데이트 확인",
     "checkForUpdatesDesc": "Atomic Bot의 최신 버전이 있는지 확인합니다.",
     "checkingForUpdates": "업데이트 확인 중...",

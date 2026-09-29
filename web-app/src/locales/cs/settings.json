@@ -243,6 +243,7 @@
     "noUpdateAvailable": "Používáte nejnovější verzi",
     "updateError": "Nepodařilo se zkontrolovat aktualizace",
     "appVersion": "Verze aplikace",
+    "coreVersion": "Verze jádra",
     "checkForUpdates": "Zkontrolovat aktualizace",
     "checkForUpdatesDesc": "Zkontrolujte, zda je k dispozici novější verze Atomic Bot.",
     "checkingForUpdates": "Kontrolování aktualizací...",

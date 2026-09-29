@@ -237,6 +237,7 @@
     "noUpdateAvailable": "Anda menjalankan versi terbaru",
     "updateError": "Gagal memeriksa pembaruan",
     "appVersion": "Versi Aplikasi",
+    "coreVersion": "Versi Inti",
     "checkForUpdates": "Periksa Pembaruan",
     "checkForUpdatesDesc": "Periksa apakah versi Atomic Bot yang lebih baru tersedia.",
     "checkingForUpdates": "Memeriksa pembaruan...",

@@ -237,6 +237,7 @@
     "noUpdateAvailable": "Bạn đang chạy phiên bản mới nhất",
     "updateError": "Không thể kiểm tra cập nhật",
     "appVersion": "Phiên bản Ứng dụng",
+    "coreVersion": "Phiên bản lõi",
     "checkForUpdates": "Kiểm tra Cập nhật",
     "checkForUpdatesDesc": "Kiểm tra xem có phiên bản Atomic Bot mới hơn không.",
     "checkingForUpdates": "Đang kiểm tra cập nhật...",

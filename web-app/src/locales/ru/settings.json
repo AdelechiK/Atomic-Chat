@@ -338,6 +338,7 @@
     "noUpdateAvailable": "Вы используете последнюю версию",
     "updateError": "Не удалось проверить наличие обновлений",
     "appVersion": "Версия приложения",
+    "coreVersion": "Версия ядра",
     "checkForUpdates": "Проверить обновления",
     "checkForUpdatesDesc": "Проверить, доступна ли более новая версия Atomic Bot.",
     "checkingForUpdates": "Проверка обновлений...",

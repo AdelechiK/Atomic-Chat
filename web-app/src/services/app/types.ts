@@ -51,6 +51,12 @@ export interface AppService {
   /** Best-effort installer channel of the running build (ATO-111 telemetry). */
   getInstallerType(): Promise<string | undefined>
   /**
+   * Version of atomic-chat-core for Settings → General: the attached core's
+   * own, else the version this build pins. `undefined` where no core runs
+   * (web, mobile) or the app cannot say.
+   */
+  getCoreVersion(): Promise<string | undefined>
+  /**
    * Settings → Remote & LAN. Desktop only: the Cloudflare tunnel in front of
    * the Local API Server is owned by the core (`/atomic/v1/remote-access*`),
    * these only ask it to move. `startRemoteAccess` resolves as soon as the

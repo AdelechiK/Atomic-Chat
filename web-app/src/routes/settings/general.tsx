@@ -97,6 +97,7 @@ function General() {
   const [cliPath, setCliPath] = useState<string | null>(null)
   const [isCliLoading, setIsCliLoading] = useState(false)
   const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(null)
+  const [coreVersion, setCoreVersion] = useState<string | undefined>()
   const canManageAutostart = IS_TAURI && !isDev()
 
   useEffect(() => {
@@ -106,6 +107,19 @@ function General() {
     }
 
     fetchDataFolder()
+  }, [serviceHub])
+
+  useEffect(() => {
+    let cancelled = false
+    serviceHub
+      .app()
+      .getCoreVersion()
+      .then((version) => {
+        if (!cancelled) setCoreVersion(version)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [serviceHub])
 
   useEffect(() => {
@@ -310,6 +324,16 @@ function General() {
                   </span>
                 }
               />
+              {coreVersion && (
+                <CardItem
+                  title={t('settings:general.coreVersion')}
+                  actions={
+                    <span className="text-foreground font-medium">
+                      v{coreVersion}
+                    </span>
+                  }
+                />
+              )}
               {!AUTO_UPDATER_DISABLED && (
                 <CardItem
                   title={t('settings:general.checkForUpdates')}
