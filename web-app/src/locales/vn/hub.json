@@ -48,5 +48,18 @@
   "readmeUnavailable": "Mô hình này không có README.",
   "tooLargeTitle": "Mô hình này có thể không chạy được trên thiết bị này",
   "tooLargeDescription": "Mô hình cần nhiều bộ nhớ hơn thiết bị này có, nên có thể không tải được hoặc chạy chậm.",
-  "downloadAnyway": "Vẫn tải xuống"
+  "downloadAnyway": "Vẫn tải xuống",
+  "categoryChat": "Chat",
+  "categoryImages": "Images",
+  "categoryVideo": "Video",
+  "categories": "Loại mô hình",
+  "searchImagePlaceholder": "Tìm mô hình hình ảnh…",
+  "searchVideoPlaceholder": "Tìm mô hình video…",
+  "open": "Mở",
+  "openInImages": "Mở trong Images",
+  "openInVideo": "Mở trong Video",
+  "defaultSize": "Kích thước mặc định",
+  "steps": "Số bước",
+  "license": "Giấy phép",
+  "frameRate": "Tốc độ khung hình"
 }

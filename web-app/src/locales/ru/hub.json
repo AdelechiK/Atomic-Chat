@@ -54,5 +54,18 @@
   "readmeUnavailable": "README недоступен для этой модели.",
   "tooLargeTitle": "Модель может не запуститься на этом устройстве",
   "tooLargeDescription": "Ей нужно больше памяти, чем есть на этом устройстве, поэтому она может не загрузиться или работать медленно.",
-  "downloadAnyway": "Всё равно скачать"
+  "downloadAnyway": "Всё равно скачать",
+  "categoryChat": "Chat",
+  "categoryImages": "Images",
+  "categoryVideo": "Video",
+  "categories": "Тип модели",
+  "searchImagePlaceholder": "Поиск моделей для изображений…",
+  "searchVideoPlaceholder": "Поиск моделей для видео…",
+  "open": "Открыть",
+  "openInImages": "Открыть в Images",
+  "openInVideo": "Открыть в Video",
+  "defaultSize": "Размер по умолчанию",
+  "steps": "Шаги",
+  "license": "Лицензия",
+  "frameRate": "Частота кадров"
 }

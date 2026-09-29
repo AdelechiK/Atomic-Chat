@@ -48,5 +48,18 @@
   "readmeUnavailable": "README tidak tersedia untuk model ini.",
   "tooLargeTitle": "Model ini mungkin tidak berjalan di perangkat ini",
   "tooLargeDescription": "Model ini membutuhkan lebih banyak memori daripada yang dimiliki perangkat ini, sehingga mungkin gagal dimuat atau berjalan lambat.",
-  "downloadAnyway": "Tetap unduh"
+  "downloadAnyway": "Tetap unduh",
+  "categoryChat": "Chat",
+  "categoryImages": "Images",
+  "categoryVideo": "Video",
+  "categories": "Jenis model",
+  "searchImagePlaceholder": "Cari model gambar…",
+  "searchVideoPlaceholder": "Cari model video…",
+  "open": "Buka",
+  "openInImages": "Buka di Images",
+  "openInVideo": "Buka di Video",
+  "defaultSize": "Ukuran bawaan",
+  "steps": "Langkah",
+  "license": "Lisensi",
+  "frameRate": "Laju bingkai"
 }
