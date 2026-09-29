@@ -8,11 +8,14 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ReactNode,
 } from 'react'
 import { IconSearch } from '@tabler/icons-react'
 import { Loader } from 'lucide-react'
 import HeaderPage from '@/containers/HeaderPage'
+import { HubCategoryTabs } from '@/containers/hub/HubCategoryTabs'
 import { HubFilters } from '@/containers/hub/HubFilters'
+import { MediaHub } from '@/containers/hub/MediaHub'
 import { ModelDetailPanel } from '@/containers/hub/ModelDetailPanel'
 import { ModelListRow } from '@/containers/hub/ModelListRow'
 import { RECOMMENDED_MODEL_FALLBACKS } from '@/constants/models'
@@ -43,11 +46,15 @@ import {
   filterInstalledBySearch,
   withStaffPicks,
 } from '@/lib/hub-installed'
+import { isHubCategory, type HubCategory } from '@/lib/hub-media'
 import { getMemoryBudgetBytes } from '@/lib/model-card'
 import { extractModelName } from '@/lib/models'
+import { PlatformFeatures } from '@/lib/platform/const'
+import { PlatformFeature } from '@/lib/platform/types'
 import { cn } from '@/lib/utils'
 import { getModelSearchService } from '@/services/model-search'
 import { useModelCatalogStore } from '@/stores/model-catalog-store'
+import type { DiffusionModality } from '@/services/diffusion/types'
 import type { CatalogModel, HuggingFaceFeedSort } from '@/services/models/types'
 import type {
   StaffPick,
@@ -60,8 +67,13 @@ type SearchParams = {
   repo?: string
   engine?: 'mlx' | 'gguf'
   q?: string
-  /** Repo id of the model shown in the right-hand detail panel. */
+  /**
+   * Repo id of the model shown in the right-hand detail panel; in the Images
+   * and Video categories, the id of the catalog family.
+   */
   model?: string
+  /** Absent means Chat: every link into the Hub from a chat asks for one. */
+  category?: HubCategory
 }
 
 /** A row in the left column, plus the provenance the row needs to render. */
@@ -117,6 +129,7 @@ export const Route = createFileRoute(route.hub.index as any)({
         : undefined,
     q: typeof search.q === 'string' ? search.q : undefined,
     model: typeof search.model === 'string' ? search.model : undefined,
+    category: isHubCategory(search.category) ? search.category : undefined,
   }),
 })
 
@@ -125,6 +138,98 @@ export const Route = createFileRoute(route.hub.index as any)({
 const hubScrollCache: { q: string; offset: number } = { q: '', offset: 0 }
 
 function HubContent() {
+  const navigate = useNavigate()
+  const { category: categorySearchParam } = Route.useSearch()
+  // Image and video models need the local media engine, so without it the
+  // Hub stays the chat catalog it always was, switch and all.
+  const mediaSupported = PlatformFeatures[PlatformFeature.MEDIA_GENERATION]
+  const category: HubCategory =
+    mediaSupported && categorySearchParam ? categorySearchParam : 'chat'
+
+  const changeCategory = useCallback(
+    (next: HubCategory) => {
+      void navigate({
+        to: route.hub.index,
+        // The selection belongs to the category it was made in.
+        search: (prev: SearchParams) => ({
+          ...prev,
+          category: next === 'chat' ? undefined : next,
+          model: undefined,
+          repo: undefined,
+        }),
+        replace: true,
+      })
+    },
+    [navigate]
+  )
+
+  const categoryTabs = mediaSupported ? (
+    <HubCategoryTabs value={category} onChange={changeCategory} />
+  ) : undefined
+
+  return category === 'chat' ? (
+    <ChatHub categoryTabs={categoryTabs} />
+  ) : (
+    <MediaHubContent
+      key={category}
+      modality={category}
+      categoryTabs={categoryTabs}
+    />
+  )
+}
+
+function MediaHubContent({
+  modality,
+  categoryTabs,
+}: {
+  modality: DiffusionModality
+  categoryTabs?: ReactNode
+}) {
+  const navigate = useNavigate()
+  const { q: querySearchParam, model: modelSearchParam } = Route.useSearch()
+  // One search box for every category: switching keeps what was typed.
+  const [query, setQuery] = useState(querySearchParam ?? getHubSearchQuery())
+
+  const changeQuery = useCallback(
+    (next: string) => {
+      setQuery(next)
+      setHubSearchQuery(next)
+      void navigate({
+        to: route.hub.index,
+        search: (prev: SearchParams) => ({
+          ...prev,
+          q: next.trim() || undefined,
+        }),
+        replace: true,
+      })
+    },
+    [navigate]
+  )
+
+  const selectFamily = useCallback(
+    (familyId: string, options?: { replace?: boolean }) => {
+      void navigate({
+        to: route.hub.index,
+        search: (prev: SearchParams) => ({ ...prev, model: familyId }),
+        replace: options?.replace ?? false,
+      })
+    },
+    [navigate]
+  )
+
+  return (
+    <MediaHub
+      modality={modality}
+      categoryTabs={categoryTabs}
+      query={query}
+      onQueryChange={changeQuery}
+      selectedFamilyId={modelSearchParam ?? null}
+      onSelectFamily={selectFamily}
+    />
+  )
+}
+
+function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const serviceHub = useServiceHub()
@@ -833,6 +938,7 @@ function HubContent() {
 
       <div className="col-start-1 row-start-2 flex min-h-0 min-w-0 flex-col border-r border-border">
         <div className="flex flex-col gap-2 border-b border-border p-3">
+          {categoryTabs}
           <HubFilters
             state={filters}
             onChange={updateFilters}

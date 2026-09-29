@@ -49,5 +49,18 @@
   "readmeUnavailable": "Für dieses Modell ist kein README verfügbar.",
   "tooLargeTitle": "Dieses Modell läuft auf diesem Gerät möglicherweise nicht",
   "tooLargeDescription": "Es benötigt mehr Arbeitsspeicher, als dieses Gerät hat, und lädt daher möglicherweise nicht oder läuft langsam.",
-  "downloadAnyway": "Trotzdem herunterladen"
+  "downloadAnyway": "Trotzdem herunterladen",
+  "categoryChat": "Chat",
+  "categoryImages": "Images",
+  "categoryVideo": "Video",
+  "categories": "Modelltyp",
+  "searchImagePlaceholder": "Bildmodelle durchsuchen…",
+  "searchVideoPlaceholder": "Videomodelle durchsuchen…",
+  "open": "Öffnen",
+  "openInImages": "In Images öffnen",
+  "openInVideo": "In Video öffnen",
+  "defaultSize": "Standardgröße",
+  "steps": "Schritte",
+  "license": "Lizenz",
+  "frameRate": "Bildrate"
 }

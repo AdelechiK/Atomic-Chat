@@ -61,5 +61,18 @@
   "readmeUnavailable": "このモデルには README がありません。",
   "tooLargeTitle": "このモデルはこのデバイスで動作しない可能性があります",
   "tooLargeDescription": "このデバイスのメモリを超える容量が必要なため、読み込めないか、動作が遅くなる可能性があります。",
-  "downloadAnyway": "それでもダウンロード"
+  "downloadAnyway": "それでもダウンロード",
+  "categoryChat": "Chat",
+  "categoryImages": "Images",
+  "categoryVideo": "Video",
+  "categories": "モデルの種類",
+  "searchImagePlaceholder": "画像モデルを検索…",
+  "searchVideoPlaceholder": "動画モデルを検索…",
+  "open": "開く",
+  "openInImages": "Images で開く",
+  "openInVideo": "Video で開く",
+  "defaultSize": "既定のサイズ",
+  "steps": "ステップ数",
+  "license": "ライセンス",
+  "frameRate": "フレームレート"
 }

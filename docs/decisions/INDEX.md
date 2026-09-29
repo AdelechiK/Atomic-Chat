@@ -9,7 +9,7 @@ decision is reversed, add a new one that says which record it supersedes.
 2. Add one line to the right section of this index.
 3. Do **not** paste the record body into `AGENTS.md`.
 
-359 records, 2026-05-19 → 2026-09-28.
+360 records, 2026-05-19 → 2026-09-29.
 
 ---
 
@@ -205,8 +205,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-05-22** — [Ship `janhq/llama.cpp` cudart DLLs with every Windows CUDA backend](2026-05-22-ship-janhq-llama-cpp-cudart-dlls-with-every-windows-cuda-backend.md)
 - **2026-05-19** — [Windows uses upstream `ggml-org/llama.cpp`, not the TurboQuant fork](2026-05-19-windows-uses-upstream-ggml-org-llama-cpp-not-the-turboquant-fork.md)
 
-## Models, Hub & downloads (31)
+## Models, Hub & downloads (32)
 
+- **2026-09-29** — [List image and video models in the Hub, from the curated catalog only](2026-09-29-list-image-and-video-models-in-the-hub.md)
 - **2026-09-16** — [Check disk space before a download starts](2026-09-16-check-disk-space-before-a-download-starts.md)
 - **2026-09-16** — [Explain why images need a vision model, and offer the ones that run here](2026-09-16-explain-why-images-need-a-vision-model.md)
 - **2026-09-15** — [List the rest of Hugging Face under the picks, in its trending order, a page at a time](2026-09-15-list-the-rest-of-hugging-face-under-the-picks.md)

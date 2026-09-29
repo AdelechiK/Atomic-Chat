@@ -6,6 +6,7 @@ import type { ResolvedStaffPick } from '@/hooks/useStaffPicks'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  mediaSupported: false,
   search: {} as Record<string, unknown>,
   staffPicks: [] as ResolvedStaffPick[],
   mlxStaffPicks: [] as ResolvedStaffPick[],
@@ -74,6 +75,45 @@ vi.mock('@/containers/hub/ModelDetailPanel', () => ({
 vi.mock('@/containers/hub/HubFilters', () => ({
   HubFilters: () => <div data-testid="hub-filters" />,
 }))
+
+// The Images / Video catalog has tests of its own; here it only has to show
+// what the route handed it, and hand a pick back.
+vi.mock('@/containers/hub/MediaHub', () => ({
+  MediaHub: ({
+    modality,
+    categoryTabs,
+    query,
+    selectedFamilyId,
+    onSelectFamily,
+  }: {
+    modality: string
+    categoryTabs?: React.ReactNode
+    query: string
+    selectedFamilyId: string | null
+    onSelectFamily: (id: string) => void
+  }) => (
+    <main data-testid="media-hub">
+      {categoryTabs}
+      <span>{`${modality} catalog, query "${query}", open ${selectedFamilyId}`}</span>
+      <button type="button" onClick={() => onSelectFamily('flux.1-schnell')}>
+        pick flux
+      </button>
+    </main>
+  ),
+}))
+
+vi.mock('@/lib/platform/const', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/platform/const')>()
+  return {
+    ...actual,
+    PlatformFeatures: new Proxy(actual.PlatformFeatures, {
+      get: (target, key) =>
+        key === 'mediaGeneration'
+          ? mocks.mediaSupported
+          : target[key as keyof typeof target],
+    }),
+  }
+})
 
 vi.mock('@/hooks/useStaffPicks', () => ({
   useStaffPicks: (_sources: CatalogModel[], format = 'gguf') => {
@@ -177,6 +217,7 @@ describe('/hub route', () => {
     localStorage.clear()
     setHubSearchQuery('')
     mocks.search = {}
+    mocks.mediaSupported = false
     mocks.sources = []
     mocks.staffPicks = [
       {
@@ -566,5 +607,102 @@ describe('/hub route', () => {
     expect(
       screen.getByRole('textbox', { name: 'hub:searchPlaceholder' })
     ).toHaveValue('')
+  })
+
+  describe('categories', () => {
+    const lastNavigation = () =>
+      mocks.navigate.mock.calls.at(-1)?.[0] as {
+        search: (prev: Record<string, unknown>) => Record<string, unknown>
+        replace?: boolean
+      }
+
+    it('stays the chat catalog without the media engine, whatever the URL says', () => {
+      mocks.search = { category: 'image' }
+      render(<HubPage />)
+
+      expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('media-hub')).not.toBeInTheDocument()
+      expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
+    })
+
+    it('opens on Chat, with the switch above the filters', () => {
+      mocks.mediaSupported = true
+      render(<HubPage />)
+
+      expect(
+        screen.getByRole('tab', { name: 'hub:categoryChat' })
+      ).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
+      expect(screen.queryByTestId('media-hub')).not.toBeInTheDocument()
+    })
+
+    it('shows the image catalog the URL names, with its search and selection', () => {
+      mocks.mediaSupported = true
+      mocks.search = { category: 'image', q: 'flux', model: 'z-image' }
+      render(<HubPage />)
+
+      expect(
+        screen.getByText('image catalog, query "flux", open z-image')
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('tab', { name: 'hub:categoryImages' })
+      ).toHaveAttribute('aria-selected', 'true')
+      // The chat feed is not even asked for.
+      expect(screen.queryByText('Qwen3.5 4B')).not.toBeInTheDocument()
+      expect(mocks.listHuggingFaceFeed.mock.calls).toEqual([])
+    })
+
+    it('drops the selection of the old category when switching', async () => {
+      mocks.mediaSupported = true
+      render(<HubPage />)
+
+      await userEvent.click(
+        screen.getByRole('tab', { name: 'hub:categoryVideo' })
+      )
+
+      const navigation = lastNavigation()
+      expect(navigation.replace).toBe(true)
+      expect(
+        navigation.search({
+          q: 'wan',
+          model: 'Qwen/Qwen3.5-4B-GGUF',
+          repo: 'x',
+        })
+      ).toEqual({
+        q: 'wan',
+        category: 'video',
+        model: undefined,
+        repo: undefined,
+      })
+    })
+
+    it('leaves Chat out of the URL when switching back to it', async () => {
+      mocks.mediaSupported = true
+      mocks.search = { category: 'video', model: 'wan-2.2-ti2v-5b' }
+      render(<HubPage />)
+
+      await userEvent.click(
+        screen.getByRole('tab', { name: 'hub:categoryChat' })
+      )
+
+      expect(
+        lastNavigation().search({ category: 'video', model: 'wan-2.2-ti2v-5b' })
+      ).toEqual({ category: undefined, model: undefined, repo: undefined })
+    })
+
+    it('puts a family picked in the media catalog into the URL', async () => {
+      mocks.mediaSupported = true
+      mocks.search = { category: 'image' }
+      render(<HubPage />)
+
+      await userEvent.click(screen.getByRole('button', { name: 'pick flux' }))
+
+      const navigation = lastNavigation()
+      expect(navigation.replace).toBe(false)
+      expect(navigation.search({ category: 'image' })).toEqual({
+        category: 'image',
+        model: 'flux.1-schnell',
+      })
+    })
   })
 })
