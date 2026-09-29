@@ -329,9 +329,10 @@ describe('ImageModelSelector', () => {
     expect(
       within(family).getByRole('button', { name: 'images:model.download' })
     ).toHaveAttribute('data-variant', 'default')
-    expect(
-      within(family).queryByTestId('image-model-download-meta')
-    ).not.toBeInTheDocument()
+    // The fit and the size of what Download fetches sit on the card itself.
+    const meta = within(row).getByTestId('image-model-download-meta')
+    expect(within(meta).getByText('Might fit')).toBeInTheDocument()
+    expect(within(meta).getByText('images:model.sizeGb')).toBeInTheDocument()
 
     await userEvent.click(
       within(family).getByRole('button', { name: 'images:model.download' })

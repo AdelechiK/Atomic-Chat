@@ -546,7 +546,25 @@ function FamilyBlock({ family, quants, modality }: FamilyBlockProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <span className="min-w-0 flex-1" />
+        {/* Before anything is on disk the row reads like a menu row — quant,
+            fit, size, Download — so the choice needs no click. The meta takes
+            the spacer's place; a spacer beside it would cost one more gap. */}
+        {hasDownloadedQuant ? (
+          <span className="min-w-0 flex-1" />
+        ) : (
+          <span
+            className="flex min-w-0 flex-1 items-center gap-1.5"
+            data-testid="image-model-download-meta"
+          >
+            <FitBadge
+              fit={artifact.fit}
+              className="shrink-0 px-2 py-0.5 text-[10px]"
+            />
+            <span className="min-w-0 truncate whitespace-nowrap text-[11px] tabular-nums text-muted-foreground">
+              {t('images:model.sizeGb', { size: gb(artifact.totalBytes) })}
+            </span>
+          </span>
+        )}
 
         {!hasDownloadedQuant && (
           <ImageArtifactDownloadButton
@@ -679,19 +697,16 @@ function AvailableQuantRow({
   const optionId = artifactId(family.id, option.id)
   const artifact = useImageArtifact(optionId)
   const fit = fitForQuant(family, option, profile, { teOnCpu: IS_MACOS }).fit
-  const totalBytes =
-    option.bytes +
-    (family.vae?.bytes ?? 0) +
-    (family.audio_vae?.bytes ?? 0) +
-    family.text_encoders.reduce((sum, encoder) => sum + encoder.bytes, 0)
 
   return (
     <QuantDownloadRow artifact={artifact} option={option}>
       <QuantLabel label={option.label} />
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         <FitBadge fit={fit} className="shrink-0 px-2 py-0.5 text-[10px]" />
+        {/* The download plan's size, as on the card: an optional file (a
+            vision projector) is not counted. */}
         <span className="min-w-0 truncate whitespace-nowrap text-[11px] tabular-nums text-muted-foreground">
-          {t('images:model.sizeGb', { size: gb(totalBytes) })}
+          {t('images:model.sizeGb', { size: gb(artifact.totalBytes) })}
         </span>
       </div>
     </QuantDownloadRow>

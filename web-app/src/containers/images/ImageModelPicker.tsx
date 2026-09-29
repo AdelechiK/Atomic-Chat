@@ -153,8 +153,10 @@ export const ImageModelPicker = memo(function ImageModelPicker({
           align="start"
           sideOffset={6}
           // A heavier shadow than the default: the panel opens over the form,
-          // which is the same white, and must read as lifted off it.
-          className="max-h-[min(60vh,480px)] w-[380px] max-w-[calc(100vw-2rem)] origin-[var(--radix-popover-content-transform-origin)] overflow-y-auto rounded-xl border bg-background/95 p-1.5 shadow-xl backdrop-blur-2xl"
+          // which is the same white, and must read as lifted off it. 400 px
+          // holds a card row of the longest quant, a fit badge, a two-digit
+          // GB size and the Download slot without cutting the size.
+          className="max-h-[min(60vh,480px)] w-[400px] max-w-[calc(100vw-2rem)] origin-[var(--radix-popover-content-transform-origin)] overflow-y-auto rounded-xl border bg-background/95 p-1.5 shadow-xl backdrop-blur-2xl"
         >
           <ImageModelSelector
             variant="page"
