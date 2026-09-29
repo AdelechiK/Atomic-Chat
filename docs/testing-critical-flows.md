@@ -321,8 +321,8 @@ Production entrypoints:
   engine here, asks the core for free space (`POST /disk/available`) and hands
   the tree over (`POST /diffusion/backends/finalize`).
 - `web-app/src/containers/images/*`, `containers/dialogs/ImageSetupDialog.tsx`,
-  `routes/settings/media.tsx` — the Images page, the first-run wizard and the
-  Media settings page.
+  `routes/settings/media.tsx` — the Images page with its one-click engine
+  card, the model-list dialog and the Media settings page.
 - `web-app/src/lib/diffusion/{size,recipe,generation-stop,errors,telemetry}.ts`
   — pure helpers: size snapping, recipe restore and export naming, the
   stop/report decisions, the error-code routing table, PostHog props.
@@ -367,7 +367,13 @@ Existing evidence:
   Ctrl+Enter submit, the Generate/Stop swap, capability-gated controls, the
   download plan's present/missing rows, Restore filling the form with the batch
   seed, the export filename handed to the save dialog, delete removing the
-  tile, the wizard's Done gate, and the output-folder change.
+  tile, the model-list dialog's Done gate, and the output-folder change.
+  `ImageSetupCard.test.tsx` proves one click on the card starts the engine
+  install with no dialog, the progress sits on the button, a failure offers
+  the same button with its reason, and a host with no build gets no button;
+  the pages' `install` error action starts the install the same way.
+  `ImageSetupCard.layout.test.tsx` (browser layout suite) holds the button's
+  width and the card's height through idle, installing and failed.
 - `NavMain.test.tsx` checks the Images row sits after Models and disappears
   without the media-generation feature.
 - The endpoint's Local API Server comes up for an image model with no chat
@@ -472,8 +478,8 @@ Existing evidence:
 - `ImageSetupCard.test.tsx`, `ImageSetupDialog.test.tsx`,
   `ImageGenerationPlaceholder.test.tsx`, `ImageModelPicker.test.tsx`,
   `ImageModelSelector.test.tsx`, `NavMain.test.tsx` and `media.test.tsx`
-  cover the shared components' video variants: the card's copy, done row and
-  wizard modality, the wizard keeping its modality across steps, the video
+  cover the shared components' video variants: the card's copy and install
+  label, the dialog listing the Video page's models, the video
   progress words, a resident video model kept off the Images picker, the
   selector's modality filter writing the Video selection, the sidebar row
   after Images, and the video output folder's change, default and refusal.

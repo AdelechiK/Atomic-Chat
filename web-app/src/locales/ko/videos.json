@@ -4,13 +4,6 @@
     "loading": "Getting things ready…"
   },
   "setup": {
-    "intro": {
-      "title": "Create videos locally",
-      "description": "Turn a prompt into a short clip without sending it anywhere.",
-      "bulletLocal": "Describe the scene and how it moves in your own words.",
-      "bulletRecipes": "Pick a size and a length, then refine or reuse any result.",
-      "bulletApi": "Your prompts and generated clips stay on this computer."
-    },
     "model": {
       "title": "Choose a video model",
       "description": "We picked the best version of each model for this computer."
@@ -19,10 +12,6 @@
       "title": "Create your first video",
       "description": "A private video studio that runs on your computer. Two downloads are all it needs.",
       "engine": "Install the media engine",
-      "engineDescription": "The local renderer that creates images and videos.",
-      "model": "Choose a video model",
-      "modelDescription": "Pick the model that generates your clips.",
-      "button": "Start setup",
       "downloadModel": "Download model"
     }
   },

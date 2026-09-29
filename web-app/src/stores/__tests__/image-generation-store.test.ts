@@ -1091,19 +1091,17 @@ describe('image-generation-store', () => {
       expect(useImageGenerationStore.getState().bound).toBe(false)
     })
 
-    it('opens and closes the setup wizard on a given step', () => {
-      useImageGenerationStore.getState().openSetup(2)
+    it('opens and closes the model-list dialog for a given page', () => {
+      useImageGenerationStore.getState().openSetup()
       expect(useImageGenerationStore.getState()).toMatchObject({
         setupOpen: true,
-        setupStep: 2,
         setupModality: 'image',
       })
       useImageGenerationStore.getState().closeSetup()
       expect(useImageGenerationStore.getState().setupOpen).toBe(false)
-      useImageGenerationStore.getState().openSetup(1, 'video')
+      useImageGenerationStore.getState().openSetup('video')
       expect(useImageGenerationStore.getState()).toMatchObject({
         setupOpen: true,
-        setupStep: 1,
         setupModality: 'video',
       })
     })

@@ -71,7 +71,7 @@ export const ImageGenerationPage = memo(function ImageGenerationPage({
     state.lastErrorModality === 'video' ? null : state.lastError
   )
   const clearError = useImageGenerationStore((state) => state.clearError)
-  const openSetup = useImageGenerationStore((state) => state.openSetup)
+  const installEngine = useImageGenerationStore((state) => state.installEngine)
   const loadModel = useImageGenerationStore((state) => state.loadModel)
   const patchForm = useImageForm((state) => state.patch)
   const draftWidth = useImageForm((state) => state.width)
@@ -139,12 +139,12 @@ export const ImageGenerationPage = memo(function ImageGenerationPage({
           void useImageGenerationStore.getState().updateEngine()
           return
         case 'install':
-          openSetup(1)
+          void installEngine()
           return
         case 'download':
           // The picker lives in the form, which needs the engine first.
           if (engine.installed) setModelsOpen(true)
-          else openSetup(1)
+          else void installEngine()
           return
         case 'openSettings':
           void navigate({ to: route.settings.media })
@@ -179,8 +179,8 @@ export const ImageGenerationPage = memo(function ImageGenerationPage({
     [
       clearError,
       engine.installed,
+      installEngine,
       navigate,
-      openSetup,
       patchForm,
       serviceHub,
       status?.outputDir,

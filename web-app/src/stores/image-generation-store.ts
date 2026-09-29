@@ -60,9 +60,6 @@ import {
 import { useImageGalleryStore } from '@/stores/image-gallery-store'
 import { raiseLocalApiServerForMediaModel } from '@/utils/localApiServerControl'
 
-/** 0 = what it is, 1 = install the engine, 2 = pick and download a model. */
-export type ImageSetupStep = 0 | 1 | 2
-
 export type EngineInstallProgress = {
   inFlight: boolean
   transferred: number
@@ -138,9 +135,9 @@ type ImageGenerationState = {
   engineUpdate: EngineUpdateState
   pendingEngineArtifactId: string | null
 
+  /** The model-list dialog, for the places with no picker of their own. */
   setupOpen: boolean
-  setupStep: ImageSetupStep
-  /** Which page opened the wizard: its intro copy and its model list follow. */
+  /** Which page opened the dialog: its copy and its model list follow. */
   setupModality: DiffusionModality
 
   bind: () => Promise<void>
@@ -172,7 +169,7 @@ type ImageGenerationState = {
   stop: () => Promise<void>
   clearError: () => void
 
-  openSetup: (step?: ImageSetupStep, modality?: DiffusionModality) => void
+  openSetup: (modality?: DiffusionModality) => void
   closeSetup: () => void
   reset: () => void
 }
@@ -248,7 +245,6 @@ const initial = {
   engineUpdate: noUpdate,
   pendingEngineArtifactId: null,
   setupOpen: false,
-  setupStep: 0 as ImageSetupStep,
   setupModality: 'image' as DiffusionModality,
 }
 
@@ -1013,8 +1009,8 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
 
     clearError: () => set({ lastError: null, lastErrorModality: null }),
 
-    openSetup: (step = 0, modality = 'image') =>
-      set({ setupOpen: true, setupStep: step, setupModality: modality }),
+    openSetup: (modality = 'image') =>
+      set({ setupOpen: true, setupModality: modality }),
     closeSetup: () => set({ setupOpen: false }),
 
     reset: () => {
