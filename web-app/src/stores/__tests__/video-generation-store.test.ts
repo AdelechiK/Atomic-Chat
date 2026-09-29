@@ -25,7 +25,7 @@ vi.mock('@/lib/video/poster', async (importOriginal) => ({
 }))
 const notifications = vi.hoisted(() => ({ notify: vi.fn() }))
 vi.mock('@/lib/notifications', () => ({
-  notifyThreadCompleted: notifications.notify,
+  notifyWhenAway: notifications.notify,
 }))
 const captured = vi.hoisted(() => ({
   events: [] as Array<[string, Record<string, unknown>]>,
@@ -110,8 +110,6 @@ describe('video-generation-store', () => {
         )
         return { jobId: 'vjob-1' }
       })
-      const focus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
-
       const run = useVideoGenerationStore.getState().startGeneration({
         request: makeVideoRequest(),
         seed: 42,
@@ -177,7 +175,6 @@ describe('video-generation-store', () => {
         'Video ready',
         'Your clip is in the gallery.'
       )
-      focus.mockRestore()
     })
 
     it('shows the progress of the running job and marks it generating', async () => {

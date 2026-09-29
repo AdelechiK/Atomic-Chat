@@ -9,7 +9,7 @@ import {
   captureVideoGenerate,
   videoEstimateProps,
 } from '@/lib/diffusion/telemetry'
-import { notifyThreadCompleted } from '@/lib/notifications'
+import { notifyWhenAway } from '@/lib/notifications'
 import { capturePosterForClip, PosterBackfillQueue } from '@/lib/video/poster'
 import { validateVideoRequest } from '@/lib/video/validate'
 import type {
@@ -192,13 +192,11 @@ export const useVideoGenerationStore = create<VideoGenerationState>()((
     })
   }
 
-  const notifyIfUnfocused = () => {
-    if (typeof document !== 'undefined' && document.hasFocus()) return
-    void notifyThreadCompleted(
+  const notifyIfUnfocused = () =>
+    notifyWhenAway(
       i18n.t('videos:notifications.readyTitle'),
       i18n.t('videos:notifications.readyBody')
     )
-  }
 
   /** A job ended: land its clip, report it, and settle the page. */
   const settle = (job: VideoJob) => {

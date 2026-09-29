@@ -54,7 +54,7 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/containers/chatInput/useTauriDragDrop', () => ({
   useTauriDragDrop: () => undefined,
 }))
-vi.mock('@/lib/notifications', () => ({ notifyThreadCompleted: vi.fn() }))
+vi.mock('@/lib/notifications', () => ({ notifyWhenAway: vi.fn() }))
 vi.mock('@/lib/telemetry-queue', () => ({ queuedCapture: vi.fn() }))
 vi.mock('@/hooks/useHardwareTier', () => ({
   useHardwareTier: () => ({

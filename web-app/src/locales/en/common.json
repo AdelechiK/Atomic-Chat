@@ -760,5 +760,12 @@
       "notLoaded": "Not loaded — the first message will start it",
       "failed": "Failed to load"
     }
+  },
+  "desktopNotification": {
+    "modelReadyTitle": "Model downloaded",
+    "modelReadyBody": "{{name}} is ready to use.",
+    "engineReadyTitle": "Engine installed",
+    "chatEngineReadyBody": "llama.cpp is ready to run models.",
+    "mediaEngineReadyBody": "The image and video engine is ready."
   }
 }
