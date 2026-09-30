@@ -6,7 +6,6 @@ import {
   makeCapabilities,
   makeFakeDiffusion,
   makeLoadedStatus,
-  Q4_ID,
   type FakeDiffusion,
 } from '@/lib/diffusion/__tests__/image-fixtures'
 import { seedServiceHub } from '@/test/service-hub'
@@ -87,6 +86,8 @@ const ALL_WORKFLOWS: ImageWorkflowId[] = [
   'edit',
 ]
 const SOURCE = { path: '/pics/in.png', width: 1024, height: 768 }
+/** FLUX.2 Klein runs every workflow, so the resident model suits each one. */
+const KLEIN_ID = 'flux.2-klein:q4_k_m'
 
 describe('ImagePromptForm per workflow', () => {
   let fake: FakeDiffusion
@@ -111,11 +112,14 @@ describe('ImagePromptForm per workflow', () => {
       maskBase64: null,
       referenceImages: [],
     })
-    useImageSetting.setState({ selectedArtifactId: Q4_ID, advancedOpen: false })
+    useImageSetting.setState({
+      selectedArtifactId: KLEIN_ID,
+      advancedOpen: false,
+    })
     useImageGenerationStore.getState().reset()
     useImageGalleryStore.getState().reset()
     useImageGenerationStore.setState({
-      status: makeLoadedStatus(Q4_ID),
+      status: makeLoadedStatus(KLEIN_ID),
       capabilities: makeCapabilities({ workflows: ALL_WORKFLOWS }),
     })
     fake = makeFakeDiffusion()

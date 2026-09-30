@@ -9,6 +9,7 @@ import { useImageEngine } from '@/hooks/useImageEngine'
 import { useImageForm } from '@/hooks/useImageForm'
 import { useImageGallery } from '@/hooks/useImageGallery'
 import { useImageSetting } from '@/hooks/useImageSetting'
+import { useMediaTarget } from '@/hooks/useMediaTarget'
 import { useServiceHub } from '@/hooks/useServiceHub'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import type { DiffusionErrorAction } from '@/lib/diffusion/errors'
@@ -82,7 +83,7 @@ export const ImageGenerationPage = memo(function ImageGenerationPage({
   )
   const [modelsOpen, setModelsOpen] = useState(false)
 
-  const modelLoaded = status?.model.state === 'loaded'
+  const modelPicked = useMediaTarget('image').artifactId !== null
   const showLivePreview = generating && viewerMode === 'live'
   const pendingSize = {
     width: currentJob?.request.width || draftWidth,
@@ -263,7 +264,7 @@ export const ImageGenerationPage = memo(function ImageGenerationPage({
         {gallery.initialized && gallery.items.length === 0 && !generating ? (
           <div className="min-h-0 flex-1">
             <ImageEmptyState
-              modelLoaded={modelLoaded}
+              modelPicked={modelPicked}
               onDownloadModel={
                 engine.installed && !hasModel ? openModels : undefined
               }

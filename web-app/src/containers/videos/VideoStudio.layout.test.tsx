@@ -76,6 +76,8 @@ async function seedVideoStudio() {
   await useVideoSetting.persist.rehydrate()
   useVideoForm.setState({
     ...DEFAULT_VIDEO_FORM,
+    // LTX's own numbers, so picking LTX keeps them.
+    recipeFamily: 'ltx-2',
     prompt: 'A lighthouse at dusk, waves rolling in',
     width: 704,
     height: 1216,

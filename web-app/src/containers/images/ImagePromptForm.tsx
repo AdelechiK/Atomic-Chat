@@ -120,7 +120,7 @@ export const ImagePromptForm = memo(function ImagePromptForm({
       workflow: state.workflow,
       patch: state.patch,
       resetToDefaults: state.resetToDefaults,
-      clampTo: state.clampTo,
+      adoptModel: state.adoptModel,
     }))
   )
   const {
@@ -153,20 +153,24 @@ export const ImagePromptForm = memo(function ImagePromptForm({
     }))
   )
   const engine = useImageEngine()
-  const capabilities = useImageGenerationStore((state) => state.capabilities)
   const applyIdleSettings = useImageGenerationStore(
     (state) => state.applyIdleSettings
   )
   const generation = useImageGeneration()
+  // The picked model's, known from the catalog before it starts: the
+  // controls it needs are there at once and do not appear on load.
+  const { capabilities, targetFamilyId } = generation
   const [internalModelsOpen, setInternalModelsOpen] = useState(false)
   const modelsOpen = controlledModelsOpen ?? internalModelsOpen
   const setModelsOpen = onModelsOpenChange ?? setInternalModelsOpen
 
-  // A model just loaded: fold the draft into what it accepts.
+  // A model was picked or loaded: the draft becomes its. Starting the
+  // picked model changes nothing the user set, only the model's report.
   useEffect(() => {
-    if (capabilities) form.clampTo(capabilities)
+    if (targetFamilyId && capabilities)
+      form.adoptModel(targetFamilyId, capabilities)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capabilities])
+  }, [targetFamilyId, capabilities])
 
   const constraints: DimConstraints = capabilities
     ? {

@@ -196,13 +196,16 @@ describe('VideoPromptForm', () => {
     useVideoSetting.setState({ selectedArtifactId: 'wan2.2-ti2v-5b:q4_k_m' })
     render(<VideoPromptForm />)
     expect(screen.getByText('videos:form.negativePrompt')).toBeInTheDocument()
-    // The knob shows the draft's cfg; the defaults land through the store's reset on load.
-    expect(screen.getByRole('spinbutton', { name: 'videos:form.guidance' })).toHaveValue(1)
+    // Another family: the draft took Wan's own numbers, cfg 5 among them.
+    expect(screen.getByRole('spinbutton', { name: 'videos:form.guidance' })).toHaveValue(5)
     expect(
       screen.getByRole('spinbutton', { name: 'videos:form.distilledGuidance' })
     ).toBeInTheDocument()
-    // The load clamped the draft to Wan's own presets and lattice.
-    expect(useVideoForm.getState()).toMatchObject({ width: 1280, height: 704 })
+    expect(useVideoForm.getState()).toMatchObject({
+      recipeFamily: 'wan2.2-ti2v-5b',
+      width: 1280,
+      height: 704,
+    })
   })
 
   it('resets the knobs to the model defaults but keeps the prompt', async () => {

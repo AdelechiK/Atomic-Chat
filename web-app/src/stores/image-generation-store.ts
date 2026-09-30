@@ -4,7 +4,6 @@ import { useHardware } from '@/hooks/useHardware'
 import { useImageForm } from '@/hooks/useImageForm'
 import { useImageSetting } from '@/hooks/useImageSetting'
 import { getServiceHub } from '@/hooks/useServiceHub'
-import { useVideoForm } from '@/hooks/useVideoForm'
 import { useVideoSetting } from '@/hooks/useVideoSetting'
 import { i18n } from '@/i18n/react-i18next-compat'
 import { acquireGpuForDiffusion } from '@/lib/diffusion/arbiter'
@@ -757,7 +756,6 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
       }
       set({ pendingEngineArtifactId: null })
       const quantId = parsed.quantId
-      const previousModelId = get().status?.model.loaded?.modelId ?? null
       const settings = useImageSetting.getState()
       const workflow = useImageForm.getState().workflow
       const teOnCpu = IS_MACOS
@@ -837,25 +835,19 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
           }
         )
         await diffusion().loadModel(request)
+        // The forms are not touched here: each page makes its draft the
+        // model's when it picks it (`adoptModel`), so the numbers set before
+        // the start are the ones it generates with.
         if (family.modality === 'video') {
           // The Video page owns its selection and its form; the image ones
           // are left as they were, for when an image model is loaded again.
           const videoCapabilities = await diffusion().getVideoCapabilities()
           set({ videoCapabilities, capabilities: null })
           useVideoSetting.getState().setSelectedArtifactId(artifactId)
-          if (previousModelId !== artifactId) {
-            useVideoForm.getState().resetToDefaults(videoCapabilities)
-          }
         } else {
           const capabilities = await diffusion().getCapabilities()
           set({ capabilities, videoCapabilities: null })
           settings.setSelectedArtifactId(artifactId)
-          if (previousModelId !== artifactId) {
-            // A FLUX checkpoint at Qwen's old 30-step / high-guidance values
-            // can overflow or produce garbage. Switching model families also
-            // switches their numeric recipe, while keeping the user's prompt.
-            useImageForm.getState().resetToDefaults(capabilities.defaults)
-          }
         }
         await get().refreshStatus()
         // `/v1/images/generations` and `/v1/videos` live on the Local API
