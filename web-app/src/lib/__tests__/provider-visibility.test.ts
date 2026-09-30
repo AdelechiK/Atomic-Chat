@@ -79,6 +79,34 @@ describe('refreshManagedProviders', () => {
     expect(providers.names()).toEqual(['llamacpp-upstream'])
   })
 
+  it('keeps a provider whose engine could not find out, rather than dropping its settings', async () => {
+    // A core that did not answer is not a machine without an NVIDIA GPU.
+    const unsure = { ...gated(false), visibilityKnown: () => false }
+    const providers = store(['tensorrt-llm'])
+
+    await refreshManagedProviders({
+      engines: new Map([['tensorrt-llm', unsure]]),
+      getProviders: async () => [],
+      store: providers,
+    })
+
+    expect(providers.names()).toEqual(['tensorrt-llm'])
+  })
+
+  it('does not re-read every provider when nothing about the gated one changed', async () => {
+    const getProviders = vi.fn(async () => [provider('tensorrt-llm')])
+    const providers = store(['tensorrt-llm'])
+
+    await refreshManagedProviders({
+      engines: new Map([['tensorrt-llm', gated(true)]]),
+      getProviders,
+      store: providers,
+    })
+
+    expect(getProviders).not.toHaveBeenCalled()
+    expect(providers.names()).toEqual(['tensorrt-llm'])
+  })
+
   it('does nothing at all when no engine is gated', async () => {
     const getProviders = vi.fn()
     const providers = store(['mlx'])

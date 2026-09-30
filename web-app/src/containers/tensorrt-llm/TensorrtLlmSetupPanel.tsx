@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { create } from 'zustand'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -52,6 +53,20 @@ import {
 /** What the person agreed to, until the core asks for that consent. */
 type Approval = { kind: 'setup'; digest: Sha256Digest } | { kind: 'remove' }
 
+/**
+ * Privileged steps already put to the OS prompt, and the ones whose prompt is still open. Module
+ * state, not component state: leaving the provider page and opening it again must not raise a
+ * second password prompt for a step whose executor may still be running.
+ */
+const promptedSteps = new Set<string>()
+/** Steps whose prompt is open, as a store so every mounted panel sees it close. */
+const useElevatingSteps = create<{ steps: string[] }>()(() => ({ steps: [] }))
+
+export function resetHostStepPromptsForTests(): void {
+  promptedSteps.clear()
+  useElevatingSteps.setState({ steps: [] })
+}
+
 const errorText = (error: unknown) =>
   error && typeof error === 'object' && 'message' in error
     ? String((error as { message: unknown }).message)
@@ -74,7 +89,7 @@ export function TensorrtLlmSetupPanel() {
   const [notices, setNotices] = useState<string[]>([])
   const approval = useRef<Approval | null>(null)
   const answeredConsent = useRef<string | null>(null)
-  const promptedSteps = useRef(new Set<string>())
+  const elevatingSteps = useElevatingSteps((state) => state.steps)
   const environmentRef = useRef(environment)
   environmentRef.current = environment
 
@@ -150,6 +165,12 @@ export function TensorrtLlmSetupPanel() {
     answeredConsent.current = asked
     const agreed = approval.current
     approval.current = null
+    // A removal this window did not start (or started before it was reopened): ask with the
+    // removal's own dialog; confirming it approves what the core offers.
+    if (operation.kind === 'remove' && agreed?.kind !== 'remove') {
+      setRemoveOpen(true)
+      return
+    }
     const approves =
       agreed?.kind === 'remove' ||
       (agreed?.kind === 'setup' && agreed.digest === operation.plan_digest)
@@ -166,21 +187,30 @@ export function TensorrtLlmSetupPanel() {
   }, [operation?.operation_id, operation?.phase, operation?.revision, operation?.plan_digest])
 
   // The privileged step: the OS prompt comes up once per step on its own; a retry is a button.
-  const grant = useCallback((operationId: string) => {
+  const grant = useCallback((operationId: string, stepId: string) => {
+    // One prompt at a time per step: a second executor would race the first over the package
+    // manager, and its receipt would be refused.
+    if (useElevatingSteps.getState().steps.includes(stepId)) return
+    useElevatingSteps.setState(({ steps }) => ({ steps: [...steps, stepId] }))
+    promptedSteps.add(stepId)
     setManualCommand(null)
     void runHostStep(operationId)
       .then((answer) => {
         if (answer.outcome === 'manual') setManualCommand(answer.command)
       })
       .catch((error) => setActionError(errorText(error)))
+      .finally(() =>
+        useElevatingSteps.setState(({ steps }) => ({
+          steps: steps.filter((step) => step !== stepId),
+        }))
+      )
   }, [])
 
   useEffect(() => {
     const step = operation?.pending_host_step
     if (operation?.phase !== 'preparing-host' || !step) return
-    if (promptedSteps.current.has(step.step_id)) return
-    promptedSteps.current.add(step.step_id)
-    grant(operation.operation_id)
+    if (promptedSteps.has(step.step_id)) return
+    grant(operation.operation_id, step.step_id)
   }, [operation?.operation_id, operation?.phase, operation?.pending_host_step, grant])
 
   const view = deriveSetupView({ plan, operation, installation, failed })
@@ -229,7 +259,13 @@ export function TensorrtLlmSetupPanel() {
           step={view.step}
           manualCommand={manualCommand}
           onCancel={() => void act(() => cancelOperation(view.operation.operation_id))}
-          onGrant={() => grant(view.operation.operation_id)}
+          granting={elevatingSteps.includes(
+            view.operation.pending_host_step?.step_id ?? ''
+          )}
+          onGrant={() =>
+            view.operation.pending_host_step &&
+            grant(view.operation.operation_id, view.operation.pending_host_step.step_id)
+          }
           onReview={() => void recheck().then((next) => next && setPlanOpen(true))}
         />
       )}
@@ -311,6 +347,20 @@ export function TensorrtLlmSetupPanel() {
               onClick={() =>
                 void act(async () => {
                   setRemoveOpen(false)
+                  if (
+                    operation?.kind === 'remove' &&
+                    operation.phase === 'awaiting-consent' &&
+                    operation.plan_digest
+                  ) {
+                    // The core is already asking about this removal.
+                    answeredConsent.current = `${operation.operation_id}:${operation.revision}`
+                    await resumeOperation(
+                      operation.operation_id,
+                      operation.revision,
+                      operation.plan_digest
+                    )
+                    return
+                  }
                   approval.current = { kind: 'remove' }
                   await beginOperation(environmentId, {
                     request_id: crypto.randomUUID(),
@@ -422,6 +472,7 @@ function OperationStatus({
   operation,
   step,
   manualCommand,
+  granting,
   onCancel,
   onGrant,
   onReview,
@@ -429,6 +480,8 @@ function OperationStatus({
   operation: EnvironmentOperation
   step: 'consent' | 'host-step' | 'relogin' | 'working'
   manualCommand: string | null
+  /** The OS prompt for this step is open; asking again would start a second executor. */
+  granting: boolean
   onCancel: () => void
   onGrant: () => void
   onReview: () => void
@@ -477,7 +530,7 @@ function OperationStatus({
             </pre>
           )}
           <div>
-            <Button variant="outline" size="sm" onClick={onGrant}>
+            <Button variant="outline" size="sm" disabled={granting} onClick={onGrant}>
               {t('providers:tensorrt.hostStep.retry')}
             </Button>
           </div>

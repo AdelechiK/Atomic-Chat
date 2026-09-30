@@ -27,7 +27,7 @@ vi.mock('@/services/managed-environment/client', async (importOriginal) => ({
   ...client,
 }))
 
-import { TensorrtLlmSetupPanel } from '../TensorrtLlmSetupPanel'
+import { resetHostStepPromptsForTests, TensorrtLlmSetupPanel } from '../TensorrtLlmSetupPanel'
 import { useManagedEnvironmentStore } from '@/stores/managed-environment-store'
 import type {
   EnvironmentOperation,
@@ -134,6 +134,7 @@ function coreSays(op: EnvironmentOperation) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resetHostStepPromptsForTests()
   store().reset()
   seed(environment())
   client.probe.mockResolvedValue(plan())
@@ -317,6 +318,46 @@ describe('TensorrtLlmSetupPanel', () => {
         'sudo /run/user/1000/x/atomic-chat-core host-step exec /run/user/1000/x/step-1.request.json'
       )
     ).toBeInTheDocument()
+  })
+
+  it('answers a removal still waiting for consent with the removal dialog, not a setup plan', async () => {
+    // The page was left while the core prepared the removal: nothing here remembers the consent.
+    seed(environment({ installations: [installedEngine], active_operation_id: 'op-1' }), [
+      operation({ kind: 'remove', phase: 'awaiting-consent', revision: 2, plan_digest: digest }),
+    ])
+
+    render(<TensorrtLlmSetupPanel />)
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('providers:tensorrt.remove.title')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'providers:tensorrt.remove.confirm' }))
+    await waitFor(() => expect(client.resumeOperation).toHaveBeenCalledWith('op-1', 2, digest))
+    expect(client.beginOperation).not.toHaveBeenCalled()
+  })
+
+  it('never asks for the system password twice for one step, even after the page opens again', async () => {
+    let finish!: (answer: { outcome: string }) => void
+    client.runHostStep.mockImplementation(() => new Promise((resolve) => (finish = resolve)))
+    seed(environment({ active_operation_id: 'op-1' }), [
+      operation({
+        phase: 'preparing-host',
+        revision: 3,
+        pending_host_step: { step_id: 'step-9' } as EnvironmentOperation['pending_host_step'],
+      }),
+    ])
+
+    const first = render(<TensorrtLlmSetupPanel />)
+    await waitFor(() => expect(client.runHostStep).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('button', { name: 'providers:tensorrt.hostStep.retry' })).toBeDisabled()
+    first.unmount()
+    render(<TensorrtLlmSetupPanel />)
+    await screen.findByText('providers:tensorrt.phase.preparing-host')
+
+    expect(client.runHostStep).toHaveBeenCalledTimes(1)
+    finish({ outcome: 'declined' })
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'providers:tensorrt.hostStep.retry' })).toBeEnabled()
+    )
   })
 
   it('says what removing the engine frees, that uninstalling the app does not, and keeps models by default', async () => {

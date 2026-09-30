@@ -7,6 +7,7 @@ import {
   contextOverflowMessage,
   engineStageText,
   imageAttachmentsAllowed,
+  loadWatchdogMs,
 } from '../chat'
 
 const model = (capabilities: string[]) => ({ id: 'qwen3-8b', capabilities }) as unknown as Model
@@ -77,5 +78,13 @@ describe('imageAttachmentsAllowed', () => {
     expect(imageAttachmentsAllowed('tensorrt-llm', model(['vision']))).toBe(false)
     expect(imageAttachmentsAllowed('llamacpp-upstream', model(['vision']))).toBe(true)
     expect(imageAttachmentsAllowed('llamacpp-upstream', model([]))).toBe(false)
+  })
+})
+
+describe('loadWatchdogMs', () => {
+  it('outlasts the longest load timeout the TensorRT-LLM settings allow', () => {
+    // `load_timeout_seconds` goes up to 3600 in the core's schema; the app must not give up first.
+    expect(loadWatchdogMs('tensorrt-llm', 35 * 60_000)).toBeGreaterThan(3600 * 1000)
+    expect(loadWatchdogMs('llamacpp-upstream', 35 * 60_000)).toBe(35 * 60_000)
   })
 })

@@ -34,6 +34,18 @@ export function imageAttachmentsAllowed(providerName: string | undefined, model:
   return model?.capabilities?.includes('vision') ?? false
 }
 
+/**
+ * The core's schema lets a TensorRT-LLM load take up to an hour (`load_timeout_seconds` ≤ 3600),
+ * plus the time to stop the previous model; the app's safety net must outlast it, or the switch
+ * reports a failure while the container is still starting.
+ */
+const TENSORRT_LLM_LOAD_WATCHDOG_MS = 65 * 60_000
+
+/** How long the app waits on one model load before giving up on it. */
+export function loadWatchdogMs(providerName: string | undefined, defaultMs: number): number {
+  return providerName === TENSORRT_LLM ? Math.max(defaultMs, TENSORRT_LLM_LOAD_WATCHDOG_MS) : defaultMs
+}
+
 /** Whether the app may reload this provider's model with a larger context. */
 export function canGrowContext(providerName: string | undefined): boolean {
   return providerName !== TENSORRT_LLM

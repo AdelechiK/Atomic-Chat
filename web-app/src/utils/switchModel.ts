@@ -13,6 +13,7 @@ import i18n from '@/i18n/setup'
 import type { ServiceHub } from '@/services'
 import type { ModelLoadProgress } from '@/lib/inference-status'
 import { knownLoadStage } from '@/lib/tensorrt-llm/types'
+import { loadWatchdogMs } from '@/lib/tensorrt-llm/chat'
 import {
   isKeylessRemoteProvider,
   isSubscriptionProvider,
@@ -1284,7 +1285,7 @@ async function loadLocalModelWithOomRetry(args: {
                 : { ...stage, retry }
             ),
         }),
-        MODEL_LOAD_WATCHDOG_MS,
+        loadWatchdogMs(providerName, MODEL_LOAD_WATCHDOG_MS),
         `Timed out waiting for model "${modelId}" to finish loading.`
       )
       if (lastStep) {

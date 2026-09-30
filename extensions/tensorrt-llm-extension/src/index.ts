@@ -98,6 +98,8 @@ export default class TensorrtLlmExtension extends AIEngine {
   private providerPath?: string
   /** Hidden until the core says otherwise: a provider that cannot run here must not flash up. */
   private hidden = true
+  /** Whether `hidden` is the core's answer, or only the default nobody has confirmed yet. */
+  private known = false
   /** The probe in flight, shared by every caller that asks while it runs. */
   private visibilityCheck?: Promise<boolean>
 
@@ -133,6 +135,14 @@ export default class TensorrtLlmExtension extends AIEngine {
   }
 
   /**
+   * Whether the core has answered at least once. A probe that fails keeps the last answer; before
+   * any answer the provider stays hidden, but that is not a reason to forget it.
+   */
+  visibilityKnown(): boolean {
+    return this.known
+  }
+
+  /**
    * Ask the core again whether this machine can run or set up the engine; `true` when the provider
    * should be shown. Probing changes nothing on the machine. Called when the extension loads and
    * whenever the provider settings open, so a descriptor published in conf shows the provider
@@ -154,9 +164,10 @@ export default class TensorrtLlmExtension extends AIEngine {
         target: { kind: 'runtime', installation_id: ENGINE_ID, engine_id: ENGINE_ID },
       })
       this.hidden = isProviderHidden(plan)
+      this.known = true
     } catch (e) {
-      logger.warn(`TensorRT-LLM availability unknown, hiding the provider: ${describeCoreError(e)}`)
-      this.hidden = true
+      // A core restarting or unreachable says nothing about the machine: keep the last answer.
+      logger.warn(`TensorRT-LLM availability could not be checked: ${describeCoreError(e)}`)
     }
     return !this.hidden
   }

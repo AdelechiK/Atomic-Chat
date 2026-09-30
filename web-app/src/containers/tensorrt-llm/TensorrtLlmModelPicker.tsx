@@ -88,11 +88,14 @@ export function TensorrtLlmModelPicker({ onInstalled }: { onInstalled: () => Pro
     void (async () => {
       const summary = await describeDescriptor(descriptorId)
       if (!summary || cancelled) return
-      const checked: Array<{ model: CuratedModel; verdict: Verdict }> = []
-      for (const model of summary.curated_models) {
-        checked.push({ model, verdict: await evaluate(model.repository, model.revision, token) })
-        if (cancelled) return
-      }
+      // Side by side: each is a few small reads from Hugging Face and one network-free core check.
+      const checked = await Promise.all(
+        summary.curated_models.map(async (model) => ({
+          model,
+          verdict: await evaluate(model.repository, model.revision, token),
+        }))
+      )
+      if (cancelled) return
       setCurated(checked.filter((entry) => entry.verdict.kind === 'ok'))
     })()
     return () => {

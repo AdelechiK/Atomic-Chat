@@ -162,11 +162,26 @@ describe('availability', () => {
     await expect(extension.refreshVisibility()).resolves.toBe(true)
   })
 
-  it('hides the provider when the core cannot answer at all', async () => {
+  it('hides the provider when the core cannot answer at all, and says it does not know', async () => {
     core({})
     const extension = new TensorrtLlmExtension()
 
     await expect(extension.refreshVisibility()).resolves.toBe(false)
+    expect(extension.visibilityKnown()).toBe(false)
+  })
+
+  it('keeps its last answer through a probe that fails', async () => {
+    let answer: () => unknown = () => plan('setup-required')
+    core({ ...noEnvironments, 'POST /environments/probe': () => answer() })
+    const extension = new TensorrtLlmExtension()
+    await extension.refreshVisibility()
+
+    answer = () => {
+      throw new Error('core restarting')
+    }
+
+    await expect(extension.refreshVisibility()).resolves.toBe(true)
+    expect(extension.visibilityKnown()).toBe(true)
   })
 })
 

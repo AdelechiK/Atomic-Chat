@@ -474,6 +474,13 @@ async fn run_host_step_unix<R: Runtime>(
     let step = HostStep::from_operation(&operation).ok_or_else(|| {
         CoreError::new("MANAGED_HOST_STEP_INVALID", "This operation is not waiting for a privileged step.", None)
     })?;
+    let claim = host_step::claim(&step.step_id).ok_or_else(|| {
+        CoreError::new(
+            "MANAGED_OPERATION_CONFLICT",
+            "The system password prompt for this step is already open.",
+            None,
+        )
+    })?;
     let runtime_dir = std::env::var_os("XDG_RUNTIME_DIR")
         .map(std::path::PathBuf::from)
         .filter(|dir| dir.is_dir())
@@ -512,12 +519,14 @@ async fn run_host_step_unix<R: Runtime>(
                     send_host_step_receipt(&client, &step, outcome).await;
                 }
                 prepared.remove();
+                drop(claim);
             });
             return Ok(json!({ "outcome": "manual", "command": command }));
         }
     };
     prepared.remove();
     send_host_step_receipt(client, &step, outcome).await;
+    drop(claim);
     Ok(json!({ "outcome": outcome.as_str(), "log_tail": log_tail }))
 }
 

@@ -166,6 +166,33 @@ describe('TensorrtLlmModelPicker', () => {
     expect(models.fetchHfRevision).toHaveBeenCalledWith('nvidia/Qwen3-8B-FP8', 'r-fits', 'hf_secret')
   })
 
+  it('checks the curated models side by side, not one after another', async () => {
+    const curated = (repository: string) => ({
+      repository,
+      revision: 'r',
+      inventory_digest: 'sha256:x',
+      vram_tier_bytes: 12e9,
+      note: '',
+    })
+    models.describeDescriptor.mockResolvedValue({
+      descriptor_id: 'tensorrt-llm-1.2.1-r1',
+      engine_id: 'tensorrt-llm',
+      notices: [],
+      supported_architectures: [],
+      curated_models: [curated('a/one'), curated('b/two'), curated('c/three')],
+    })
+    const pending: Array<() => void> = []
+    models.checkTensorrtModel.mockImplementation(
+      () => new Promise((resolve) => pending.push(() => resolve(compatible)))
+    )
+
+    render(<TensorrtLlmModelPicker onInstalled={refresh} />)
+
+    await waitFor(() => expect(models.checkTensorrtModel).toHaveBeenCalledTimes(3))
+    pending.forEach((finish) => finish())
+    expect(await screen.findByText('c/three')).toBeInTheDocument()
+  })
+
   it('shows no curated list while the core does not report one', async () => {
     render(<TensorrtLlmModelPicker onInstalled={refresh} />)
 

@@ -17,6 +17,8 @@ import { EngineManager } from '@janhq/core'
 interface VisibilityGatedEngine {
   isHidden(): boolean
   refreshVisibility(): Promise<boolean>
+  /** False while the engine has no answer yet: hidden, but not to be forgotten. */
+  visibilityKnown?(): boolean
 }
 
 function isGated(engine: unknown): engine is VisibilityGatedEngine {
@@ -55,9 +57,18 @@ export async function refreshManagedProviders(options: {
   if (gated.length === 0) return false
 
   await Promise.all(gated.map(([, engine]) => engine.refreshVisibility()))
+  const inStore = (name: string) => options.store.providers.some((p) => p.provider === name)
+  // A shown engine missing from the store, or a hidden one still in it (and known to be hidden),
+  // is what calls for a new list; otherwise the whole list is not read again.
+  const stale = gated.some(([name, engine]) => {
+    const known = engine.visibilityKnown?.() ?? true
+    return engine.isHidden() ? known && inStore(name) : !inStore(name)
+  })
+  if (!stale) return true
   options.store.setProviders(await options.getProviders())
   for (const [name, engine] of gated) {
-    if (engine.isHidden() && options.store.providers.some((p) => p.provider === name)) {
+    const known = engine.visibilityKnown?.() ?? true
+    if (known && engine.isHidden() && inStore(name)) {
       options.store.deleteProvider(name)
     }
   }

@@ -37,6 +37,32 @@ const NO_AGENT_MARKER: &str = "No authentication agent";
 /// How often the result file is looked for while the person runs the `sudo` command.
 pub const MANUAL_POLL_INTERVAL: Duration = Duration::from_secs(2);
 
+/// Steps whose executor is running now, in this app. A second run of the same step would race the
+/// first over the package manager, and its receipt would be refused.
+static IN_FLIGHT: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// Holds a step for one run; released when dropped, however the run ends.
+#[derive(Debug)]
+pub struct StepClaim(String);
+
+impl Drop for StepClaim {
+    fn drop(&mut self) {
+        if let Ok(mut steps) = IN_FLIGHT.lock() {
+            steps.retain(|step| step != &self.0);
+        }
+    }
+}
+
+/// Claim `step_id` for one run, or `None` while another run of it is still going.
+pub fn claim(step_id: &str) -> Option<StepClaim> {
+    let mut steps = IN_FLIGHT.lock().ok()?;
+    if steps.iter().any(|step| step == step_id) {
+        return None;
+    }
+    steps.push(step_id.to_string());
+    Some(StepClaim(step_id.to_string()))
+}
+
 /// The step as the core hands it out on `pending_host_step`, plus the operation it belongs to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostStep {
@@ -531,6 +557,15 @@ mod tests {
         let picked = wait_for_result(&prepared, Duration::from_millis(5), Duration::from_millis(30)).await;
 
         assert_eq!(picked, None);
+    }
+
+    #[test]
+    fn a_step_is_elevated_once_at_a_time() {
+        let first = claim("step-claim").expect("free");
+        assert!(claim("step-claim").is_none(), "a second executor would race the first");
+        assert!(claim("step-other").is_some());
+        drop(first);
+        assert!(claim("step-claim").is_some(), "free again once the first run ended");
     }
 
     #[test]
