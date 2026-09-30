@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Card, CardItem } from '@/containers/Card'
 import HeaderPage from '@/containers/HeaderPage'
+import { TensorrtLlmSetupPanel } from '@/containers/tensorrt-llm/TensorrtLlmSetupPanel'
 import SettingsMenu from '@/containers/SettingsMenu'
 import { useModelProvider } from '@/hooks/useModelProvider'
 import { isOnboardingPending } from '@/lib/onboarding'
@@ -1936,6 +1937,9 @@ function ProviderDetail() {
                 }
               />
             </div>
+
+            {/* TensorRT-LLM: setting up the engine comes before its settings and models. */}
+            {providerName === 'tensorrt-llm' && <TensorrtLlmSetupPanel />}
 
             <div
               className={cn(

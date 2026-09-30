@@ -144,3 +144,20 @@ export function selectSetupOperation(
       !FINISHED.has(operation.phase)
   )
 }
+
+/**
+ * The last TensorRT-LLM setup that ended in `failed`, kept visible with its error until the engine
+ * is installed or a new attempt starts. Operations carry no time, so "last" is the snapshot's and
+ * the events' own order.
+ */
+export function selectFailedSetup(state: Held): EnvironmentOperation | undefined {
+  return Object.values(state.operations)
+    .filter(
+      (operation) =>
+        operation.kind === 'setup' &&
+        operation.phase === 'failed' &&
+        operation.target.kind === 'runtime' &&
+        operation.target.engine_id === TENSORRT_LLM_ENGINE_ID
+    )
+    .at(-1)
+}

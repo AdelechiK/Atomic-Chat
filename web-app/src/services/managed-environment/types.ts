@@ -156,4 +156,12 @@ export interface RequirementPlan {
   may_require_relogin: boolean
   may_require_reboot: boolean
   blockers: ManagedBlocker[]
+  /**
+   * Where Docker keeps images, the free space there, and the descriptor's NVIDIA notices. The
+   * spec asks the app to show all three before consent, but the core does not report them yet
+   * (gap G-app-1 in the openspec change): shown when present, and the plan says so when absent.
+   */
+  docker_root_dir?: string | null
+  free_disk_bytes?: number | null
+  notices?: string[]
 }

@@ -83,5 +83,74 @@
     "concurrentMode": {
       "perSlotContextWarning": "Per-slot context equals ctx_size divided by slot count. Lower slot counts give each request more context."
     }
+  },
+  "tensorrt": {
+    "title": "TensorRT-LLM engine",
+    "description": "NVIDIA's inference engine, run by Atomic Chat in a Docker container on your NVIDIA GPU.",
+    "checking": "Checking this computer…",
+    "checkAgain": "Check again",
+    "blocked": "TensorRT-LLM cannot run on this computer yet:",
+    "notInstalled": "TensorRT-LLM is not installed. Installing it downloads the engine image and, if needed, sets up Docker and the NVIDIA Container Toolkit.",
+    "install": "Install…",
+    "installed": "TensorRT-LLM is installed.",
+    "failed": "The installation stopped:",
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "progress": "{{done}} of {{total}}",
+    "blocker": {
+      "ampere": "TensorRT-LLM needs an NVIDIA card of the Ampere generation (RTX 30xx) or newer: compute capability {{required}} or higher. This card has {{actual}}."
+    },
+    "plan": {
+      "title": "Install TensorRT-LLM",
+      "intro": "This is everything the installation will do on this computer.",
+      "noSystemChanges": "Docker and the NVIDIA runtime are already set up; nothing on the system changes.",
+      "relogin": "You will need to sign out and sign back in once the system changes are made; the installation then continues on its own.",
+      "download": "Download: {{size}}.",
+      "disk": "Disk: {{required}} in {{path}}; {{free}} free there.",
+      "diskNoFree": "Disk: {{required}} in {{path}}.",
+      "diskNoPath": "Disk: {{required}} needed in Docker's storage; {{free}} free there.",
+      "diskUnknown": "Disk: {{required}} in Docker's storage. The location and free space were not reported.",
+      "notices": "NVIDIA terms and notices",
+      "noticesMissing": "The NVIDIA terms and notices for this engine were not reported.",
+      "cancel": "Cancel",
+      "agree": "Agree and install"
+    },
+    "consent": {
+      "review": "Review the plan"
+    },
+    "hostStep": {
+      "waiting": "Waiting for your system password to set up Docker and the NVIDIA Container Toolkit…",
+      "manual": "This desktop has no password prompt Atomic Chat can use. Run this command in a terminal; the installation continues when it finishes:",
+      "retry": "Ask for the password again"
+    },
+    "relogin": {
+      "title": "Sign out and sign back in",
+      "body": "You were added to the docker group, which takes effect at your next sign-in. After you sign back in and open Atomic Chat, the installation continues by itself."
+    },
+    "phase": {
+      "checking": "Checking this computer…",
+      "awaiting-consent": "Waiting for your consent",
+      "preparing-host": "Setting up Docker and the NVIDIA Container Toolkit",
+      "relogin-required": "Waiting for you to sign in again",
+      "reboot-required": "Waiting for a restart",
+      "preparing-environment": "Checking that Docker sees your GPU",
+      "pulling-image": "Downloading the engine image",
+      "verifying": "Verifying the engine image",
+      "activating": "Finishing the installation",
+      "removing": "Removing the engine",
+      "cancelling": "Cancelling",
+      "ready": "Installed",
+      "removed": "Removed",
+      "cancelled": "Cancelled",
+      "failed": "Failed"
+    },
+    "remove": {
+      "space": "The engine image takes about {{size}} in Docker's storage. Uninstalling Atomic Chat does not free it; remove the engine here first.",
+      "button": "Remove engine",
+      "title": "Remove TensorRT-LLM?",
+      "body": "The engine image, its caches and the installation are deleted. Docker, the NVIDIA Container Toolkit and the docker group stay on this computer.",
+      "keepModels": "Keep the downloaded TensorRT-LLM models",
+      "confirm": "Remove"
+    }
   }
 }

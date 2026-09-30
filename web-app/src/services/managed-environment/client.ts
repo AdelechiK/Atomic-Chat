@@ -90,3 +90,30 @@ export function resumeOperation(
     ...(approvedPlanDigest ? { approved_plan_digest: approvedPlanDigest } : {}),
   })
 }
+
+/** The engine id, sent as the probe's descriptor preference before anything is installed. */
+const TENSORRT_LLM_ENGINE_ID = 'tensorrt-llm'
+
+/**
+ * The `descriptor_id` a TensorRT-LLM probe names: the installed engine's own, otherwise the engine
+ * id, which the core resolves to its newest descriptor and names in the plan (ruling R-app-4).
+ */
+export function descriptorHint(environment: EnvironmentSnapshot | undefined): string {
+  const installed = environment?.installations.find(
+    (installation) =>
+      installation.engine_id === TENSORRT_LLM_ENGINE_ID && installation.active_descriptor_id
+  )
+  return installed?.active_descriptor_id ?? TENSORRT_LLM_ENGINE_ID
+}
+
+export type HostStepAnswer =
+  | { outcome: 'completed' | 'failed' | 'declined'; log_tail?: string }
+  | { outcome: 'manual'; command: string }
+
+/**
+ * Run the privileged step the operation waits on (Rust: `pkexec` on a copy of the core). Only the
+ * operation id crosses over: Rust reads the step from the core and writes the request itself.
+ */
+export function runHostStep(operationId: string): Promise<HostStepAnswer> {
+  return invoke<HostStepAnswer>('atomic_core_run_host_step', { operationId })
+}

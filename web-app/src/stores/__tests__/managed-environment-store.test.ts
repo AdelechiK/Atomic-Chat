@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  selectFailedSetup,
   selectSetupOperation,
   selectTensorrtInstallation,
   useManagedEnvironmentStore,
@@ -175,5 +176,23 @@ describe('managed environment store', () => {
     )
 
     expect(selectSetupOperation(store())).toBeUndefined()
+  })
+
+  it('keeps the last failed TensorRT-LLM setup, and only a setup', () => {
+    store().applySnapshot(
+      snapshot(
+        'core-a',
+        [environment('core-a', 1)],
+        [
+          operation('core-a', 3, {
+            phase: 'failed',
+            error: { code: 'MANAGED_GPU_CHECK_FAILED', message: 'no GPU in the container' },
+          }),
+          operation('core-a', 4, { operation_id: 'op-rm', kind: 'remove', phase: 'failed' }),
+        ]
+      )
+    )
+
+    expect(selectFailedSetup(store())?.error?.message).toBe('no GPU in the container')
   })
 })

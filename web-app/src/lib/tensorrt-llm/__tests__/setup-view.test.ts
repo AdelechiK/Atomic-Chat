@@ -1,0 +1,243 @@
+import { describe, expect, it } from 'vitest'
+
+import { blockerView, deriveSetupView, planSummary } from '../setup-view'
+import type {
+  EnvironmentOperation,
+  RequirementPlan,
+  RuntimeInstallation,
+} from '@/services/managed-environment/types'
+
+const digest = 'sha256:' + 'a'.repeat(64)
+
+function plan(overrides: Partial<RequirementPlan> = {}): RequirementPlan {
+  return {
+    plan_digest: digest as RequirementPlan['plan_digest'],
+    environment_id: 'default',
+    target: { kind: 'runtime', installation_id: 'tensorrt-llm', engine_id: 'tensorrt-llm' },
+    availability: 'setup-required',
+    recipe_id: 'linux.install-container-runtime',
+    recipe_digest: digest as RequirementPlan['recipe_digest'],
+    descriptor_id: 'tensorrt-llm-1.2.1-r1',
+    image_digest: digest as RequirementPlan['image_digest'],
+    adopts_existing_engine: false,
+    system_changes: [],
+    download_bytes: 21_000_000_000,
+    required_disk_bytes: 67_000_000_000,
+    requires_elevation: true,
+    may_require_relogin: true,
+    may_require_reboot: false,
+    blockers: [],
+    ...overrides,
+  }
+}
+
+function operation(overrides: Partial<EnvironmentOperation> = {}): EnvironmentOperation {
+  return {
+    schema_version: 1,
+    operation_id: 'op-1',
+    request_id: 'req-1',
+    environment_id: 'default',
+    target: { kind: 'runtime', installation_id: 'tensorrt-llm', engine_id: 'tensorrt-llm' },
+    kind: 'setup',
+    instance_id: 'core-a',
+    revision: 1,
+    phase: 'checking',
+    plan_digest: null,
+    approved_plan_digest: null,
+    carried_plan_digest: null,
+    progress: null,
+    pending_host_step: null,
+    completed_step_ids: [],
+    cancellation_requested: false,
+    error: null,
+    ...overrides,
+  }
+}
+
+const installed: RuntimeInstallation = {
+  installation_id: 'tensorrt-llm',
+  engine_id: 'tensorrt-llm',
+  environment_id: 'default',
+  active_descriptor_id: 'tensorrt-llm-1.2.1-r1',
+  candidate_descriptor_id: null,
+  availability: 'supported',
+  status: 'ready',
+}
+
+describe('deriveSetupView', () => {
+  it('waits for the first probe before saying anything about the machine', () => {
+    expect(deriveSetupView({}).kind).toBe('checking')
+  })
+
+  it('shows every blocker of a blocked machine and offers no install', () => {
+    const view = deriveSetupView({
+      plan: plan({
+        availability: 'prerequisite-blocked',
+        blockers: [
+          {
+            code: 'MANAGED_PREREQUISITE_BLOCKED',
+            message: 'Needs compute capability 8.0 or newer',
+            reason: 'compute-capability-too-low',
+            params: { required: '8.0', actual: '7.5' },
+          },
+        ],
+      }),
+    })
+
+    expect(view.kind).toBe('blocked')
+    expect(view.kind === 'blocked' && view.blockers).toHaveLength(1)
+  })
+
+  it('offers the install when the machine can be set up and nothing runs', () => {
+    expect(deriveSetupView({ plan: plan() }).kind).toBe('not-installed')
+  })
+
+  it('follows a running operation before anything else, whatever the plan says now', () => {
+    const view = deriveSetupView({
+      plan: plan({ availability: 'prerequisite-blocked' }),
+      operation: operation({ phase: 'pulling-image' }),
+    })
+
+    expect(view).toMatchObject({ kind: 'operation', step: 'working' })
+  })
+
+  it('names the step an operation waits on', () => {
+    const step = (op: Partial<EnvironmentOperation>) => {
+      const view = deriveSetupView({ plan: plan(), operation: operation(op) })
+      return view.kind === 'operation' ? view.step : view.kind
+    }
+
+    expect(step({ phase: 'awaiting-consent', plan_digest: digest as never })).toBe('consent')
+    expect(
+      step({
+        phase: 'preparing-host',
+        pending_host_step: { step_id: 's' } as EnvironmentOperation['pending_host_step'],
+      })
+    ).toBe('host-step')
+    expect(step({ phase: 'preparing-host' })).toBe('working')
+    expect(step({ phase: 'relogin-required' })).toBe('relogin')
+    expect(step({ phase: 'cancelling' })).toBe('working')
+  })
+
+  it('reports an installed engine once no operation runs', () => {
+    expect(deriveSetupView({ plan: plan(), installation: installed }).kind).toBe('installed')
+  })
+
+  it('keeps a failed setup visible with its error until the engine is installed', () => {
+    const failed = operation({
+      phase: 'failed',
+      error: { code: 'MANAGED_GPU_CHECK_FAILED', message: 'nvidia-smi saw no GPU' },
+    })
+
+    expect(deriveSetupView({ plan: plan(), failed })).toMatchObject({
+      kind: 'failed',
+      operation: { error: { message: 'nvidia-smi saw no GPU' } },
+    })
+    expect(deriveSetupView({ plan: plan(), failed, installation: installed }).kind).toBe('installed')
+  })
+})
+
+describe('blockerView', () => {
+  it('explains a card older than Ampere with its compute capability', () => {
+    // spec tensorrt-llm-desktop, "Карта старше Ampere".
+    expect(
+      blockerView({
+        code: 'MANAGED_PREREQUISITE_BLOCKED',
+        message: 'Needs compute capability 8.0 or newer (Ampere+); the best card here has 7.5.',
+        reason: 'compute-capability-too-low',
+        params: { required: '8.0', actual: '7.5' },
+      })
+    ).toMatchObject({ ampere: { required: '8.0', actual: '7.5' } })
+  })
+
+  it('carries the exact commands of a manual fix', () => {
+    expect(
+      blockerView({
+        code: 'MANAGED_PREREQUISITE_BLOCKED',
+        message: 'Install Docker and the toolkit from the official repositories.',
+        reason: 'arch-manual-install',
+        commands: ['sudo pacman -S docker nvidia-container-toolkit'],
+      })
+    ).toMatchObject({ commands: ['sudo pacman -S docker nvidia-container-toolkit'], ampere: null })
+  })
+})
+
+describe('planSummary', () => {
+  it('flags the changes that deserve a second look', () => {
+    const summary = planSummary(
+      plan({
+        system_changes: [
+          { code: 'install-packages', text: 'Install the missing packages: docker-ce.' },
+          {
+            code: 'add-user-to-docker-group',
+            text: 'Add ann to the docker group. This grants access equivalent to root on this machine.',
+          },
+          {
+            code: 'restart-docker',
+            text: 'Restart Docker to load the new runtime configuration; 3 running container(s) will stop.',
+            params: { running_containers: '3' },
+          },
+        ],
+      })
+    )
+
+    expect(summary.changes.map((c) => c.warning)).toEqual([false, true, true])
+    expect(summary.relogin).toBe(true)
+    expect(summary.canStart).toBe(true)
+  })
+
+  it('shows where the image goes, what it needs and what is free, and refuses to start without room', () => {
+    // spec tensorrt-llm-desktop, "Нет места под образ".
+    const summary = planSummary(
+      plan({
+        availability: 'prerequisite-blocked',
+        blockers: [
+          {
+            code: 'MANAGED_PREREQUISITE_BLOCKED',
+            message: 'There is not enough free disk space for the runtime image.',
+            reason: 'insufficient-disk',
+            params: { free: '20000000000', required: '67000000000' },
+          },
+        ],
+        docker_root_dir: '/var/lib/docker',
+        free_disk_bytes: 20_000_000_000,
+      })
+    )
+
+    expect(summary.disk).toEqual({
+      path: '/var/lib/docker',
+      requiredBytes: 67_000_000_000,
+      freeBytes: 20_000_000_000,
+      insufficient: true,
+    })
+    expect(summary.canStart).toBe(false)
+  })
+
+  it('takes the free space from the disk blocker when the plan does not carry it', () => {
+    // Until the core reports `free_disk_bytes` (gap G-app-1), the blocker is the only source.
+    const summary = planSummary(
+      plan({
+        blockers: [
+          {
+            code: 'MANAGED_PREREQUISITE_BLOCKED',
+            message: 'There is not enough free disk space for the runtime image.',
+            reason: 'insufficient-disk',
+            params: { free: '20000000000', required: '67000000000' },
+          },
+        ],
+      })
+    )
+
+    expect(summary.disk).toEqual({
+      path: null,
+      requiredBytes: 67_000_000_000,
+      freeBytes: 20_000_000_000,
+      insufficient: true,
+    })
+  })
+
+  it('lists NVIDIA notices when the core sends them', () => {
+    expect(planSummary(plan({ notices: ['NGC terms apply.'] })).notices).toEqual(['NGC terms apply.'])
+    expect(planSummary(plan()).notices).toEqual([])
+  })
+})
