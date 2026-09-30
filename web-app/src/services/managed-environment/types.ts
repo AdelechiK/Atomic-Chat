@@ -139,6 +139,18 @@ export interface ManagedSystemChange {
   params?: Record<string, string>
 }
 
+/**
+ * Something the plan's reader should know that neither blocks the plan nor is fixed by it (core
+ * task 2.23): `docker-address-pools-overlap-routes` — the host's routes (a VPN, usually) cover every
+ * default Docker address pool, so Docker may not start; `params.routes` and `params.devices` name
+ * them. Not part of `plan_digest`.
+ */
+export interface ManagedPlanWarning {
+  code: string
+  text: string
+  params?: Record<string, string>
+}
+
 export interface RequirementPlan {
   plan_digest: Sha256Digest
   environment_id: string
@@ -164,6 +176,8 @@ export interface RequirementPlan {
    */
   docker_root_dir: string | null
   free_disk_bytes: number | null
+  /** Shown before consent, never blocking it (core task 2.23). Empty when there are none. */
+  warnings: ManagedPlanWarning[]
 }
 
 /** One file of a checkpoint as `check` and `model.yml` list it; `sha256` only for LFS files. */

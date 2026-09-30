@@ -18,6 +18,7 @@ import {
   planSummary,
   type BlockerView,
   type PlanSummary,
+  type WarningView,
 } from '@/lib/tensorrt-llm/setup-view'
 import {
   beginOperation,
@@ -444,10 +445,39 @@ function DiskLine({ summary }: { summary: PlanSummary }) {
   )
 }
 
+/** Above everything else in the plan: each is a reason the install may not work out as agreed. */
+function PlanWarnings({ warnings }: { warnings: WarningView[] }) {
+  const { t } = useTranslation()
+  return (
+    <ul className="flex flex-col gap-2 rounded border border-amber-600/40 bg-amber-600/10 p-2">
+      {warnings.map((warning, index) => (
+        <li key={index} className="flex min-w-0 flex-col gap-1">
+          {warning.addressPools && (
+            <>
+              <p className="break-words font-medium text-amber-600">
+                {warning.addressPools.routes
+                  ? t('providers:tensorrt.plan.warning.addressPools', {
+                      routes: warning.addressPools.routes,
+                    })
+                  : t('providers:tensorrt.plan.warning.addressPoolsNoRoutes')}
+              </p>
+              <p className="break-words">{t('providers:tensorrt.plan.warning.addressPoolsFix')}</p>
+            </>
+          )}
+          <p className={warning.addressPools ? 'break-words text-main-view-fg/70' : 'break-words'}>
+            {warning.text}
+          </p>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function PlanDetails({ summary }: { summary: PlanSummary }) {
   const { t } = useTranslation()
   return (
     <div className="flex min-w-0 flex-col gap-3 text-sm">
+      {summary.warnings.length > 0 && <PlanWarnings warnings={summary.warnings} />}
       {summary.changes.length > 0 ? (
         <ul className="flex list-disc flex-col gap-1 pl-5">
           {summary.changes.map((change, index) => (

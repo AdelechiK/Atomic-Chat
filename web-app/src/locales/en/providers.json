@@ -112,6 +112,11 @@
       "diskUnknown": "Disk: {{required}} in Docker's storage. The location and free space were not reported.",
       "notices": "NVIDIA terms and notices",
       "noticesMissing": "The NVIDIA terms and notices for this engine were not reported.",
+      "warning": {
+        "addressPools": "A VPN or another network on this computer ({{routes}}) uses the addresses Docker needs, so Docker may fail to start after the installation.",
+        "addressPoolsNoRoutes": "A VPN or another network on this computer uses the addresses Docker needs, so Docker may fail to start after the installation.",
+        "addressPoolsFix": "To avoid it, exclude Docker's address ranges from the VPN, or give Docker other ranges with \"default-address-pools\" in /etc/docker/daemon.json. You can still install now."
+      },
       "cancel": "Cancel",
       "agree": "Agree and install"
     },

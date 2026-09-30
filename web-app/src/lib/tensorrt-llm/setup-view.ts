@@ -8,6 +8,7 @@
 import type {
   EnvironmentOperation,
   ManagedBlocker,
+  ManagedPlanWarning,
   RequirementPlan,
   RuntimeInstallation,
 } from '@/services/managed-environment/types'
@@ -103,6 +104,8 @@ export interface PlanSummary {
     insufficient: boolean
   }
   notices: string[]
+  /** What the person should know before agreeing; none of it withholds consent. */
+  warnings: WarningView[]
   blockers: BlockerView[]
   /** Consent is offered only for a plan that can run. */
   canStart: boolean
@@ -130,10 +133,32 @@ export function planSummary(plan: RequirementPlan, notices: string[] = []): Plan
       insufficient: disk !== undefined,
     },
     notices,
+    // A core built before task 2.23 sends no `warnings` at all.
+    warnings: (plan.warnings ?? []).map(warningView),
     blockers: plan.blockers.map(blockerView),
     canStart:
       plan.blockers.length === 0 &&
       plan.availability !== 'unsupported' &&
       plan.availability !== 'prerequisite-blocked',
+  }
+}
+
+export interface WarningView {
+  /** The core's own words: what it found and what to do. */
+  text: string
+  /**
+   * The routes that cover Docker's address pools, for the app's own explanation of
+   * `docker-address-pools-overlap-routes`; null for any other warning, shown by its text alone.
+   */
+  addressPools: { routes: string | null } | null
+}
+
+export function warningView(warning: ManagedPlanWarning): WarningView {
+  return {
+    text: warning.text,
+    addressPools:
+      warning.code === 'docker-address-pools-overlap-routes'
+        ? { routes: warning.params?.routes || null }
+        : null,
   }
 }

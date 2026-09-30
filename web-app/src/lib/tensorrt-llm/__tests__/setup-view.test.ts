@@ -25,6 +25,7 @@ function plan(overrides: Partial<RequirementPlan> = {}): RequirementPlan {
     required_disk_bytes: 67_000_000_000,
     docker_root_dir: null,
     free_disk_bytes: null,
+    warnings: [],
     requires_elevation: true,
     may_require_relogin: true,
     may_require_reboot: false,
@@ -242,5 +243,35 @@ describe('planSummary', () => {
     // They come from the descriptor route (core task 2.22), not from the plan.
     expect(planSummary(plan(), ['NGC terms apply.']).notices).toEqual(['NGC terms apply.'])
     expect(planSummary(plan()).notices).toEqual([])
+  })
+
+  it('carries every plan warning with the core\'s text and never withholds consent for one', () => {
+    // Task 3.17, core 2.23 (F-4).
+    const summary = planSummary(
+      plan({
+        availability: 'setup-required',
+        warnings: [
+          {
+            code: 'docker-address-pools-overlap-routes',
+            text: 'Routes 10.0.0.0/8 via tun0 cover the Docker address pools.',
+            params: { routes: '10.0.0.0/8', devices: 'tun0' },
+          },
+          { code: 'something-new', text: 'A warning this app has no words of its own for.' },
+        ],
+      })
+    )
+    expect(summary.warnings).toEqual([
+      {
+        text: 'Routes 10.0.0.0/8 via tun0 cover the Docker address pools.',
+        addressPools: { routes: '10.0.0.0/8' },
+      },
+      { text: 'A warning this app has no words of its own for.', addressPools: null },
+    ])
+    expect(summary.canStart).toBe(true)
+  })
+
+  it('reads a plan from a core that predates warnings as one without any', () => {
+    const { warnings: _omitted, ...older } = plan()
+    expect(planSummary(older as RequirementPlan).warnings).toEqual([])
   })
 })

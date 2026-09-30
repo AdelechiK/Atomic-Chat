@@ -59,6 +59,7 @@ function plan(overrides: Partial<RequirementPlan> = {}): RequirementPlan {
     required_disk_bytes: 63 * 1024 ** 3,
     docker_root_dir: '/var/lib/docker',
     free_disk_bytes: 200 * 1024 ** 3,
+    warnings: [],
     requires_elevation: true,
     may_require_relogin: true,
     may_require_reboot: false,
@@ -162,6 +163,46 @@ describe('TensorrtLlmSetupPanel', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(client.beginOperation).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'providers:tensorrt.install' })).toBeInTheDocument()
+  })
+
+  it('warns before consent that a VPN may keep Docker from starting, and still lets the person agree', async () => {
+    // spec "VPN перекрывает адреса Docker" (task 3.17, core 2.23).
+    const text =
+      'The routes 10.0.0.0/8 via tun0 cover every Docker address pool: exclude them from the VPN or set default-address-pools in /etc/docker/daemon.json.'
+    client.probe.mockResolvedValue(
+      plan({
+        warnings: [
+          {
+            code: 'docker-address-pools-overlap-routes',
+            text,
+            params: { routes: '10.0.0.0/8', devices: 'tun0' },
+          },
+        ],
+      })
+    )
+    render(<TensorrtLlmSetupPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'providers:tensorrt.install' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      within(dialog).getByText('providers:tensorrt.plan.warning.addressPools {"routes":"10.0.0.0/8"}')
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText('providers:tensorrt.plan.warning.addressPoolsFix')).toBeInTheDocument()
+    expect(within(dialog).getByText(text)).toBeInTheDocument()
+
+    const agree = within(dialog).getByRole('button', { name: 'providers:tensorrt.plan.agree' })
+    expect(agree).toBeEnabled()
+    fireEvent.click(agree)
+    await waitFor(() => expect(client.beginOperation).toHaveBeenCalledTimes(1))
+  })
+
+  it('shows no warning block for a plan without warnings', async () => {
+    render(<TensorrtLlmSetupPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'providers:tensorrt.install' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByText(/providers:tensorrt.plan.warning/)).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'providers:tensorrt.plan.agree' })).toBeEnabled()
   })
 
   it('shows the NVIDIA notices of the descriptor the plan installs, and says so when the core has none', async () => {
