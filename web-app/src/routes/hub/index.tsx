@@ -7,14 +7,13 @@ import {
   useMemo,
   useRef,
   useState,
-  type ChangeEvent,
   type ReactNode,
 } from 'react'
-import { IconSearch } from '@tabler/icons-react'
 import { Loader } from 'lucide-react'
 import HeaderPage from '@/containers/HeaderPage'
 import { HubCategoryTabs } from '@/containers/hub/HubCategoryTabs'
 import { HubFilters } from '@/containers/hub/HubFilters'
+import { HubNoResults, HubSearchInput } from '@/containers/hub/HubSearch'
 import { MediaHub } from '@/containers/hub/MediaHub'
 import { ModelDetailPanel } from '@/containers/hub/ModelDetailPanel'
 import { ModelListRow } from '@/containers/hub/ModelListRow'
@@ -784,8 +783,7 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
     })
   }, [debouncedSearchValue, querySearchParam, navigate])
 
-  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const next = event.target.value
+  const handleSearchChange = (next: string) => {
     setIsSearching(false)
     setSearchValue(next)
     setHubSearchQuery(next)
@@ -920,18 +918,11 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
             ? { 'data-tauri-drag-region': true }
             : {})}
         >
-          {isSearching || hfSearching ? (
-            <Loader className="size-4 shrink-0 animate-spin text-muted-foreground" />
-          ) : (
-            <IconSearch className="shrink-0 text-muted-foreground" size={14} />
-          )}
-          <input
-            placeholder={t('hub:searchPlaceholder')}
+          <HubSearchInput
             value={searchValue}
             onChange={handleSearchChange}
-            autoComplete="off"
-            aria-label={t('hub:searchPlaceholder')}
-            className="hub-models-search-input w-full min-w-0 flex-1 bg-transparent bg-clip-padding text-foreground shadow-none transition-none animate-none placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            placeholder={t('hub:searchPlaceholder')}
+            busy={isSearching || hfSearching}
           />
         </div>
       </HeaderPage>
@@ -963,11 +954,18 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
               ))}
             </div>
           ) : isEmpty ? (
-            <p className="p-4 text-center text-sm text-muted-foreground">
-              {!isSearchMode && filters.onlyFitting
-                ? t('hub:noFittingPicks')
-                : t('hub:noModels')}
-            </p>
+            <HubNoResults
+              message={
+                !isSearchMode && filters.onlyFitting
+                  ? t('hub:noFittingPicks')
+                  : t('hub:noModels')
+              }
+              onClearSearch={
+                searchValue.length > 0
+                  ? () => handleSearchChange('')
+                  : undefined
+              }
+            />
           ) : (
             <div
               style={{

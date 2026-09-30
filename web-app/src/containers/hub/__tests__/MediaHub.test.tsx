@@ -82,10 +82,11 @@ const renderHub = (props: Partial<MediaHubProps> = {}) => {
 }
 
 // A family without a bundled icon draws its initial, so the row's text is
-// read from its name alone.
+// read from its name alone. The search box's cross is not a row.
 const rowNames = () =>
   screen
     .getAllByRole('button')
+    .filter((button) => button.getAttribute('aria-label') !== 'hub:clearSearch')
     .map((button) => within(button).getByText(/ name$/).textContent)
 
 describe('MediaHub', () => {
@@ -182,9 +183,27 @@ describe('MediaHub', () => {
     expect(onSelectFamily.mock.calls).toEqual([])
   })
 
-  it('says nothing matched a search that hides every family', () => {
-    renderHub({ query: 'nothing like this' })
+  it('says nothing matched a search that hides every family, and offers to clear it', async () => {
+    const { onQueryChange } = renderHub({ query: 'nothing like this' })
 
     expect(screen.getByText('hub:noModels')).toBeInTheDocument()
+    const clears = screen.getAllByRole('button', { name: 'hub:clearSearch' })
+    // The cross in the search box and the button under the message.
+    expect(clears).toHaveLength(2)
+    await userEvent.click(clears[1])
+    expect(onQueryChange.mock.calls).toEqual([['']])
+  })
+
+  it('clears the search box from its cross, which shows only while there is text', async () => {
+    const empty = renderHub()
+    expect(
+      screen.queryByRole('button', { name: 'hub:clearSearch' })
+    ).not.toBeInTheDocument()
+    empty.unmount()
+
+    const { onQueryChange } = renderHub({ query: 'flux' })
+    await userEvent.click(screen.getByRole('button', { name: 'hub:clearSearch' }))
+
+    expect(onQueryChange.mock.calls).toEqual([['']])
   })
 })

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, type ReactNode } from 'react'
-import { IconSearch } from '@tabler/icons-react'
 import HeaderPage from '@/containers/HeaderPage'
+import { HubNoResults, HubSearchInput } from '@/containers/hub/HubSearch'
 import { MediaFamilyDetailPanel } from '@/containers/hub/MediaFamilyDetailPanel'
 import { MediaFamilyRow } from '@/containers/hub/MediaFamilyRow'
 import { useTranslation } from '@/i18n/react-i18next-compat'
@@ -113,14 +113,10 @@ export function MediaHub({
             ? { 'data-tauri-drag-region': true }
             : {})}
         >
-          <IconSearch className="shrink-0 text-muted-foreground" size={14} />
-          <input
-            placeholder={placeholder}
+          <HubSearchInput
             value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            autoComplete="off"
-            aria-label={placeholder}
-            className="hub-models-search-input w-full min-w-0 flex-1 bg-transparent bg-clip-padding text-foreground shadow-none transition-none animate-none placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            onChange={onQueryChange}
+            placeholder={placeholder}
           />
         </div>
       </HeaderPage>
@@ -136,9 +132,12 @@ export function MediaHub({
               {t('images:model.loadingCatalog')}
             </p>
           ) : isEmpty ? (
-            <p className="p-4 text-center text-sm text-muted-foreground">
-              {t('hub:noModels')}
-            </p>
+            <HubNoResults
+              message={t('hub:noModels')}
+              onClearSearch={
+                query.length > 0 ? () => onQueryChange('') : undefined
+              }
+            />
           ) : (
             <>
               {renderSection(
