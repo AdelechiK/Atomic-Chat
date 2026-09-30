@@ -43,11 +43,13 @@ const FAMILY_LOGO_RULES: Array<[RegExp, string]> = [
   [/\bltx-?(video|\d)/i, '/svg/lightricks.svg'],
 ]
 
-// Single-color brand marks (drawn with `fill="currentColor"`). They must be
+// Single-color brand marks (drawn with `fill="currentColor"`, or a raster
+// mark in one dark color on transparency like PrismML's). They must be
 // tinted with the current text color rather than rendered as a plain <img>,
 // otherwise a black-on-transparent mark vanishes on dark backgrounds. See
 // ModelLogo's CSS-mask render path.
 const MONOCHROME_FAMILY_LOGOS: ReadonlySet<string> = new Set([
+  '/images/model-provider/prism-ml.webp',
   '/svg/liquid.svg',
   '/svg/ibm.svg',
   '/svg/nousresearch.svg',
