@@ -155,8 +155,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-06-05** — [Port `gemma4_unified` (+ vision fixes) into the `mlx-vlm` fork so Gemma 4 12B loads under MLX (ATO-88, head 1)](2026-06-05-port-gemma4-unified-vision-fixes-into-the-mlx-vlm-fork-so-gemma.md)
 - **2026-06-02** — [Surface MLX KV-cache quantization (TurboQuant / uniform) as a provider setting](2026-06-02-surface-mlx-kv-cache-quantization-turboquant-uniform-as-a.md)
 
-## llama.cpp providers & backend selection (50)
+## llama.cpp providers & backend selection (51)
 
+- **2026-09-30** — [Stop offering Concurrent Mode](2026-09-30-stop-offering-concurrent-mode.md)
 - **2026-09-18** — [Honour "Ignore SSL certificates" for proxied plugin requests](2026-09-18-honour-ignore-ssl-for-proxied-plugin-requests.md)
 - **2026-09-18** — [Preserve the resolved backend during provider settings writes](2026-09-18-preserve-resolved-backend-during-settings-writes.md)
 
