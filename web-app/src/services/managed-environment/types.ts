@@ -157,11 +157,52 @@ export interface RequirementPlan {
   may_require_reboot: boolean
   blockers: ManagedBlocker[]
   /**
-   * Where Docker keeps images, the free space there, and the descriptor's NVIDIA notices. The
-   * spec asks the app to show all three before consent, but the core does not report them yet
-   * (gap G-app-1 in the openspec change): shown when present, and the plan says so when absent.
+   * Where Docker keeps images and the free space there. The spec asks the app to show both before
+   * consent, but the core does not report them yet (gap G-app-1 in the openspec change): shown
+   * when present, and the plan says so when absent. The NVIDIA notices come from the descriptor
+   * route instead (gap G-app-2).
    */
   docker_root_dir?: string | null
   free_disk_bytes?: number | null
-  notices?: string[]
+}
+
+/** One file of a checkpoint as `check` and `model.yml` list it; `sha256` only for LFS files. */
+export interface CheckpointFile {
+  path: string
+  size: number
+  sha256: string | null
+}
+
+/** The core's verdict of `POST /models/tensorrt-llm/check` (spec `tensorrt-llm-models`). */
+export interface ModelCompatibility {
+  architectures: string[]
+  quantization_format: string | null
+  weight_bytes: number
+  checked_gpu_id: string
+  curated: boolean
+  unified_memory: boolean
+  fits_other_gpus: string[]
+  kv_reserve_basis?: 'config' | 'weight_fraction'
+  verdict: { ok: true } | { ok: false; error: ManagedError }
+}
+
+/** One checkpoint the engine release was qualified against (the descriptor's `curated_models`). */
+export interface CuratedModel {
+  repository: string
+  revision: string
+  inventory_digest: Sha256Digest
+  vram_tier_bytes: number
+  note: string
+}
+
+/**
+ * What the core tells clients about one cached descriptor (gap G-app-2: the route is proposed and
+ * not in the core yet).
+ */
+export interface DescriptorSummary {
+  descriptor_id: string
+  engine_id: string
+  notices: string[]
+  curated_models: CuratedModel[]
+  supported_architectures: string[]
 }

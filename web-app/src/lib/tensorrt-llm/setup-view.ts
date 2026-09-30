@@ -111,7 +111,8 @@ export interface PlanSummary {
 /** Group membership is root-equivalent; a Docker restart stops the person's containers. */
 const WARNING_CHANGES = new Set(['add-user-to-docker-group', 'restart-docker'])
 
-export function planSummary(plan: RequirementPlan): PlanSummary {
+/** `notices` are the NVIDIA notices of the plan's descriptor, when the core reported them. */
+export function planSummary(plan: RequirementPlan, notices: string[] = []): PlanSummary {
   const disk = plan.blockers.find((b) => b.reason === 'insufficient-disk')
   const number = (value: string | undefined) =>
     value !== undefined && Number.isFinite(Number(value)) ? Number(value) : null
@@ -128,7 +129,7 @@ export function planSummary(plan: RequirementPlan): PlanSummary {
       freeBytes: plan.free_disk_bytes ?? number(disk?.params?.free),
       insufficient: disk !== undefined,
     },
-    notices: plan.notices ?? [],
+    notices,
     blockers: plan.blockers.map(blockerView),
     canStart:
       plan.blockers.length === 0 &&

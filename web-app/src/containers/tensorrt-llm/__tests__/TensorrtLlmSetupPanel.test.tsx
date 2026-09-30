@@ -17,6 +17,11 @@ const client = vi.hoisted(() => ({
   cancelOperation: vi.fn(),
   runHostStep: vi.fn(),
 }))
+const descriptors = vi.hoisted(() => ({ describeDescriptor: vi.fn() }))
+vi.mock('@/services/tensorrt-llm/models', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/tensorrt-llm/models')>()),
+  ...descriptors,
+}))
 vi.mock('@/services/managed-environment/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/managed-environment/client')>()),
   ...client,
@@ -136,6 +141,7 @@ beforeEach(() => {
   client.resumeOperation.mockResolvedValue(operation())
   client.cancelOperation.mockResolvedValue(operation())
   client.runHostStep.mockResolvedValue({ outcome: 'completed' })
+  descriptors.describeDescriptor.mockResolvedValue(null)
 })
 
 describe('TensorrtLlmSetupPanel', () => {
@@ -153,6 +159,23 @@ describe('TensorrtLlmSetupPanel', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(client.beginOperation).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'providers:tensorrt.install' })).toBeInTheDocument()
+  })
+
+  it('shows the NVIDIA notices of the descriptor the plan installs, and says so when the core has none', async () => {
+    descriptors.describeDescriptor.mockResolvedValue({
+      descriptor_id: 'tensorrt-llm-1.2.1-r1',
+      engine_id: 'tensorrt-llm',
+      notices: ['Use of the NGC container is subject to the NVIDIA AI Product Agreement.'],
+      curated_models: [],
+      supported_architectures: [],
+    })
+    render(<TensorrtLlmSetupPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'providers:tensorrt.install' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText(/NVIDIA AI Product Agreement/)).toBeInTheDocument()
+    expect(descriptors.describeDescriptor).toHaveBeenCalledWith('tensorrt-llm-1.2.1-r1')
+    expect(within(dialog).queryByText('providers:tensorrt.plan.noticesMissing')).not.toBeInTheDocument()
   })
 
   it('on consent starts the setup, approves exactly the plan it showed, asks for the system password and then explains the sign-in', async () => {

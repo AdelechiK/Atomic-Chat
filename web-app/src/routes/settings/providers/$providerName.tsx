@@ -2,6 +2,11 @@
 import { Card, CardItem } from '@/containers/Card'
 import HeaderPage from '@/containers/HeaderPage'
 import { TensorrtLlmSetupPanel } from '@/containers/tensorrt-llm/TensorrtLlmSetupPanel'
+import { TensorrtLlmModelPicker } from '@/containers/tensorrt-llm/TensorrtLlmModelPicker'
+import {
+  selectTensorrtInstallation,
+  useManagedEnvironmentStore,
+} from '@/stores/managed-environment-store'
 import SettingsMenu from '@/containers/SettingsMenu'
 import { useModelProvider } from '@/hooks/useModelProvider'
 import { isOnboardingPending } from '@/lib/onboarding'
@@ -315,6 +320,10 @@ function ProviderDetail() {
   }, [backendMismatch, providerName, t])
   const navigate = useNavigate()
   const { getProviderByName, setProviders, updateProvider } = useModelProvider()
+  // TensorRT-LLM models can be chosen once the engine is installed.
+  const tensorrtInstalled = useManagedEnvironmentStore(
+    (state) => selectTensorrtInstallation(state)?.status === 'ready'
+  )
   const provider = getProviderByName(providerName)
   const providerSettingsWriteRef = useRef<Promise<void>>(Promise.resolve())
   const debouncedRestartLlamacppModel = useMemo(
@@ -1940,6 +1949,13 @@ function ProviderDetail() {
 
             {/* TensorRT-LLM: setting up the engine comes before its settings and models. */}
             {providerName === 'tensorrt-llm' && <TensorrtLlmSetupPanel />}
+            {providerName === 'tensorrt-llm' && tensorrtInstalled && (
+              <TensorrtLlmModelPicker
+                onInstalled={() =>
+                  serviceHub.providers().getProviders().then(setProviders)
+                }
+              />
+            )}
 
             <div
               className={cn(

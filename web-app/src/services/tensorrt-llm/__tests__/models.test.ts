@@ -1,0 +1,206 @@
+import { describe, expect, it, vi } from 'vitest'
+
+import {
+  GatedModelError,
+  IncompatibleModelError,
+  fetchHfRevision,
+  installTensorrtModel,
+  type InstallDeps,
+} from '../models'
+
+const SHA = 'c0ffee' + '0'.repeat(34)
+
+/** A Hugging Face that answers the API listing and the files of one repository. */
+function hub(options: { status?: number; quant?: boolean } = {}) {
+  const calls: Array<{ url: string; auth: string | null }> = []
+  const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+    const auth = new Headers(init?.headers).get('Authorization')
+    calls.push({ url, auth })
+    if (options.status) return new Response('{"error":"gated"}', { status: options.status })
+    if (url.startsWith('https://huggingface.co/api/models/nvidia/Qwen3-8B-FP8/revision/main')) {
+      return Response.json({
+        sha: SHA,
+        siblings: [
+          { rfilename: 'config.json', size: 700 },
+          ...(options.quant ? [{ rfilename: 'hf_quant_config.json', size: 200 }] : []),
+          {
+            rfilename: 'model-00001-of-00002.safetensors',
+            size: 134,
+            lfs: { sha256: 'a'.repeat(64), size: 5_000_000_000 },
+          },
+          {
+            rfilename: 'model-00002-of-00002.safetensors',
+            size: 134,
+            lfs: { sha256: 'b'.repeat(64), size: 3_000_000_000 },
+          },
+          { rfilename: 'tokenizer.json', size: 11_000 },
+        ],
+      })
+    }
+    if (url === `https://huggingface.co/nvidia/Qwen3-8B-FP8/resolve/${SHA}/config.json`) {
+      return Response.json({ architectures: ['Qwen3ForCausalLM'] })
+    }
+    if (url === `https://huggingface.co/nvidia/Qwen3-8B-FP8/resolve/${SHA}/hf_quant_config.json`) {
+      return Response.json({ quantization: { quant_algo: 'FP8' } })
+    }
+    return new Response('not found', { status: 404 })
+  })
+  return { fetch: fetch as unknown as typeof globalThis.fetch, calls }
+}
+
+const verdict = (ok: boolean) => ({
+  architectures: ['Qwen3ForCausalLM'],
+  quantization_format: 'fp8',
+  weight_bytes: 8_000_000_000,
+  checked_gpu_id: 'GPU-1',
+  curated: false,
+  unified_memory: false,
+  fits_other_gpus: ok ? [] : ['GPU-2'],
+  verdict: ok
+    ? { ok: true as const }
+    : {
+        ok: false as const,
+        error: {
+          code: 'MODEL_INCOMPATIBLE',
+          message: 'Needs 12.4 GB free, the card has 7.8 GB.',
+        },
+      },
+})
+
+function deps(overrides: Partial<InstallDeps> = {}) {
+  const steps: string[] = []
+  const d: InstallDeps = {
+    fetch: hub().fetch,
+    check: vi.fn(async () => verdict(true)),
+    existingSize: vi.fn(async () => null),
+    transfer: vi.fn(async (items) => {
+      steps.push(`transfer:${items.map((i) => i.save_path.split('/').pop()).join(',')}`)
+    }),
+    writeYaml: vi.fn(async (savePath) => {
+      steps.push(`yaml:${savePath}`)
+    }),
+    ...overrides,
+  }
+  return { d, steps }
+}
+
+describe('fetchHfRevision', () => {
+  it('pins the revision to its commit and lists every file with its size and LFS sha256', async () => {
+    const { fetch, calls } = hub({ quant: true })
+
+    const meta = await fetchHfRevision('nvidia/Qwen3-8B-FP8', undefined, 'hf_secret', fetch)
+
+    expect(meta.revision).toBe(SHA)
+    expect(meta.config_json).toEqual({ architectures: ['Qwen3ForCausalLM'] })
+    expect(meta.hf_quant_config_json).toEqual({ quantization: { quant_algo: 'FP8' } })
+    expect(meta.files).toContainEqual({
+      path: 'model-00001-of-00002.safetensors',
+      size: 5_000_000_000,
+      sha256: 'a'.repeat(64),
+    })
+    expect(meta.files).toContainEqual({ path: 'tokenizer.json', size: 11_000, sha256: null })
+    // Files are read at the pinned commit, never at a moving branch.
+    expect(calls.some((c) => c.url.includes(`/resolve/${SHA}/`))).toBe(true)
+    expect(calls.every((c) => c.auth === 'Bearer hf_secret')).toBe(true)
+  })
+
+  it('reads no quantization file a repository does not have', async () => {
+    const meta = await fetchHfRevision('nvidia/Qwen3-8B-FP8', undefined, undefined, hub().fetch)
+
+    expect(meta.hf_quant_config_json).toBeNull()
+  })
+
+  it('turns a refused listing into "accept the terms on the model page", with the link', async () => {
+    // spec "Gated-модель без принятых условий".
+    for (const status of [401, 403]) {
+      const error = await fetchHfRevision('meta-llama/Llama-3.3-70B-Instruct', undefined, undefined, hub({ status }).fetch).catch(
+        (e: unknown) => e
+      )
+
+      expect(error).toBeInstanceOf(GatedModelError)
+      expect((error as GatedModelError).url).toBe('https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct')
+    }
+  })
+})
+
+describe('installTensorrtModel', () => {
+  it('downloads nothing for a model the core finds incompatible, and says why with the other card', async () => {
+    // spec "Вставлен несовместимый репозиторий".
+    const { d, steps } = deps({ check: vi.fn(async () => verdict(false)) })
+
+    const error = await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(IncompatibleModelError)
+    expect((error as IncompatibleModelError).message).toContain('12.4 GB')
+    expect((error as IncompatibleModelError).fitsOtherGpus).toEqual(['GPU-2'])
+    expect(steps).toEqual([])
+  })
+
+  it('asks the core with the metadata of the pinned revision, then downloads every file into the model folder', async () => {
+    const { d } = deps()
+
+    const installed = await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
+
+    expect(installed.modelId).toBe('nvidia/Qwen3-8B-FP8')
+    expect(d.check).toHaveBeenCalledWith(
+      expect.objectContaining({ repository: 'nvidia/Qwen3-8B-FP8', revision: SHA })
+    )
+    const items = vi.mocked(d.transfer).mock.calls[0][0]
+    expect(items.map((i) => i.save_path)).toEqual([
+      'tensorrt-llm/models/nvidia/Qwen3-8B-FP8/config.json',
+      'tensorrt-llm/models/nvidia/Qwen3-8B-FP8/model-00001-of-00002.safetensors',
+      'tensorrt-llm/models/nvidia/Qwen3-8B-FP8/model-00002-of-00002.safetensors',
+      'tensorrt-llm/models/nvidia/Qwen3-8B-FP8/tokenizer.json',
+    ])
+    expect(items[1]).toMatchObject({
+      url: `https://huggingface.co/nvidia/Qwen3-8B-FP8/resolve/${SHA}/model-00001-of-00002.safetensors`,
+      sha256: 'a'.repeat(64),
+      size: 5_000_000_000,
+    })
+  })
+
+  it('writes model.yml last, and only once every file is on disk', async () => {
+    // spec "Модель докачана в app": a folder without model.yml is not a model.
+    const { d, steps } = deps()
+
+    await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
+
+    expect(steps.at(-1)).toBe('yaml:tensorrt-llm/models/nvidia/Qwen3-8B-FP8/model.yml')
+    expect(vi.mocked(d.writeYaml).mock.calls[0][1]).toMatchObject({
+      repository: 'nvidia/Qwen3-8B-FP8',
+      revision: SHA,
+      architectures: ['Qwen3ForCausalLM'],
+      quantization: 'fp8',
+    })
+  })
+
+  it('writes no model.yml when the download fails', async () => {
+    const { d, steps } = deps({
+      transfer: vi.fn(async () => {
+        throw new Error('connection reset')
+      }),
+    })
+
+    await expect(installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)).rejects.toThrow(
+      'connection reset'
+    )
+    expect(steps).toEqual([])
+  })
+
+  it('does not download again the files already complete on disk, and resumes the rest', async () => {
+    // spec "Прерванное скачивание".
+    const { d } = deps({
+      existingSize: vi.fn(async (path: string) =>
+        path.endsWith('model-00001-of-00002.safetensors') ? 5_000_000_000 : null
+      ),
+    })
+
+    await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
+
+    const [items, , options] = vi.mocked(d.transfer).mock.calls[0]
+    expect(items.map((i) => i.save_path.split('/').pop())).not.toContain(
+      'model-00001-of-00002.safetensors'
+    )
+    expect(options).toMatchObject({ resume: true })
+  })
+})

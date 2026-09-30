@@ -236,8 +236,9 @@ describe('planSummary', () => {
     })
   })
 
-  it('lists NVIDIA notices when the core sends them', () => {
-    expect(planSummary(plan({ notices: ['NGC terms apply.'] })).notices).toEqual(['NGC terms apply.'])
+  it('lists the NVIDIA notices of the descriptor the plan installs, when the core reports them', () => {
+    // They come from the descriptor route (gap G-app-2), not from the plan.
+    expect(planSummary(plan(), ['NGC terms apply.']).notices).toEqual(['NGC terms apply.'])
     expect(planSummary(plan()).notices).toEqual([])
   })
 })

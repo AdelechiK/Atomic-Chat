@@ -26,6 +26,7 @@ import {
   resumeOperation,
   runHostStep,
 } from '@/services/managed-environment/client'
+import { describeDescriptor } from '@/services/tensorrt-llm/models'
 import type {
   EnvironmentOperation,
   RequirementPlan,
@@ -70,6 +71,7 @@ export function TensorrtLlmSetupPanel() {
   const [removeOpen, setRemoveOpen] = useState(false)
   const [keepModels, setKeepModels] = useState(true)
   const [manualCommand, setManualCommand] = useState<string | null>(null)
+  const [notices, setNotices] = useState<string[]>([])
   const approval = useRef<Approval | null>(null)
   const answeredConsent = useRef<string | null>(null)
   const promptedSteps = useRef(new Set<string>())
@@ -95,6 +97,21 @@ export function TensorrtLlmSetupPanel() {
   useEffect(() => {
     void recheck()
   }, [recheck])
+
+  // The NVIDIA notices of the descriptor this plan installs (gap G-app-2: empty until the core
+  // reports them, and the plan then says they were not reported).
+  const planDescriptor = plan?.descriptor_id ?? null
+  useEffect(() => {
+    setNotices([])
+    if (!planDescriptor) return
+    let cancelled = false
+    void describeDescriptor(planDescriptor).then((summary) => {
+      if (!cancelled) setNotices(summary?.notices ?? [])
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [planDescriptor])
 
   const environmentId = environment?.environment_id ?? 'default'
 
@@ -167,7 +184,7 @@ export function TensorrtLlmSetupPanel() {
   }, [operation?.operation_id, operation?.phase, operation?.pending_host_step, grant])
 
   const view = deriveSetupView({ plan, operation, installation, failed })
-  const summary = plan ? planSummary(plan) : undefined
+  const summary = plan ? planSummary(plan, notices) : undefined
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-main-view-fg/10 p-4">

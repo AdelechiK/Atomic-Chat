@@ -151,6 +151,17 @@
       "body": "The engine image, its caches and the installation are deleted. Docker, the NVIDIA Container Toolkit and the docker group stay on this computer.",
       "keepModels": "Keep the downloaded TensorRT-LLM models",
       "confirm": "Remove"
+    },
+    "models": {
+      "title": "Models",
+      "curated": "Tested models that fit this computer",
+      "fromHub": "Or paste a Hugging Face repository",
+      "check": "Check",
+      "fits": "This model can run here ({{size}} of weights).",
+      "download": "Download",
+      "downloading": "Downloading {{repository}}…",
+      "otherCard": "It would fit on: {{cards}}. Choose that card in the settings below.",
+      "gated": "Hugging Face refused access. Open the model page, accept its terms (and set your Hugging Face token in Settings if needed), then try again: {{url}}"
     }
   }
 }
