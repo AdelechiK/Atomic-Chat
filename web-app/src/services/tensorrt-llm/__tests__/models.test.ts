@@ -69,7 +69,11 @@ const verdict = (ok: boolean) => ({
 
 function deps(overrides: Partial<InstallDeps> = {}) {
   const steps: string[] = []
+  const emitted: Array<{ event: string; payload: Record<string, unknown> }> = []
   const d: InstallDeps = {
+    emit: (event, payload) => {
+      emitted.push({ event, payload: payload as Record<string, unknown> })
+    },
     fetch: hub().fetch,
     check: vi.fn(async () => verdict(true)),
     existingSize: vi.fn(async () => null),
@@ -81,7 +85,7 @@ function deps(overrides: Partial<InstallDeps> = {}) {
     }),
     ...overrides,
   }
-  return { d, steps }
+  return { d, steps, emitted }
 }
 
 describe('fetchHfRevision', () => {
@@ -185,6 +189,85 @@ describe('installTensorrtModel', () => {
       'connection reset'
     )
     expect(steps).toEqual([])
+  })
+
+  describe('the download toasts (task 3.18, F-10)', () => {
+    it('ends a verified download as verified, for the id the downloader validated, after model.yml', async () => {
+      const { d, steps, emitted } = deps({
+        writeYaml: vi.fn(async (savePath: string) => {
+          steps.push(`yaml:${savePath}`)
+          // Nothing is announced before the model exists.
+          expect(emitted).toEqual([])
+        }),
+      })
+
+      await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
+
+      const itemIds = vi.mocked(d.transfer).mock.calls[0][0].map((item) => item.model_id)
+      expect(new Set(itemIds)).toEqual(new Set(['nvidia/Qwen3-8B-FP8']))
+      expect(emitted).toEqual([
+        {
+          event: 'onFileDownloadAndVerificationSuccess',
+          payload: {
+            modelId: 'nvidia/Qwen3-8B-FP8',
+            downloadType: 'Model',
+            size: { transferred: 8_000_011_700, total: 8_000_011_700 },
+          },
+        },
+      ])
+    })
+
+    it('ends a file that failed its sha256 check as a failed validation', async () => {
+      const { d, emitted } = deps({
+        transfer: vi.fn(async () => {
+          throw new Error('Hash verification failed for model-00001-of-00002.safetensors')
+        }),
+      })
+
+      await expect(installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)).rejects.toThrow(
+        'Hash verification failed'
+      )
+      expect(emitted).toEqual([
+        {
+          event: 'onModelValidationFailed',
+          payload: {
+            modelId: 'nvidia/Qwen3-8B-FP8',
+            downloadType: 'Model',
+            error: 'Hash verification failed for model-00001-of-00002.safetensors',
+            reason: 'validation_failed',
+          },
+        },
+      ])
+    })
+
+    it('ends any other failure as a download error', async () => {
+      const { d, emitted } = deps({
+        transfer: vi.fn(async () => {
+          throw new Error('connection reset')
+        }),
+      })
+
+      await expect(installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)).rejects.toThrow()
+      expect(emitted.map((e) => e.event)).toEqual(['onFileDownloadError'])
+      expect(emitted[0].payload).toMatchObject({ modelId: 'nvidia/Qwen3-8B-FP8', error: 'connection reset' })
+    })
+
+    it('announces nothing when every file was already on disk and nothing was fetched', async () => {
+      const sizes: Record<string, number> = {
+        'config.json': 700,
+        'model-00001-of-00002.safetensors': 5_000_000_000,
+        'model-00002-of-00002.safetensors': 3_000_000_000,
+        'tokenizer.json': 11_000,
+      }
+      const { d, emitted } = deps({
+        existingSize: vi.fn(async (path: string) => sizes[path.split('/').pop() ?? ''] ?? null),
+      })
+
+      await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
+
+      expect(d.transfer).not.toHaveBeenCalled()
+      expect(emitted).toEqual([])
+    })
   })
 
   it('does not download again the files already complete on disk, and resumes the rest', async () => {

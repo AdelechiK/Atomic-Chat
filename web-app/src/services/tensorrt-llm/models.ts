@@ -12,17 +12,24 @@
  * 3. Download every file into `<data>/tensorrt-llm/models/<repository>/`, verified by size and LFS
  *    sha256, resuming partial files and skipping files already complete.
  * 4. Write `model.yml` last: a folder without one is a download in progress, not a model.
+ * 5. End the download's events as a chat-model download ends them, so the "Validating Model"
+ *    toast the downloader opened is closed: verified and done, or the reason it failed.
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { fs } from '@janhq/core'
+import { DownloadEvent, events, fs } from '@janhq/core'
 
 import type {
   CheckpointFile,
   DescriptorSummary,
   ModelCompatibility,
 } from '@/services/managed-environment/types'
-import { transferFiles, type TransferItem, type TransferOptions } from '@/services/diffusion/transfer'
+import {
+  isTransferValidationError,
+  transferFiles,
+  type TransferItem,
+  type TransferOptions,
+} from '@/services/diffusion/transfer'
 
 const HF = 'https://huggingface.co'
 
@@ -141,6 +148,8 @@ export interface InstallDeps {
   existingSize: (savePath: string) => Promise<number | null>
   transfer: (items: TransferItem[], taskId: string, options: TransferOptions) => Promise<void>
   writeYaml: (savePath: string, data: unknown) => Promise<void>
+  /** The app's download events (`events.emit`), which the download toasts follow. */
+  emit: (event: string, payload: unknown) => void
 }
 
 export interface InstallRequest {
@@ -187,23 +196,62 @@ export async function installTensorrtModel(
       ...(file.sha256 ? { sha256: file.sha256 } : {}),
     })
   }
+  const downloaded = pending.reduce((total, item) => total + (item.size ?? 0), 0)
+  try {
+    if (pending.length > 0) {
+      await deps.transfer(pending, `tensorrt-llm-${repository.replace(/[^A-Za-z0-9_-]/g, '_')}`, {
+        resume: true,
+        ...(request.token ? { hfToken: request.token } : {}),
+        ...(request.onProgress ? { onProgress: request.onProgress } : {}),
+      })
+    }
+
+    // Last: this file is what turns the folder into a model for the core and the extension.
+    await deps.writeYaml(`${dir}/model.yml`, {
+      repository,
+      revision: meta.revision,
+      architectures: compatibility.architectures,
+      quantization: compatibility.quantization_format,
+      files: meta.files,
+    })
+  } catch (error) {
+    if (pending.length > 0) emitDownloadFailed(deps, repository, error)
+    throw error
+  }
+  // The Rust downloader opened a "Validating Model" toast for `repository` (each item's
+  // `model_id`) once the files arrived, and only a terminal download event closes it (F-10).
+  // Sent only after a download: with every file already on disk nothing was fetched or checked.
   if (pending.length > 0) {
-    await deps.transfer(pending, `tensorrt-llm-${repository.replace(/[^A-Za-z0-9_-]/g, '_')}`, {
-      resume: true,
-      ...(request.token ? { hfToken: request.token } : {}),
-      ...(request.onProgress ? { onProgress: request.onProgress } : {}),
+    deps.emit(DownloadEvent.onFileDownloadAndVerificationSuccess, {
+      modelId: repository,
+      downloadType: 'Model',
+      size: { transferred: downloaded, total: downloaded },
     })
   }
-
-  // Last: this file is what turns the folder into a model for the core and the extension.
-  await deps.writeYaml(`${dir}/model.yml`, {
-    repository,
-    revision: meta.revision,
-    architectures: compatibility.architectures,
-    quantization: compatibility.quantization_format,
-    files: meta.files,
-  })
   return { modelId: repository, compatibility }
+}
+
+/**
+ * Close the download's toasts as a failed chat-model download closes them: a file that failed its
+ * size or sha256 check (the downloader has already removed it) as a validation failure, anything
+ * else as a download error.
+ */
+function emitDownloadFailed(deps: InstallDeps, repository: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error)
+  if (isTransferValidationError(error)) {
+    deps.emit(DownloadEvent.onModelValidationFailed, {
+      modelId: repository,
+      downloadType: 'Model',
+      error: message,
+      reason: 'validation_failed',
+    })
+  } else {
+    deps.emit(DownloadEvent.onFileDownloadError, {
+      modelId: repository,
+      downloadType: 'Model',
+      error: message,
+    })
+  }
 }
 
 function coreCall<T>(method: 'GET' | 'POST', path: string, body: unknown = null): Promise<T> {
@@ -245,5 +293,6 @@ export function defaultInstallDeps(): InstallDeps {
     },
     transfer: transferFiles,
     writeYaml: (savePath, data) => invoke<void>('write_yaml', { data, savePath }),
+    emit: (event, payload) => events.emit(event, payload),
   }
 }
