@@ -51,7 +51,7 @@
     "doneBlocked": "Install the engine and at least one model first.",
     "engine": {
       "checking": "Проверяем…",
-      "unsupported": "There is no image engine build for this computer yet.",
+      "unsupported": "Для этого компьютера пока нет сборки медиадвижка.",
       "failed": "The engine could not be installed.",
       "progress": "{{current}} / {{total}} GB",
       "backend": "{{backend}} · {{tag}}",
@@ -68,9 +68,9 @@
       "descriptionRunning": "The model is running. Press Done and write your first prompt."
     },
     "card": {
-      "title": "Создайте первое изображение",
-      "description": "Приватная студия изображений прямо на компьютере. Нужны всего две быстрые загрузки.",
-      "engine": "Установите движок",
+      "title": "Создавайте изображения с локальным ИИ",
+      "description": "Превращайте текст в изображения прямо на компьютере. Для начала установите медиадвижок, затем скачайте модель.",
+      "engine": "Установите медиадвижок",
       "downloadModel": "Скачать модель"
     }
   },
@@ -128,11 +128,11 @@
   },
   "download": {
     "finishingModel": "Проверяем модель изображений",
-    "finishingEngine": "Завершаем установку движка",
+    "finishingEngine": "Завершаем установку медиадвижка",
     "checkingFiles": "Проверяем загруженные файлы…",
     "readyAfterCheck": "Готово к работе после проверки.",
     "modelReady": "Модель изображений готова",
-    "engineReady": "Движок изображений готов"
+    "engineReady": "Медиадвижок готов"
   },
   "form": {
     "prompt": "Prompt",
@@ -160,7 +160,7 @@
     "stop": "Stop",
     "stopping": "Stopping…",
     "disabled": {
-      "noEngine": "Install the image engine first.",
+      "noEngine": "Сначала установите медиадвижок.",
       "noModel": "Download and load an image model first.",
       "modelLoading": "The model is still loading.",
       "emptyPrompt": "Write a prompt first.",
@@ -340,7 +340,7 @@
       "retry": "Try again"
     },
     "ENGINE_MISSING": {
-      "title": "The image engine is not installed",
+      "title": "Медиадвижок не установлен",
       "body": "Install stable-diffusion.cpp to render images on this computer."
     },
     "ENGINE_INSTALL_FAILED": {
@@ -349,7 +349,7 @@
     },
     "ENGINE_CRASHED": {
       "title": "GPU остановил рендер",
-      "body": "Движок изображений уже сброшен. Выберите меньшее разрешение и попробуйте снова."
+      "body": "Медиадвижок уже сброшен. Выберите меньшее разрешение и попробуйте снова."
     },
     "MODEL_MISSING": {
       "title": "The model file is missing",

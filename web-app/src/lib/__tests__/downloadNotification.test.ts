@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
 import i18n from '@/i18n/setup'
-import { makeCatalog, Q4_ID } from '@/lib/diffusion/__tests__/image-fixtures'
+import {
+  makeCatalog,
+  Q4_ID,
+  Z_IMAGE,
+} from '@/lib/diffusion/__tests__/image-fixtures'
+import { LTX_2, LTX_Q4_ID } from '@/lib/diffusion/__tests__/video-fixtures'
 import { diffusionDownloadTaskId } from '@/lib/diffusion/models'
-import { describeFinishedDownload } from '../downloadNotification'
+import {
+  describeDiffusionDownloadToast,
+  describeFinishedDownload,
+} from '../downloadNotification'
 
 const t = i18n.t.bind(i18n) as (
   key: string,
@@ -62,6 +70,51 @@ describe('describeFinishedDownload', () => {
   it('stays silent for the CUDA runtime that comes with an engine', () => {
     expect(
       describeFinishedDownload('cudart-llama-bin-win-cu12', 'Backend', null, t)
+    ).toBeNull()
+  })
+})
+
+describe('describeDiffusionDownloadToast', () => {
+  const catalog = makeCatalog([Z_IMAGE, LTX_2])
+
+  it('names a model by its modality, so a video model never reads "image model"', () => {
+    expect(
+      describeDiffusionDownloadToast(diffusionDownloadTaskId(Q4_ID), catalog, t)
+    ).toEqual({
+      kind: 'model',
+      finishing: 'Checking image model',
+      ready: 'Image model is ready',
+    })
+    expect(
+      describeDiffusionDownloadToast(
+        diffusionDownloadTaskId(LTX_Q4_ID),
+        catalog,
+        t
+      )
+    ).toEqual({
+      kind: 'model',
+      finishing: 'Checking video model',
+      ready: 'Video model is ready',
+    })
+  })
+
+  it('calls the one engine behind both pages the media engine', () => {
+    expect(
+      describeDiffusionDownloadToast(
+        'diffusion-backend-master-849-d04e895-macos-arm64',
+        catalog,
+        t
+      )
+    ).toEqual({
+      kind: 'engine',
+      finishing: 'Finishing media engine',
+      ready: 'Media engine is ready',
+    })
+  })
+
+  it('leaves every other download to the generic toasts', () => {
+    expect(
+      describeDiffusionDownloadToast('bartowski/Kimi-K3-Q4_K_M', catalog, t)
     ).toBeNull()
   })
 })

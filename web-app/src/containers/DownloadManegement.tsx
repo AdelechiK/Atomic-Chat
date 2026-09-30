@@ -47,16 +47,11 @@ import { cancelTransfer } from '@/services/diffusion/transfer'
 import { useImageGenerationStore } from '@/stores/image-generation-store'
 import { useImageForm } from '@/hooks/useImageForm'
 import { notifyWhenAway } from '@/lib/notifications'
-import { describeFinishedDownload } from '@/lib/downloadNotification'
+import {
+  describeDiffusionDownloadToast,
+  describeFinishedDownload,
+} from '@/lib/downloadNotification'
 import type { DiffusionCatalog } from '@/services/diffusion-catalog-registry'
-
-type DiffusionDownloadKind = 'model' | 'engine'
-
-function diffusionDownloadKind(id: string): DiffusionDownloadKind | null {
-  if (id.startsWith('diffusion-model-')) return 'model'
-  if (id.startsWith('diffusion-backend-')) return 'engine'
-  return null
-}
 
 /**
  * ATO-109: emit the terminal `model_download` event. Deduplicated so the two
@@ -553,10 +548,14 @@ export function DownloadManagement() {
     (event: { modelId: string; downloadType: string }) => {
       console.debug('onModelValidationStarted', event)
 
-      const diffusionKind = diffusionDownloadKind(event.modelId)
-      if (diffusionKind) {
+      const diffusion = describeDiffusionDownloadToast(
+        event.modelId,
+        imageCatalog,
+        t
+      )
+      if (diffusion) {
         const description =
-          diffusionKind === 'model' ? (
+          diffusion.kind === 'model' ? (
             <span className="block">
               <span className="block">
                 {t('images:download.checkingFiles')}
@@ -568,18 +567,11 @@ export function DownloadManagement() {
           ) : (
             t('images:download.checkingFiles')
           )
-        toast.loading(
-          t(
-            diffusionKind === 'model'
-              ? 'images:download.finishingModel'
-              : 'images:download.finishingEngine'
-          ),
-          {
-            id: `model-validation-started-${event.modelId}`,
-            description,
-            duration: Infinity,
-          }
-        )
+        toast.loading(diffusion.finishing, {
+          id: `model-validation-started-${event.modelId}`,
+          description,
+          duration: Infinity,
+        })
         return
       }
 
@@ -592,7 +584,7 @@ export function DownloadManagement() {
         duration: Infinity,
       })
     },
-    [t]
+    [t, imageCatalog]
   )
 
   const onModelValidationFailed = useCallback(
@@ -709,18 +701,16 @@ export function DownloadManagement() {
       removeDownload(state.modelId)
       removeLocalDownloadingModel(state.modelId)
       clearDownloadOrigin(state.modelId)
-      const diffusionKind = diffusionDownloadKind(state.modelId)
+      const diffusion = describeDiffusionDownloadToast(
+        state.modelId,
+        imageCatalog,
+        t
+      )
       toast.success(
-        diffusionKind
-          ? t(
-              diffusionKind === 'model'
-                ? 'images:download.modelReady'
-                : 'images:download.engineReady'
-            )
-          : t('common:toast.downloadComplete.title'),
+        diffusion ? diffusion.ready : t('common:toast.downloadComplete.title'),
         {
-        id: 'download-complete',
-          description: diffusionKind
+          id: 'download-complete',
+          description: diffusion
             ? undefined
             : t('common:toast.downloadComplete.description', {
                 item: state.modelId,
@@ -761,25 +751,22 @@ export function DownloadManagement() {
       removeDownload(state.modelId)
       removeLocalDownloadingModel(state.modelId)
       clearDownloadOrigin(state.modelId)
-      const diffusionKind = diffusionDownloadKind(state.modelId)
+      const diffusion = describeDiffusionDownloadToast(
+        state.modelId,
+        imageCatalog,
+        t
+      )
       toast.success(
-        diffusionKind
-          ? t(
-              diffusionKind === 'model'
-                ? 'images:download.modelReady'
-                : 'images:download.engineReady'
-            )
+        diffusion
+          ? diffusion.ready
           : t('common:toast.downloadAndVerificationComplete.title'),
         {
-        id: 'download-complete',
-          description: diffusionKind
+          id: 'download-complete',
+          description: diffusion
             ? undefined
-            : t(
-                'common:toast.downloadAndVerificationComplete.description',
-                {
-                  item: state.modelId,
-                }
-              ),
+            : t('common:toast.downloadAndVerificationComplete.description', {
+                item: state.modelId,
+              }),
         }
       )
     },

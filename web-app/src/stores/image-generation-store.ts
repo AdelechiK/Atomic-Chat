@@ -727,7 +727,7 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
                   code: 'ENGINE_UPDATE_REQUIRED',
                   message:
                     get().engineInstall.error?.message ??
-                    'Update the image engine and retry.',
+                    'Update the media engine and retry.',
                 }
               : get().engineInstall.error,
           })
@@ -804,7 +804,7 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
           })
           throw {
             code: 'ENGINE_UPDATE_REQUIRED',
-            message: `${family.name} requires ${MODERN_IMAGE_ENGINE_TAG} or newer. Update the image engine and retry.`,
+            message: `${family.name} requires ${MODERN_IMAGE_ENGINE_TAG} or newer. Update the media engine and retry.`,
           }
         }
         await acquireGpuForDiffusion({

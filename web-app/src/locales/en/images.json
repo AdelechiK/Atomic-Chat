@@ -51,7 +51,7 @@
     "doneBlocked": "Install the engine and at least one model first.",
     "engine": {
       "checking": "Checking…",
-      "unsupported": "There is no image engine build for this computer yet.",
+      "unsupported": "There is no media engine build for this computer yet.",
       "failed": "The engine could not be installed.",
       "progress": "{{current}} / {{total}} GB",
       "backend": "{{backend}} · {{tag}}",
@@ -68,9 +68,9 @@
       "descriptionRunning": "The model is running. Press Done and write your first prompt."
     },
     "card": {
-      "title": "Create your first image",
-      "description": "A private image studio that runs on your computer. Two quick downloads are all it needs.",
-      "engine": "Install the image engine",
+      "title": "Create images with Local AI",
+      "description": "Turn text into images right on your computer. To start, install the media engine, then download a model.",
+      "engine": "Install the media engine",
       "downloadModel": "Download model"
     }
   },
@@ -128,11 +128,11 @@
   },
   "download": {
     "finishingModel": "Checking image model",
-    "finishingEngine": "Finishing image engine",
+    "finishingEngine": "Finishing media engine",
     "checkingFiles": "Verifying the downloaded files…",
     "readyAfterCheck": "Ready to use after this check.",
     "modelReady": "Image model is ready",
-    "engineReady": "Image engine is ready"
+    "engineReady": "Media engine is ready"
   },
   "form": {
     "prompt": "Prompt",
@@ -160,7 +160,7 @@
     "stop": "Stop",
     "stopping": "Stopping…",
     "disabled": {
-      "noEngine": "Install the image engine first.",
+      "noEngine": "Install the media engine first.",
       "noModel": "Download and load an image model first.",
       "modelLoading": "The model is still loading.",
       "emptyPrompt": "Write a prompt first.",
@@ -341,11 +341,11 @@
       "retry": "Try again"
     },
     "ENGINE_UPDATE_REQUIRED": {
-      "title": "Image engine update required",
-      "body": "Qwen-Image-2.1 needs a newer image engine. Update the engine to load this model; your downloaded model files will be reused."
+      "title": "Media engine update required",
+      "body": "Qwen-Image-2.1 needs a newer media engine. Update the engine to load this model; your downloaded model files will be reused."
     },
     "ENGINE_MISSING": {
-      "title": "The image engine is not installed",
+      "title": "The media engine is not installed",
       "body": "Install stable-diffusion.cpp to render images on this computer."
     },
     "ENGINE_INSTALL_FAILED": {
@@ -354,7 +354,7 @@
     },
     "ENGINE_CRASHED": {
       "title": "The GPU stopped this render",
-      "body": "The image engine has been reset. Use a smaller resolution, then try again."
+      "body": "The media engine has been reset. Use a smaller resolution, then try again."
     },
     "MODEL_MISSING": {
       "title": "The model file is missing",
@@ -398,7 +398,7 @@
     },
     "INVALID_OUTPUT": {
       "title": "The renderer produced a blank image",
-      "body": "The image engine finished, but its output contained no usable pixels. Atomic Chat discarded it instead of adding a white frame to your gallery. Try again or choose another model."
+      "body": "The media engine finished, but its output contained no usable pixels. Atomic Chat discarded it instead of adding a white frame to your gallery. Try again or choose another model."
     },
     "JOB_BUSY": {
       "title": "The renderer is busy",
