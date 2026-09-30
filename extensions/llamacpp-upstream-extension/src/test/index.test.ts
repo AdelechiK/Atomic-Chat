@@ -1145,6 +1145,46 @@ describe('llamacpp_extension', () => {
       expect(localStorage.setItem).toHaveBeenCalledWith(MIGRATION_KEY, '1')
     })
   })
+
+  describe('migrateConcurrentModeOff', () => {
+    it('switches a stored Concurrent Mode off and leaves the rest alone', async () => {
+      // The settings UI no longer shows the toggle, so a profile left with it
+      // on would split the context across slots with no way back.
+      extension['config'] = {
+        concurrent_mode: true,
+        concurrent_slots: 8,
+      } as any
+      extension['getSettings'] = vi.fn().mockResolvedValue([
+        { key: 'concurrent_mode', controllerProps: { value: true } },
+        { key: 'concurrent_slots', controllerProps: { value: 8 } },
+      ])
+      extension['updateSettings'] = vi.fn().mockResolvedValue(undefined)
+
+      await extension['migrateConcurrentModeOff']()
+
+      const updated = vi.mocked(extension['updateSettings']).mock.calls[0][0]
+      expect(
+        updated.find((s: any) => s.key === 'concurrent_mode').controllerProps
+          .value
+      ).toBe(false)
+      expect(
+        updated.find((s: any) => s.key === 'concurrent_slots').controllerProps
+          .value
+      ).toBe(8)
+      expect(extension['config'].concurrent_mode).toBe(false)
+    })
+
+    it('writes nothing when Concurrent Mode is already off', async () => {
+      extension['config'] = { concurrent_mode: false } as any
+      extension['getSettings'] = vi.fn()
+      extension['updateSettings'] = vi.fn()
+
+      await extension['migrateConcurrentModeOff']()
+
+      expect(extension['getSettings']).not.toHaveBeenCalled()
+      expect(extension['updateSettings']).not.toHaveBeenCalled()
+    })
+  })
   describe('getRuntimeDeviceInfo', () => {
     it('reads the device from the session the core reports', async () => {
       const runtimeDevice = {

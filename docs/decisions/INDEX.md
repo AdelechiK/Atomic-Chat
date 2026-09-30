@@ -126,8 +126,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-07-16** — [Secure iteration 1b agent tools with run-scoped approvals](2026-07-16-secure-iteration-1b-agent-tools-with-run-scoped-approvals.md)
 - **2026-07-16** — [Bind the agent approval policy to its thread](2026-07-16-bind-the-agent-approval-policy-to-its-thread.md)
 
-## Speculative decoding — MTP / DFlash / EAGLE-3 / NextN (16)
+## Speculative decoding — MTP / DFlash / EAGLE-3 / NextN (17)
 
+- **2026-09-30** — [Accept embedded MTP on every upstream MTP architecture](2026-09-30-accept-embedded-mtp-on-every-upstream-mtp-architecture.md)
 - **2026-07-13** — [Offer every published Atomic Chat DFlash GGUF to `llamacpp-upstream`](2026-07-13-offer-every-published-atomic-chat-dflash-gguf-to-llamacpp.md)
 - **2026-07-13** — [Force greedy sampling for `llamacpp-upstream` DFlash requests](2026-07-13-force-greedy-sampling-for-llamacpp-upstream-dflash-requests.md)
 - **2026-07-13** — [Detect embedded Qwen MTP from canonical GGUF metadata](2026-07-13-detect-embedded-qwen-mtp-from-canonical-gguf-metadata.md)
@@ -156,8 +157,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-06-05** — [Port `gemma4_unified` (+ vision fixes) into the `mlx-vlm` fork so Gemma 4 12B loads under MLX (ATO-88, head 1)](2026-06-05-port-gemma4-unified-vision-fixes-into-the-mlx-vlm-fork-so-gemma.md)
 - **2026-06-02** — [Surface MLX KV-cache quantization (TurboQuant / uniform) as a provider setting](2026-06-02-surface-mlx-kv-cache-quantization-turboquant-uniform-as-a.md)
 
-## llama.cpp providers & backend selection (50)
+## llama.cpp providers & backend selection (51)
 
+- **2026-09-30** — [Stop offering Concurrent Mode](2026-09-30-stop-offering-concurrent-mode.md)
 - **2026-09-18** — [Honour "Ignore SSL certificates" for proxied plugin requests](2026-09-18-honour-ignore-ssl-for-proxied-plugin-requests.md)
 - **2026-09-18** — [Preserve the resolved backend during provider settings writes](2026-09-18-preserve-resolved-backend-during-settings-writes.md)
 

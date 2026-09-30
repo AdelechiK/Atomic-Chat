@@ -598,6 +598,9 @@ export default class llamacpp_upstream_extension extends AIEngine {
     // Fit on by default; undo the migration that once forced it off.
     await this.migrateFitDefaultOn()
 
+    // Concurrent Mode is not offered in the settings UI any more.
+    await this.migrateConcurrentModeOff()
+
     this.timeout = this.config.timeout
     this.llamacpp_env = this.config.llamacpp_env
     this.autoUnload = this.config.auto_unload ?? true
@@ -891,6 +894,30 @@ export default class llamacpp_upstream_extension extends AIEngine {
 
     localStorage.removeItem(FORCED_OFF_KEY)
     localStorage.setItem(MIGRATION_KEY, '1')
+  }
+
+  /**
+   * Concurrent Mode is not offered in the settings UI: it split the context
+   * across its slots with nothing on screen to say why. A profile that still
+   * has it on would keep it with no way back, so it is switched off on every
+   * start; the next core load imports the change.
+   */
+  private async migrateConcurrentModeOff(): Promise<void> {
+    if (!this.config.concurrent_mode) return
+
+    const settings = await this.getSettings()
+    await this.updateSettings(
+      settings.map((item) => {
+        if (item.key === 'concurrent_mode') {
+          item.controllerProps.value = false
+        }
+        return item
+      })
+    )
+    this.config.concurrent_mode = false
+    logger.info(
+      'Switched Concurrent Mode off: the settings UI no longer offers it'
+    )
   }
 
   private async activatePendingBackend(): Promise<void> {
@@ -3671,7 +3698,7 @@ export default class llamacpp_upstream_extension extends AIEngine {
   }
 
   /**
-   * Whether an installed Qwen GGUF contains an embedded MTP/NextN head.
+   * Whether an installed GGUF contains an embedded MTP/NextN head.
    * Capability comes from the canonical GGUF metadata rather than the local
    * model id, which may be derived from a filename that omits "MTP".
    */
