@@ -65,6 +65,7 @@ import { ImageField, ImageFieldHint } from './ImageField'
 import { ImageApiSettingsCard } from './ImageApiSettingsCard'
 import { ImageWorkflowInputs } from './ImageWorkflowInputs'
 import { MediaModeSelect } from './MediaModeSelect'
+import { MediaPageHeading } from './MediaPageHeading'
 import { WORKFLOW_ICONS } from './workflowIcons'
 import { ImageGenerateButton } from './ImageGenerateButton'
 import { ImageModelPicker } from './ImageModelPicker'
@@ -256,9 +257,37 @@ export const ImagePromptForm = memo(function ImagePromptForm({
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-6 pt-4 pb-4 [scrollbar-gutter:stable]"
         data-testid="image-form-scroller"
       >
-        {/* The sidebar names the section; the heading picks what the column
-            does. The route stays the source of truth, so a pick navigates. */}
-        <div className="mb-1 flex items-start justify-between gap-3">
+        {/* The sidebar and the heading name the section; the pill under
+            them picks what the column does. */}
+        <div className="mb-1 flex flex-col gap-3">
+          <MediaPageHeading
+            title={t('images:page.title')}
+            subtitle={t('images:page.subtitle')}
+            action={
+              capabilities && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      disabled={busy}
+                      aria-label={t('images:form.reset')}
+                      onClick={() =>
+                        form.resetToDefaults(capabilities.defaults)
+                      }
+                    >
+                      <IconRestore size={16} />
+                      <span className="sr-only">{t('images:form.reset')}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('images:form.resetHint')}</TooltipContent>
+                </Tooltip>
+              )
+            }
+            testIdPrefix="image"
+          />
+          {/* The route stays the source of truth, so a pick navigates. */}
           <MediaModeSelect
             modes={modes}
             value={form.workflow}
@@ -266,24 +295,6 @@ export const ImagePromptForm = memo(function ImagePromptForm({
             label={t('images:workflow.choose')}
             testIdPrefix="image"
           />
-          {capabilities && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={busy}
-                  aria-label={t('images:form.reset')}
-                  onClick={() => form.resetToDefaults(capabilities.defaults)}
-                >
-                  <IconRestore size={16} />
-                  <span className="sr-only">{t('images:form.reset')}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('images:form.resetHint')}</TooltipContent>
-            </Tooltip>
-          )}
         </div>
 
         <ImageWorkflowInputs

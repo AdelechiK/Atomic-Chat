@@ -9,7 +9,7 @@ decision is reversed, add a new one that says which record it supersedes.
 2. Add one line to the right section of this index.
 3. Do **not** paste the record body into `AGENTS.md`.
 
-367 records, 2026-05-19 → 2026-09-30.
+368 records, 2026-05-19 → 2026-09-30.
 
 ---
 
@@ -33,8 +33,9 @@ decision is reversed, add a new one that says which record it supersedes.
 
 ---
 
-## Local image & video generation (16)
+## Local image & video generation (17)
 
+- **2026-09-30** — [Name the Images and Video pages in their heading, and pick the mode under it](2026-09-30-name-the-media-page-in-its-heading-and-pick-the-mode-under-it.md)
 - **2026-09-29** — [Pick the image and video mode on the page, not in the sidebar](2026-09-29-pick-the-image-and-video-mode-on-the-page.md)
 - **2026-09-29** — [Install the media engine in one click, with no setup tour](2026-09-29-install-the-media-engine-in-one-click.md)
 - **2026-09-29** — [Keep the video progress inside the preview frame](2026-09-29-keep-the-video-progress-inside-the-preview-frame.md)

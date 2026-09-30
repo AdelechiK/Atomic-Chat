@@ -1,6 +1,7 @@
 {
   "page": {
     "title": "Images",
+    "subtitle": "Create, transform, edit and upscale images locally",
     "loading": "Getting things ready…"
   },
   "workflow": {

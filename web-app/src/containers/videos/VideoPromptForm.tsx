@@ -43,6 +43,7 @@ import {
   MediaModeSelect,
   type MediaMode,
 } from '@/containers/images/MediaModeSelect'
+import { MediaPageHeading } from '@/containers/images/MediaPageHeading'
 import { useImageEngine } from '@/hooks/useImageEngine'
 import {
   IMAGE_IDLE_UNLOAD_OPTIONS,
@@ -257,10 +258,36 @@ export const VideoPromptForm = memo(function VideoPromptForm({
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-6 pt-4 pb-4 [scrollbar-gutter:stable]"
         data-testid="video-form-scroller"
       >
-        {/* The same mode heading as Images. Only `create` is served; the
-            core parses and refuses `image-to-video` until it lands, so it is
-            listed as coming and cannot be picked. */}
-        <div className="mb-1 flex items-start justify-between gap-3">
+        {/* The same heading and mode pill as Images. */}
+        <div className="mb-1 flex flex-col gap-3">
+          <MediaPageHeading
+            title={t('videos:page.title')}
+            subtitle={t('videos:page.subtitle')}
+            action={
+              capabilities && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      disabled={busy}
+                      aria-label={t('videos:form.reset')}
+                      onClick={() => form.resetToDefaults(capabilities)}
+                    >
+                      <IconRestore size={16} />
+                      <span className="sr-only">{t('videos:form.reset')}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('videos:form.resetHint')}</TooltipContent>
+                </Tooltip>
+              )
+            }
+            testIdPrefix="video"
+          />
+          {/* Only `create` is served; the core parses and refuses
+              `image-to-video` until it lands, so it is listed as coming and
+              cannot be picked. */}
           <MediaModeSelect
             modes={modes}
             value="create"
@@ -268,24 +295,6 @@ export const VideoPromptForm = memo(function VideoPromptForm({
             label={t('videos:workflow.choose')}
             testIdPrefix="video"
           />
-          {capabilities && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={busy}
-                  aria-label={t('videos:form.reset')}
-                  onClick={() => form.resetToDefaults(capabilities)}
-                >
-                  <IconRestore size={16} />
-                  <span className="sr-only">{t('videos:form.reset')}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('videos:form.resetHint')}</TooltipContent>
-            </Tooltip>
-          )}
         </div>
 
         <div
