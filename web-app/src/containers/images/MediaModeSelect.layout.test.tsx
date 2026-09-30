@@ -144,7 +144,7 @@ const PAGES = [
   },
 ] as const
 
-describe('media mode selector geometry', () => {
+describe('media page heading and mode pill geometry', () => {
   beforeEach(async () => {
     await seed()
   })
@@ -154,7 +154,7 @@ describe('media mode selector geometry', () => {
       { fontSize: DEFAULT_FONT_SIZE, theme: 'light' as const, width: 1280 },
       { fontSize: XL_FONT_SIZE, theme: 'dark' as const, width: 1024 },
     ])(
-      `${pageSpec.name}: the heading and its open list fit the 340 px column at $fontSize/$theme`,
+      `${pageSpec.name}: the heading, the mode pill and its open list fit the 340 px column at $fontSize/$theme`,
       async ({ fontSize, theme, width }) => {
         await page.viewport(width, 900)
         setFontSize(fontSize)
@@ -177,14 +177,38 @@ describe('media mode selector geometry', () => {
         })
 
         const frame = screen.getByTestId('form-frame')
-        const select = screen.getByTestId(`${prefix}-workflow-select`)
-        // The heading is one line inside the column, and its truncating box
-        // is tall enough not to clip a "g".
-        const title = screen.getByTestId(`${prefix}-workflow-title`)
-        expectOneLine(title)
-        expect(title.getBoundingClientRect().height).toBeGreaterThanOrEqual(
-          Number.parseFloat(getComputedStyle(title).fontSize) * 1.2
+        // The page heading is one line; the subtitle wraps inside the column.
+        const heading = screen.getByTestId(`${prefix}-page-title`)
+        const subtitle = screen.getByTestId(`${prefix}-page-subtitle`)
+        expectOneLine(heading)
+        expectFits(heading, frame)
+        expectFits(subtitle, frame)
+        expect(subtitle.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+          heading.getBoundingClientRect().bottom
         )
+        // The mode pill is its own row under them, as wide as the column's
+        // content, and its truncating title is tall enough not to clip a "g".
+        const select = screen.getByTestId(`${prefix}-workflow-select`)
+        const title = screen.getByTestId(`${prefix}-workflow-title`)
+        const scroller = screen.getByTestId(`${prefix}-form-scroller`)
+        const content = scroller.getBoundingClientRect()
+        const padding = getComputedStyle(scroller)
+        expect(select.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+          subtitle.getBoundingClientRect().bottom
+        )
+        expect(select.getBoundingClientRect().left).toBeCloseTo(
+          content.left + Number.parseFloat(padding.paddingLeft),
+          0
+        )
+        expect(select.getBoundingClientRect().right).toBeCloseTo(
+          scroller.clientLeft +
+            content.left +
+            scroller.clientWidth -
+            Number.parseFloat(padding.paddingRight),
+          0
+        )
+        expectOneLine(title)
+        expect(title.scrollHeight).toBeLessThanOrEqual(title.clientHeight)
         expectFits(select, frame)
         expectNoHorizontalOverflow(frame)
 
@@ -205,7 +229,7 @@ describe('media mode selector geometry', () => {
           expectOneLine(label)
           expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth)
         }
-        // The list opens under the heading, starting at its left edge.
+        // The list opens under the pill, starting at its left edge.
         expect(menu.getBoundingClientRect().top).toBeGreaterThanOrEqual(
           select.getBoundingClientRect().bottom
         )

@@ -38,6 +38,7 @@ import {
   type MediaMode,
 } from '@/containers/images/MediaModeSelect'
 import { MediaSettingsHeading } from '@/containers/images/MediaSettingsHeading'
+import { MediaPageHeading } from '@/containers/images/MediaPageHeading'
 import { useImageEngine } from '@/hooks/useImageEngine'
 import {
   IMAGE_IDLE_UNLOAD_OPTIONS,
@@ -254,10 +255,16 @@ export const VideoPromptForm = memo(function VideoPromptForm({
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-6 pt-4 pb-4 [scrollbar-gutter:stable]"
         data-testid="video-form-scroller"
       >
-        {/* The same mode heading as Images. Only `create` is served; the
-            core parses and refuses `image-to-video` until it lands, so it is
-            listed as coming and cannot be picked. */}
-        <div className="mb-1">
+        {/* The same heading and mode pill as Images. */}
+        <div className="mb-1 flex flex-col gap-3">
+          <MediaPageHeading
+            title={t('videos:page.title')}
+            subtitle={t('videos:page.subtitle')}
+            testIdPrefix="video"
+          />
+          {/* Only `create` is served; the core parses and refuses
+              `image-to-video` until it lands, so it is listed as coming and
+              cannot be picked. */}
           <MediaModeSelect
             modes={modes}
             value="create"

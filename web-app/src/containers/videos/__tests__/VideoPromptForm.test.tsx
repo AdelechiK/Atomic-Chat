@@ -116,8 +116,10 @@ describe('VideoPromptForm', () => {
     expect(screen.getByTestId('image-stop')).toBeInTheDocument()
   })
 
-  it('heads the column with the same mode selector as Images; image-to-video is listed as coming', async () => {
+  it('heads the column like Images, with the same mode pill; image-to-video is listed as coming', async () => {
     render(<VideoPromptForm />)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('videos:page.title')
+    expect(screen.getByTestId('video-page-subtitle')).toHaveTextContent('videos:page.subtitle')
     expect(screen.getByTestId('video-workflow-select')).toHaveAttribute('data-mode', 'create')
 
     await act(async () => {

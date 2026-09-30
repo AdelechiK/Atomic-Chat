@@ -9,7 +9,7 @@ decision is reversed, add a new one that says which record it supersedes.
 2. Add one line to the right section of this index.
 3. Do **not** paste the record body into `AGENTS.md`.
 
-368 records, 2026-05-19 → 2026-09-30.
+373 records, 2026-05-19 → 2026-09-30.
 
 ---
 
@@ -33,11 +33,12 @@ decision is reversed, add a new one that says which record it supersedes.
 
 ---
 
-## Local image & video generation (17)
+## Local image & video generation (20)
 
 - **2026-09-30** — [Shape the media form for the picked model, and let Generate start it](2026-09-30-shape-the-media-form-for-the-picked-model.md)
 - **2026-09-30** — [Keep image and video models on a discrete GPU](2026-09-30-keep-media-models-on-a-discrete-gpu.md)
 - **2026-09-30** — [Put Reset beside the media knobs, and warn about a swapping clip in the dialog only](2026-09-30-reset-beside-the-media-knobs-and-warn-about-swap-in-the-dialog-only.md) — narrows the 2026-09-28 estimate record: no red line for `exceeds`.
+- **2026-09-30** — [Name the Images and Video pages in their heading, and pick the mode under it](2026-09-30-name-the-media-page-in-its-heading-and-pick-the-mode-under-it.md)
 - **2026-09-29** — [Pick the image and video mode on the page, not in the sidebar](2026-09-29-pick-the-image-and-video-mode-on-the-page.md)
 - **2026-09-29** — [Install the media engine in one click, with no setup tour](2026-09-29-install-the-media-engine-in-one-click.md)
 - **2026-09-29** — [Keep the video progress inside the preview frame](2026-09-29-keep-the-video-progress-inside-the-preview-frame.md)
@@ -273,7 +274,7 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-06-10** — [Throttle crashloop `model_load` failure spam client-side; confirm `model_load.status` / api 404-noise are already-fixed-pending-rollout, not code bugs (ATO-130: ATO-133 + ATO-131 + ATO-132)](2026-06-10-throttle-crashloop-model-load-failure-spam-client-side-confirm.md)
 - **2026-06-09** — [Add zero-PII Sentry crash/error tracking to both the React frontend and the Rust/Tauri desktop, gated behind `productAnalytic` (ATO-113)](2026-06-09-add-zero-pii-sentry-crash-error-tracking-to-both-the-react.md)
 
-## Packaging, installers, autostart & platform policy (15)
+## Packaging, installers, autostart & platform policy (18)
 
 - **2026-09-23** — [Add a Video page that shares the image runtime](2026-09-23-add-a-video-page-that-shares-the-image-runtime.md)
 - **2026-09-23** — [Capture video posters in the webview](2026-09-23-capture-video-posters-in-the-webview.md)

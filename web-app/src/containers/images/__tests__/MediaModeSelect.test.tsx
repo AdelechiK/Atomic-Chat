@@ -7,7 +7,12 @@ import { MediaModeSelect, type MediaMode } from '../MediaModeSelect'
 
 const MODES: MediaMode<'create' | 'inpaint' | 'animate'>[] = [
   { id: 'create', icon: IconSparkles, title: 'Create', hint: 'From a prompt' },
-  { id: 'inpaint', icon: IconBrush, title: 'Inpaint', hint: 'A painted region' },
+  {
+    id: 'inpaint',
+    icon: IconBrush,
+    title: 'Inpaint',
+    hint: 'A painted region',
+  },
   {
     id: 'animate',
     icon: IconPhotoVideo,
@@ -33,12 +38,13 @@ function renderSelect(value: 'create' | 'inpaint' | 'animate' = 'create') {
 }
 
 describe('MediaModeSelect', () => {
-  it('names the active mode in a heading, with its hint under it', () => {
+  it('names the active mode in its pill and keeps the hints for the list', () => {
     renderSelect('inpaint')
 
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
-      'Mode: Inpaint'
-    )
+    expect(
+      screen.getByRole('button', { name: 'Mode: Inpaint' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
     expect(screen.getByTestId('image-workflow-title')).toHaveTextContent(
       'Inpaint'
     )
@@ -46,7 +52,7 @@ describe('MediaModeSelect', () => {
       'data-mode',
       'inpaint'
     )
-    expect(screen.getByText('A painted region')).toBeInTheDocument()
+    expect(screen.queryByText('A painted region')).not.toBeInTheDocument()
     expect(screen.queryByTestId('image-workflow-menu')).not.toBeInTheDocument()
   })
 

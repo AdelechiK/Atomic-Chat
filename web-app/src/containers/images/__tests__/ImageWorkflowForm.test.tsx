@@ -136,20 +136,23 @@ describe('ImagePromptForm per workflow', () => {
     return fake.generate.mock.calls[0][0]
   }
 
-  it('titles the column after the workflow and asks for a source before generating', () => {
+  it('heads the column with the page, names the workflow in the pill under it and asks for a source before generating', () => {
     useImageForm.setState({ workflow: 'transform' })
     render(<ImagePromptForm />)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'images:page.title'
+    )
+    expect(screen.getByTestId('image-page-subtitle')).toHaveTextContent(
+      'images:page.subtitle'
+    )
     expect(screen.getByTestId('image-workflow-title')).toHaveTextContent(
       'images:workflow.transform.title'
     )
-    expect(
-      screen.getByText('images:workflow.transform.hint')
-    ).toBeInTheDocument()
     expect(screen.getByTestId('image-source-dropzone')).toBeInTheDocument()
     expect(screen.getByTestId('image-generate')).toBeDisabled()
   })
 
-  it('picks the workflow in the heading, which navigates to its route', async () => {
+  it('picks the workflow in the pill, which navigates to its route', async () => {
     useImageForm.setState({ workflow: 'transform' })
     render(<ImagePromptForm />)
 
