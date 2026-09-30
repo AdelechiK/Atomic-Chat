@@ -9,7 +9,7 @@ import { i18n } from '@/i18n/react-i18next-compat'
 import { acquireGpuForDiffusion } from '@/lib/diffusion/arbiter'
 import { configureDiffusion, getDiffusionPaths } from '@/lib/diffusion/config'
 import { toDiffusionError } from '@/lib/diffusion/errors'
-import { fitForQuant } from '@/lib/diffusion/fit'
+import { autoOffload, fitForQuant } from '@/lib/diffusion/fit'
 import {
   shouldContinueGenerating,
   shouldReportGenerateError,
@@ -759,7 +759,8 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
       const settings = useImageSetting.getState()
       const workflow = useImageForm.getState().workflow
       const teOnCpu = IS_MACOS
-      const fit = fitForQuant(family, quant, hardwareProfile(), { teOnCpu })
+      const profile = hardwareProfile()
+      const fit = fitForQuant(family, quant, profile, { teOnCpu })
       const requiredTextEncoders = family.text_encoders.filter(
         (file) =>
           file.field !== 'llm_vision' || workflowNeedsLlmVision(workflow)
@@ -815,18 +816,13 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
           modelFiles,
           paths.modelsRoot,
           {
-            offload:
-              settings.offloadOverride === 'auto'
-                ? IS_MACOS && family.id === 'qwen-image'
-                  ? // Qwen-Image's Wan VAE needs a large temporary decode
-                    // buffer on Metal. Keeping the VAE on the GPU can produce
-                    // a command-buffer page fault even when the static weights
-                    // fit; the fault corrupts the first image and poisons the
-                    // backend for every later request. Full model offload keeps
-                    // the VAE on CPU while Metal still runs the denoiser.
-                    'model'
-                  : fit.policy
-                : settings.offloadOverride,
+            // A forced policy is what the user asked for: no fallback.
+            ...(settings.offloadOverride === 'auto'
+              ? autoOffload(fit, profile, {
+                  macos: IS_MACOS,
+                  familyId: family.id,
+                })
+              : { offload: settings.offloadOverride }),
             engine:
               settings.engineOverride === 'auto'
                 ? undefined

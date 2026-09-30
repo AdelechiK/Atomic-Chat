@@ -130,6 +130,11 @@ export type LoadDiffusionModelRequest = {
   defaults: DiffusionFamilyDefaults
   ranges: DiffusionFamilyRanges
   offload: DiffusionOffloadPolicy
+  /**
+   * Where the core moves the model when it runs out of memory under `offload`:
+   * the load or the job that ran out is retried once with it. Omit to fail.
+   */
+  offloadFallback?: DiffusionOffloadPolicy
   /** Force a specific engine; omit for the plugin's own pick. */
   engine?: DiffusionEngineId
   /** Optional `--threads` for CPU backends. */

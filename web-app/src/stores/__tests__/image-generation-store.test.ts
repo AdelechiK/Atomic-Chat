@@ -21,6 +21,7 @@ import {
   makeVideoLoadedStatus,
 } from '@/lib/diffusion/__tests__/video-fixtures'
 import { seedServiceHub } from '@/test/service-hub'
+import { useHardware } from '@/hooks/useHardware'
 import { useImageForm } from '@/hooks/useImageForm'
 import { useImageSetting } from '@/hooks/useImageSetting'
 import { useVideoForm } from '@/hooks/useVideoForm'
@@ -116,6 +117,7 @@ describe('image-generation-store', () => {
       keepModelLoaded: false,
       idleUnloadMinutes: 10,
       outputDir: null,
+      offloadOverride: 'auto',
     })
     useVideoSetting.setState({ selectedArtifactId: null, outputDir: null })
     resetImageGenerationForTests()
@@ -769,6 +771,51 @@ describe('image-generation-store', () => {
       await useImageGenerationStore.getState().loadModel('z-image:q4_k_m')
 
       expect(fake.loadModel.mock.calls[0][0].offload).toBe('model')
+      expect(fake.loadModel.mock.calls[0][0]).not.toHaveProperty(
+        'offloadFallback'
+      )
+    })
+
+    it('keeps Auto on a 12 GB card on the GPU and leaves offloading to a shortage', async () => {
+      const hardware = useHardware.getState().hardwareData
+      useHardware.setState({
+        hardwareData: {
+          ...hardware,
+          os_type: 'windows',
+          total_memory: 32768,
+          gpus: [
+            {
+              name: 'NVIDIA GeForce RTX 3060',
+              total_memory: 12288,
+              vendor: 'NVIDIA',
+              uuid: 'gpu-0',
+              driver_version: '',
+              nvidia_info: { index: 0, compute_capability: '8.6' },
+              vulkan_info: {
+                index: 0,
+                device_id: 0,
+                device_type: '',
+                api_version: '',
+              },
+            },
+          ],
+        },
+      })
+      useImageGenerationStore.setState({
+        status: makeStatus(),
+        capabilities: null,
+      })
+      try {
+        await useImageGenerationStore.getState().loadModel('z-image:q4_k_m')
+      } finally {
+        useHardware.setState({ hardwareData: hardware })
+      }
+
+      // The estimate alone would offload Z-Image in groups on this card.
+      expect(fake.loadModel.mock.calls[0][0]).toMatchObject({
+        offload: 'none',
+        offloadFallback: 'group',
+      })
     })
 
     it('reports an unknown artifact as a missing model', async () => {

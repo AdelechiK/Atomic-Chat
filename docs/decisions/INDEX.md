@@ -36,6 +36,7 @@ decision is reversed, add a new one that says which record it supersedes.
 ## Local image & video generation (17)
 
 - **2026-09-30** — [Shape the media form for the picked model, and let Generate start it](2026-09-30-shape-the-media-form-for-the-picked-model.md)
+- **2026-09-30** — [Keep image and video models on a discrete GPU](2026-09-30-keep-media-models-on-a-discrete-gpu.md)
 - **2026-09-29** — [Pick the image and video mode on the page, not in the sidebar](2026-09-29-pick-the-image-and-video-mode-on-the-page.md)
 - **2026-09-29** — [Install the media engine in one click, with no setup tour](2026-09-29-install-the-media-engine-in-one-click.md)
 - **2026-09-29** — [Keep the video progress inside the preview frame](2026-09-29-keep-the-video-progress-inside-the-preview-frame.md)
