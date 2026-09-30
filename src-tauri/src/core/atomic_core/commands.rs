@@ -416,6 +416,125 @@ pub async fn atomic_core_call(
     state.call(&method, &path, body).await
 }
 
+/// How long the app keeps waiting for the result of a `sudo` command the person runs by hand.
+#[cfg(unix)]
+const MANUAL_HOST_STEP_WAIT: std::time::Duration = std::time::Duration::from_secs(2 * 60 * 60);
+
+/// Run the privileged step a managed-runtime operation is waiting on (design D3), and report back.
+///
+/// The webview names the operation and nothing else: the step — recipe, digests, parameters,
+/// nonce — is read from the core here, the request file is written here, and the webview never
+/// sees a path or an argument it could change. Answers `{outcome}`: `completed`, `failed` (with
+/// `log_tail`) or `declined` once the receipt is sent; `manual` with the exact `sudo` command when
+/// there is no `pkexec` or no polkit agent, in which case the receipt is sent once the result file
+/// appears.
+#[tauri::command]
+pub async fn atomic_core_run_host_step<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AtomicCoreClient>,
+    operation_id: String,
+) -> Result<Value, CoreError> {
+    run_host_step(&app, &state, &operation_id).await
+}
+
+async fn run_host_step<R: Runtime>(
+    app: &AppHandle<R>,
+    client: &AtomicCoreClient,
+    operation_id: &str,
+) -> Result<Value, CoreError> {
+    #[cfg(unix)]
+    if cfg!(target_os = "linux") {
+        return run_host_step_unix(app, client, operation_id).await;
+    }
+    let _ = (app, client, operation_id);
+    Err(CoreError::new(
+        "MANAGED_ADAPTER_UNAVAILABLE",
+        "Managed runtimes run on Linux only.",
+        None,
+    ))
+}
+
+/// Compiled on every unix so the macOS build type-checks what ships on Linux; called on Linux only.
+#[cfg(unix)]
+async fn run_host_step_unix<R: Runtime>(
+    app: &AppHandle<R>,
+    client: &AtomicCoreClient,
+    operation_id: &str,
+) -> Result<Value, CoreError> {
+    use super::host_step::{self, Elevation, HostStep, ReceiptOutcome};
+
+    if operation_id.is_empty()
+        || !operation_id.chars().all(|c| c.is_ascii_alphanumeric() || "._:-".contains(c))
+    {
+        return Err(CoreError::new("INVALID_ARGUMENT", "Not an operation id.", None));
+    }
+    let operation = client
+        .call("GET", &format!("/environments/operations/{operation_id}"), None)
+        .await?;
+    let step = HostStep::from_operation(&operation).ok_or_else(|| {
+        CoreError::new("MANAGED_HOST_STEP_INVALID", "This operation is not waiting for a privileged step.", None)
+    })?;
+    let runtime_dir = std::env::var_os("XDG_RUNTIME_DIR")
+        .map(std::path::PathBuf::from)
+        .filter(|dir| dir.is_dir())
+        .ok_or_else(|| {
+            CoreError::new(
+                "MANAGED_HOST_STEP_INVALID",
+                "This session has no XDG_RUNTIME_DIR to prepare the privileged step in.",
+                None,
+            )
+        })?;
+    let resource_dir = app.path().resource_dir().unwrap_or_default();
+    let core_binary = super::launch::bundled_core_path(&resource_dir);
+    let supervisor = client.supervisor();
+    let prepared = host_step::prepare(&runtime_dir, &core_binary, &step, supervisor.data_folder())
+        .map_err(|e| {
+            CoreError::new(
+                "MANAGED_HOST_STEP_INVALID",
+                "Could not prepare the privileged step.",
+                Some(format!("{}: {e}", core_binary.display())),
+            )
+        })?;
+
+    let (outcome, log_tail) = match host_step::elevate(std::path::Path::new("pkexec"), &prepared).await {
+        Elevation::Finished { outcome, log_tail } => (outcome, log_tail),
+        Elevation::Declined => (ReceiptOutcome::Declined, String::new()),
+        Elevation::Manual { command } => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let result = host_step::wait_for_result(
+                    &prepared,
+                    host_step::MANUAL_POLL_INTERVAL,
+                    MANUAL_HOST_STEP_WAIT,
+                )
+                .await;
+                if let (Some((outcome, _)), Some(client)) = (result, app.try_state::<AtomicCoreClient>()) {
+                    send_host_step_receipt(&client, &step, outcome).await;
+                }
+                prepared.remove();
+            });
+            return Ok(json!({ "outcome": "manual", "command": command }));
+        }
+    };
+    prepared.remove();
+    send_host_step_receipt(client, &step, outcome).await;
+    Ok(json!({ "outcome": outcome.as_str(), "log_tail": log_tail }))
+}
+
+#[cfg(unix)]
+async fn send_host_step_receipt(
+    client: &AtomicCoreClient,
+    step: &super::host_step::HostStep,
+    outcome: super::host_step::ReceiptOutcome,
+) {
+    let receipt = step.receipt(outcome, &uuid::Uuid::new_v4().to_string());
+    let path = format!("/environments/operations/{}/host-step-result", step.operation_id);
+    if let Err(error) = client.call("POST", &path, Some(receipt)).await {
+        // The operation stays in `preparing-host`; the provider page offers to try again.
+        log::warn!("[host-step] the core did not take the receipt: {error:?}");
+    }
+}
+
 /// What the app knows about the core right now — for diagnosing a machine where the core will not
 /// start, and for the extensions, which wait for an attachment before their first load.
 #[tauri::command]

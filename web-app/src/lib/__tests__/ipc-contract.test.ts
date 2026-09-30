@@ -19,6 +19,9 @@ const EXPECTED_DESKTOP_ONLY = new Set([
   'atomic_core_call',
   'atomic_core_snapshot',
   'atomic_core_status',
+  // The privileged step of a TensorRT-LLM setup: `pkexec` on a copy of that core
+  // (Linux; any other desktop answers unavailable).
+  'atomic_core_run_host_step',
   // ChatGPT subscription sign-in. Desktop only on purpose: the OAuth callback
   // needs a loopback listener on a fixed port, and the refresh token needs a
   // mode-0600 file. `PlatformFeature.CHATGPT_SUBSCRIPTION` gates the UI to
