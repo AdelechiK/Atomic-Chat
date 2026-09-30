@@ -102,7 +102,8 @@ const isSessionCachedProvider = (
 /** `atomic-core://session:died`: a loaded session's process exited without being unloaded. */
 export type CoreSessionDiedPayload = {
   provider?: string
-  pid?: number
+  /** `null` for a container session, which has no host process. */
+  pid?: number | null
   model_id?: string
   exit_code?: number | null
   signal?: string | null
