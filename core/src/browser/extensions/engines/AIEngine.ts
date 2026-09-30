@@ -222,6 +222,12 @@ export type ModelLoadStage =
    * when that cannot be told.
    */
   | { kind: 'loadingWeights'; cachedFraction: number | null }
+  /**
+   * A container-backed engine (TensorRT-LLM) is starting: the stage the core reports on
+   * `session:load-progress` (`stopping-previous`, `starting-container`, `initializing-engine`,
+   * `ready`) and the time the load has taken so far.
+   */
+  | { kind: 'startingEngine'; stage: string; elapsedMs: number }
 
 export interface ModelLoadOptions {
   onStage?: (stage: ModelLoadStage) => void

@@ -89,6 +89,7 @@ import {
   toOpenAiTools,
 } from '@/lib/prompt-size'
 import { OUT_OF_CONTEXT_SIZE } from '@/utils/error'
+import { canGrowContext } from '@/lib/tensorrt-llm/chat'
 import { summarizeToolCost } from '@/lib/tool-cost'
 import { extractModelErrorMessage } from '@/lib/modelErrorMessage'
 import {
@@ -1147,7 +1148,9 @@ export class CustomChatTransport implements ChatTransport<UIMessage> {
     // when it would not fit. Without this a long tool catalogue fails with
     // "exceeds the available context size", the model is reloaded, and the
     // whole prompt is regenerated; with it there is one reload and no error.
-    if (isLocalProvider && modelId) {
+    // TensorRT-LLM is left out: its context is fixed when the container starts (design D9) and its
+    // gateway has no `/tokenize` to measure with.
+    if (isLocalProvider && modelId && canGrowContext(effectiveProviderName)) {
       await this.ensureContextFits({
         providerId: effectiveProviderName,
         modelId,

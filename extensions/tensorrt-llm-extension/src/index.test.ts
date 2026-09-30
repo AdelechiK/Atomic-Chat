@@ -245,6 +245,38 @@ describe('sessions', () => {
     )
   })
 
+  it('reports the stages of its own load while the core starts the container, and stops listening after', async () => {
+    // spec "Загрузка модели не выглядит как зависание".
+    const handlers = new Map<string, (event: { payload: unknown }) => void>()
+    const unlisten = vi.fn()
+    listenMock.mockImplementation((async (name: string, handler: (event: { payload: unknown }) => void) => {
+      handlers.set(name, handler)
+      return unlisten
+    }) as never)
+    let finish!: (value: unknown) => void
+    core({
+      ...handover,
+      'POST /models/tensorrt-llm/qwen3-8b/load': () => new Promise((resolve) => (finish = resolve)),
+    })
+    const extension = new TensorrtLlmExtension()
+    const onStage = vi.fn()
+
+    const loading = extension.load('qwen3-8b', undefined, false, false, { onStage })
+    await vi.waitFor(() => expect(handlers.has('atomic-core://session:load-progress')).toBe(true))
+    const emit = handlers.get('atomic-core://session:load-progress')!
+    emit({ payload: { provider: 'tensorrt-llm', model_id: 'qwen3-8b', generation: 'g', stage: 'initializing-engine', elapsed_ms: 42000 } })
+    emit({ payload: { provider: 'tensorrt-llm', model_id: 'other', generation: 'g', stage: 'ready', elapsed_ms: 1 } })
+    emit({ payload: { provider: 'llamacpp', model_id: 'qwen3-8b', generation: 'g', stage: 'ready', elapsed_ms: 1 } })
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    finish({ session: containerSession, created: true })
+    await loading
+
+    expect(onStage.mock.calls).toEqual([
+      [{ kind: 'startingEngine', stage: 'initializing-engine', elapsedMs: 42000 }],
+    ])
+    expect(unlisten).toHaveBeenCalled()
+  })
+
   it('unloads through the core and reports only its own sessions as loaded', async () => {
     const calls = core({
       'POST /models/tensorrt-llm/qwen3-8b/unload': () => ({ success: true }),

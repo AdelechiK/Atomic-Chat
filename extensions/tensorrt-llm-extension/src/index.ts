@@ -24,6 +24,7 @@ import {
   getJanDataFolderPath,
   ImportOptions,
   joinPath,
+  ModelLoadOptions,
   modelInfo,
   SessionInfo,
   UnloadResult,
@@ -33,7 +34,11 @@ import { info, warn, error as logError } from '@tauri-apps/plugin-log'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { createCoreRuntime, describeCoreError } from '../../shared/atomicCoreRuntime'
-import type { CoreSessionInfo, Invoke } from '../../shared/atomicCoreRuntime'
+import type {
+  CoreSessionInfo,
+  CoreSessionLoadProgress,
+  Invoke,
+} from '../../shared/atomicCoreRuntime'
 import { createCoreSettingsSync } from '../../shared/atomicCoreSettingsSync'
 import type { PersistedSetting } from '../../shared/atomicCoreSettingsSync'
 import { LoadCancelTracker, toLoadError } from '../../shared/loadCancel'
@@ -46,6 +51,8 @@ import {
 } from './visibility'
 
 const CORE_SETTINGS_CHANGED_EVENT = 'atomic-core://settings:changed'
+/** The core's stages of a container-backed load (`CoreSessionLoadProgress`). */
+const LOAD_PROGRESS_EVENT = 'atomic-core://session:load-progress'
 
 /** `model.yml` as the app's downloader writes it (the core's `tensorrt-llm` schema). */
 interface TensorrtLlmModelYml {
@@ -240,8 +247,25 @@ export default class TensorrtLlmExtension extends AIEngine {
     modelId: string,
     overrideSettings?: Record<string, unknown>,
     _isEmbedding: boolean = false,
-    _bypassAutoUnload: boolean = false
+    _bypassAutoUnload: boolean = false,
+    options?: ModelLoadOptions
   ): Promise<SessionInfo> {
+    // A first start takes minutes; the stages the core reports are what the person sees meanwhile.
+    const unlisten = options?.onStage
+      ? await listen<CoreSessionLoadProgress>(LOAD_PROGRESS_EVENT, (event) => {
+          const progress = event.payload
+          if (progress?.provider !== this.provider || progress.model_id !== modelId) return
+          options.onStage?.({ kind: 'startingEngine', stage: progress.stage, elapsedMs: progress.elapsed_ms })
+        })
+      : undefined
+    try {
+      return await this.loadModel(modelId, overrideSettings)
+    } finally {
+      unlisten?.()
+    }
+  }
+
+  private loadModel(modelId: string, overrideSettings?: Record<string, unknown>): Promise<SessionInfo> {
     return this.loadCancel.track(modelId, async () => {
       try {
         // The core loads with its own copy of the settings; hand the user's over first.

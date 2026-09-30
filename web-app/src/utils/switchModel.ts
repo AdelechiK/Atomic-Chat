@@ -12,6 +12,7 @@ import { showModelLoadErrorToast } from '@/containers/ModelLoadErrorToast'
 import i18n from '@/i18n/setup'
 import type { ServiceHub } from '@/services'
 import type { ModelLoadProgress } from '@/lib/inference-status'
+import { knownLoadStage } from '@/lib/tensorrt-llm/types'
 import {
   isKeylessRemoteProvider,
   isSubscriptionProvider,
@@ -1276,7 +1277,12 @@ async function loadLocalModelWithOomRetry(args: {
     try {
       await taggedWithTimeout(
         serviceHub.models().startModel(provider, modelId, true, {
-          onStage: (stage) => onProgress?.({ ...stage, retry }),
+          onStage: (stage) =>
+            onProgress?.(
+              stage.kind === 'startingEngine'
+                ? { ...stage, stage: knownLoadStage(stage.stage), retry }
+                : { ...stage, retry }
+            ),
         }),
         MODEL_LOAD_WATCHDOG_MS,
         `Timed out waiting for model "${modelId}" to finish loading.`
