@@ -66,7 +66,7 @@
   "tooLargeTitle": "This model may not run on this device",
   "tooLargeDescription": "It needs more memory than this device has, so it may fail to load or run slowly.",
   "downloadAnyway": "Download anyway",
-  "categoryChat": "Chat",
+  "categoryChat": "Text",
   "categoryImages": "Images",
   "categoryVideo": "Video",
   "categories": "Model type",

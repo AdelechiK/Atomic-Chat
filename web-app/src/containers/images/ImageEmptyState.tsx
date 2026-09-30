@@ -6,8 +6,11 @@ import { useTranslation } from '@/i18n/react-i18next-compat'
 import type { DiffusionModality } from '@/services/diffusion/types'
 
 type ImageEmptyStateProps = {
-  /** With no model resident the next step is picking one, not writing a prompt. */
-  modelLoaded?: boolean
+  /**
+   * With no model to run the next step is picking one, not writing a prompt.
+   * A picked model that is stopped counts: Generate starts it.
+   */
+  modelPicked?: boolean
   /** Set while no checkpoint is on disk: opens the form's model picker. */
   onDownloadModel?: () => void
   /** The Video page shows the same state with its own words and mark. */
@@ -19,7 +22,7 @@ type ImageEmptyStateProps = {
  * is on disk — the one click that gets one.
  */
 export const ImageEmptyState = memo(function ImageEmptyState({
-  modelLoaded = true,
+  modelPicked = true,
   onDownloadModel,
   modality = 'image',
 }: ImageEmptyStateProps) {
@@ -41,7 +44,7 @@ export const ImageEmptyState = memo(function ImageEmptyState({
         </p>
         <p className="max-w-md text-sm leading-snug text-muted-foreground">
           {t(
-            modelLoaded
+            modelPicked
               ? `${ns}:gallery.empty.description`
               : `${ns}:gallery.emptyNoModel`
           )}

@@ -56,7 +56,7 @@
   "tooLargeTitle": "Модель может не запуститься на этом устройстве",
   "tooLargeDescription": "Ей нужно больше памяти, чем есть на этом устройстве, поэтому она может не загрузиться или работать медленно.",
   "downloadAnyway": "Всё равно скачать",
-  "categoryChat": "Chat",
+  "categoryChat": "Text",
   "categoryImages": "Images",
   "categoryVideo": "Video",
   "categories": "Тип модели",

@@ -2,7 +2,9 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  makeCatalog,
   makeFakeDiffusion,
+  makeFilesFor,
   makeStatus,
 } from '@/lib/diffusion/__tests__/image-fixtures'
 import {
@@ -10,8 +12,12 @@ import {
   makeVideoEstimate,
   makeVideoLoadedStatus,
   makeWanCapabilities,
+  LTX_2,
   LTX_Q4_ID,
+  WAN_22,
+  WAN_Q4_ID,
 } from '@/lib/diffusion/__tests__/video-fixtures'
+import { listInstalledArtifacts } from '@/lib/diffusion/models'
 import { seedServiceHub } from '@/test/service-hub'
 import { DEFAULT_VIDEO_FORM, useVideoForm } from '@/hooks/useVideoForm'
 import { useVideoSetting } from '@/hooks/useVideoSetting'
@@ -84,7 +90,6 @@ describe('useVideoGeneration', () => {
     ['noEngine', () => useImageGenerationStore.setState({ status: makeStatus({ install: { state: 'not-installed' } }) })],
     ['modelLoading', () => useImageGenerationStore.setState({ loadingArtifactId: LTX_Q4_ID })],
     ['noModel', () => useImageGenerationStore.setState({ status: makeStatus(), videoCapabilities: null })],
-    ['noModel', () => useVideoSetting.setState({ selectedArtifactId: 'wan2.2-ti2v-5b:q4_k_m' })],
     ['emptyPrompt', () => useVideoForm.setState({ prompt: '   ' })],
     ['busy', () => useVideoGenerationStore.setState({ generating: true })],
     ['busy', () => useImageGenerationStore.setState({ generating: true })],
@@ -93,6 +98,17 @@ describe('useVideoGeneration', () => {
     const { result } = renderHook(() => useVideoGeneration())
     expect(result.current.disabledReason).toBe(reason)
     expect(result.current.canGenerate).toBe(false)
+  })
+
+  it('runs the resident video model the picker shows, whatever was picked before it', () => {
+    useVideoSetting.setState({ selectedArtifactId: WAN_Q4_ID })
+    const { result } = renderHook(() => useVideoGeneration())
+    expect(result.current).toMatchObject({
+      modelReady: true,
+      targetArtifactId: LTX_Q4_ID,
+      targetFamilyId: 'ltx-2',
+      disabledReason: null,
+    })
   })
 
   it('is not ready while an image model is the resident one', () => {
@@ -125,6 +141,87 @@ describe('useVideoGeneration', () => {
     act(() => useVideoForm.setState({ prompt: '' }))
     await act(() => result.current.generate())
     expect(start).toHaveBeenCalledTimes(1)
+  })
+
+  describe('with the picked model stopped', () => {
+    beforeEach(() => {
+      const catalog = makeCatalog([LTX_2, WAN_22])
+      const files = makeFilesFor(WAN_22, 'q4_k_m')
+      useImageGenerationStore.setState({
+        catalog,
+        modelFiles: files,
+        installedArtifacts: listInstalledArtifacts(catalog, files),
+        status: makeStatus(),
+        videoCapabilities: null,
+      })
+      useVideoSetting.setState({ selectedArtifactId: WAN_Q4_ID })
+    })
+
+    it('knows what the model takes before it starts, and lets Generate start it', () => {
+      const { result } = renderHook(() => useVideoGeneration())
+      expect(result.current).toMatchObject({
+        modelReady: false,
+        targetArtifactId: WAN_Q4_ID,
+        targetFamilyId: 'wan2.2-ti2v-5b',
+        canGenerate: true,
+        disabledReason: null,
+        capabilities: { supportsNegativePrompt: true, fps: 24 },
+      })
+    })
+
+    it('starts the model, then generates the draft as it was set', async () => {
+      useVideoForm.setState({ width: 704, height: 1280, steps: 12 })
+      const loadModel = vi.fn(async (id: string) => {
+        useImageGenerationStore.setState({
+          status: makeVideoLoadedStatus(id, 'wan2.2-ti2v-5b'),
+          videoCapabilities: makeWanCapabilities(),
+        })
+      })
+      const start = vi.fn(async () => {})
+      useImageGenerationStore.setState({ loadModel })
+      useVideoGenerationStore.setState({ startGeneration: start })
+      fake.estimateVideo.mockResolvedValue(makeVideoEstimate('fits'))
+      const { result } = renderHook(() => useVideoGeneration())
+
+      await act(() => result.current.generate())
+
+      expect(loadModel).toHaveBeenCalledWith(WAN_Q4_ID)
+      expect(fake.estimateVideo).toHaveBeenCalledTimes(1)
+      expect(start).toHaveBeenCalledWith({
+        request: expect.objectContaining({ width: 704, height: 1280, steps: 12 }),
+        seed: null,
+      })
+      expect(result.current.modelReady).toBe(true)
+      expect(useVideoForm.getState()).toMatchObject({
+        width: 704,
+        height: 1280,
+        steps: 12,
+      })
+    })
+
+    it('submits nothing when the model fails to start, and leaves Generate to retry', async () => {
+      // What the store does on a failed start: the error, and no model.
+      const loadModel = vi.fn(async () => {
+        useImageGenerationStore.setState({
+          lastError: { code: 'LOAD_FAILED', message: 'out of memory' },
+        })
+      })
+      const start = vi.fn(async () => {})
+      useImageGenerationStore.setState({ loadModel })
+      useVideoGenerationStore.setState({ startGeneration: start })
+      const { result } = renderHook(() => useVideoGeneration())
+
+      await act(() => result.current.generate())
+
+      expect(start).not.toHaveBeenCalled()
+      expect(useImageGenerationStore.getState().lastError?.code).toBe(
+        'LOAD_FAILED'
+      )
+      expect(result.current).toMatchObject({
+        modelReady: false,
+        canGenerate: true,
+      })
+    })
   })
 
   describe('before a clip that may not fit', () => {

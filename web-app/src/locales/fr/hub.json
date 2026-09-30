@@ -50,7 +50,7 @@
   "tooLargeTitle": "Ce modèle risque de ne pas fonctionner sur cet appareil",
   "tooLargeDescription": "Il nécessite plus de mémoire que cet appareil n’en possède : il peut ne pas se charger ou fonctionner lentement.",
   "downloadAnyway": "Télécharger quand même",
-  "categoryChat": "Chat",
+  "categoryChat": "Text",
   "categoryImages": "Images",
   "categoryVideo": "Video",
   "categories": "Type de modèle",

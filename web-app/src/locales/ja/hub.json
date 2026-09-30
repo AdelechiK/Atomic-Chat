@@ -63,7 +63,7 @@
   "tooLargeTitle": "このモデルはこのデバイスで動作しない可能性があります",
   "tooLargeDescription": "このデバイスのメモリを超える容量が必要なため、読み込めないか、動作が遅くなる可能性があります。",
   "downloadAnyway": "それでもダウンロード",
-  "categoryChat": "Chat",
+  "categoryChat": "Text",
   "categoryImages": "Images",
   "categoryVideo": "Video",
   "categories": "モデルの種類",

@@ -9,6 +9,7 @@ import { ImageEmptyState } from '@/containers/images/ImageEmptyState'
 import { ImageErrorBanner } from '@/containers/images/ImageErrorBanner'
 import { ImageSetupCard } from '@/containers/images/ImageSetupCard'
 import { useImageEngine } from '@/hooks/useImageEngine'
+import { useMediaTarget } from '@/hooks/useMediaTarget'
 import { useServiceHub } from '@/hooks/useServiceHub'
 import { useVideoForm } from '@/hooks/useVideoForm'
 import { useVideoGallery } from '@/hooks/useVideoGallery'
@@ -102,9 +103,7 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
   )
   const [modelsOpen, setModelsOpen] = useState(false)
 
-  const modelLoaded =
-    status?.model.state === 'loaded' &&
-    status.model.loaded?.modality === 'video'
+  const modelPicked = useMediaTarget('video').artifactId !== null
   const showLivePreview = generating && viewerMode === 'live'
   // An older core never says; absent reads as no slowdown.
   const slowedDown = generating && currentJob?.progress?.slowdown === true
@@ -295,7 +294,7 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
           <div className="min-h-0 flex-1">
             <ImageEmptyState
               modality="video"
-              modelLoaded={modelLoaded}
+              modelPicked={modelPicked}
               onDownloadModel={
                 engine.installed && !hasModel ? openModels : undefined
               }

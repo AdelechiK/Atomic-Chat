@@ -50,7 +50,7 @@
   "tooLargeTitle": "此模型可能无法在此设备上运行",
   "tooLargeDescription": "它需要的内存超过此设备的容量，可能无法加载或运行缓慢。",
   "downloadAnyway": "仍然下载",
-  "categoryChat": "Chat",
+  "categoryChat": "Text",
   "categoryImages": "Images",
   "categoryVideo": "Video",
   "categories": "模型类型",

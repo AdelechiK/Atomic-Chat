@@ -47,7 +47,7 @@
     "advanced": "Advanced settings",
     "disabled": {
       "noEngine": "Install the media engine first.",
-      "noModel": "Download and load a video model first.",
+      "noModel": "Download a video model first.",
       "modelLoading": "The model is still loading.",
       "emptyPrompt": "Write a prompt first.",
       "busy": "A generation is already running."

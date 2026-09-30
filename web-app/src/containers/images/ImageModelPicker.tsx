@@ -7,12 +7,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { ModelLogo } from '@/containers/ModelLogo'
-import { useImageArtifact } from '@/hooks/useImageArtifact'
 import { useImageForm } from '@/hooks/useImageForm'
-import { useSelectedArtifact } from '@/hooks/useVideoSetting'
+import { useMediaTarget } from '@/hooks/useMediaTarget'
 import { useTranslation } from '@/i18n/react-i18next-compat'
-import { parseArtifactId } from '@/lib/diffusion/models'
-import { familySupportsWorkflow } from '@/lib/diffusion/workflows'
 import { DIFFUSION_FAMILY_ICON_KEYS } from '@/lib/model-logo'
 import { cn } from '@/lib/utils'
 import type { DiffusionModality } from '@/services/diffusion/types'
@@ -43,52 +40,10 @@ export const ImageModelPicker = memo(function ImageModelPicker({
 }: ImageModelPickerProps) {
   const { t } = useTranslation()
   const status = useImageGenerationStore((state) => state.status)
-  const loadingArtifactId = useImageGenerationStore(
-    (state) => state.loadingArtifactId
-  )
-  const unloadingArtifactId = useImageGenerationStore(
-    (state) => state.unloadingArtifactId
-  )
-  const { selectedArtifactId } = useSelectedArtifact(modality)
-  const loadedArtifactId = status?.model.loaded?.modelId ?? null
-  const runtimeArtifactId =
-    loadedArtifactId ?? loadingArtifactId ?? unloadingArtifactId
-  const runtime = useImageArtifact(runtimeArtifactId ?? '')
-  const selected = useImageArtifact(selectedArtifactId ?? '')
+  const { artifactId: displayArtifactId, artifact: displayArtifact } =
+    useMediaTarget(modality)
   const workflow = useImageForm((state) => state.workflow)
-  const runtimeFamilyId =
-    runtime.family?.id ?? parseArtifactId(runtimeArtifactId ?? '')?.family ?? null
-  // The catalog names the modality of a family it knows; for one it does
-  // not, the core's own report of the resident model does.
-  const runtimeModality =
-    runtime.family?.modality ?? status?.model.loaded?.modality ?? null
-  const runtimeCompatible =
-    Boolean(runtimeArtifactId) &&
-    (runtimeModality === null || runtimeModality === modality) &&
-    (modality === 'video' ||
-      runtimeFamilyId === null ||
-      familySupportsWorkflow(runtimeFamilyId, workflow))
-  const selectedFamilyId =
-    selected.family?.id ??
-    parseArtifactId(selectedArtifactId ?? '')?.family ??
-    null
-  const selectedCompatible =
-    Boolean(selectedArtifactId && selected.complete) &&
-    (selected.family === null || selected.family.modality === modality) &&
-    (modality === 'video' ||
-      selectedFamilyId === null ||
-      familySupportsWorkflow(selectedFamilyId, workflow))
-  const displayArtifactId = runtimeCompatible
-    ? runtimeArtifactId
-    : selectedCompatible
-      ? selectedArtifactId
-      : null
-  const displayArtifact = useImageArtifact(displayArtifactId ?? '')
   const showArtifact = Boolean(displayArtifactId && displayArtifact.complete)
-
-  // Prefer the resident/in-flight artifact, then the user's compatible
-  // installed selection. This keeps an intentionally stopped model visible so
-  // its adjacent status control can start it again without reopening the list.
 
   const loadedName = status?.model.loaded?.displayName ?? null
   const selectLabel =

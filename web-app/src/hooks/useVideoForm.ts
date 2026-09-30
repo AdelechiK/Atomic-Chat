@@ -35,22 +35,33 @@ export const DEFAULT_VIDEO_FORM: VideoFormDraft = {
 }
 
 type VideoFormState = VideoFormDraft & {
+  /** The family the size and sampling numbers are for; null before the first model. */
+  recipeFamily: string | null
   /** Merge a partial draft in; the one write path every control uses. */
   patch: (draft: Partial<VideoFormDraft>) => void
-  /** Replace the whole draft, e.g. from a recipe. */
-  applyDraft: (draft: VideoFormDraft) => void
+  /**
+   * Replace the whole draft, e.g. from a recipe, together with the family
+   * its numbers are for, so picking that recipe's model keeps them.
+   */
+  applyDraft: (draft: VideoFormDraft, recipeFamily?: string | null) => void
   /**
    * Reset the numeric parameters to the loaded model's defaults, keeping the
    * prompt: "start over with the knobs" is what Reset means, not "clear".
    */
   resetToDefaults: (capabilities: VideoCapabilities) => void
   /**
-   * Clamp the draft to what the loaded model accepts: the resolution to one
-   * of its presets, the frame count to its lattice, the steps to its range.
-   * Called when a model loads, so a choice left over from a different family
-   * cannot be submitted.
+   * Clamp the draft to what a model accepts: the resolution to one of its
+   * presets, the frame count to its lattice, the steps to its range, so a
+   * choice out of its ranges cannot be submitted.
    */
   clampTo: (capabilities: VideoCapabilities) => void
+  /**
+   * Make the draft the page's model's: another family's numbers give way to
+   * this one's defaults, the same family's are only clamped. Called for the
+   * model the page works with, picked or loaded, so what the user set before
+   * starting a model survives the start.
+   */
+  adoptModel: (familyId: string, capabilities: VideoCapabilities) => void
 }
 
 const clampInt = (value: number, lo: number, hi: number) =>
@@ -98,10 +109,15 @@ export const useVideoForm = create<VideoFormState>()(
   persist(
     (set, get) => ({
       ...DEFAULT_VIDEO_FORM,
+      recipeFamily: null,
 
       patch: (draft) => set(draft),
 
-      applyDraft: (draft) => set({ ...draft }),
+      applyDraft: (draft, recipeFamily) =>
+        set({
+          ...draft,
+          ...(recipeFamily !== undefined ? { recipeFamily } : {}),
+        }),
 
       resetToDefaults: (capabilities) => {
         const { defaults, frames } = capabilities
@@ -136,6 +152,14 @@ export const useVideoForm = create<VideoFormState>()(
             : null,
         })
       },
+
+      adoptModel: (familyId, capabilities) => {
+        if (get().recipeFamily !== familyId) {
+          get().resetToDefaults(capabilities)
+          set({ recipeFamily: familyId })
+        }
+        get().clampTo(capabilities)
+      },
     }),
     {
       name: localStorageKey.videoForm,
@@ -151,6 +175,7 @@ export const useVideoForm = create<VideoFormState>()(
         cfgScale: state.cfgScale,
         guidance: state.guidance,
         seedText: state.seedText,
+        recipeFamily: state.recipeFamily,
       }),
     }
   )

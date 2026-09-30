@@ -104,7 +104,7 @@ export const VideoPromptForm = memo(function VideoPromptForm({
       seedText: state.seedText,
       patch: state.patch,
       resetToDefaults: state.resetToDefaults,
-      clampTo: state.clampTo,
+      adoptModel: state.adoptModel,
     }))
   )
   const { advancedOpen, setAdvancedOpen } = useVideoSetting(
@@ -139,22 +139,24 @@ export const VideoPromptForm = memo(function VideoPromptForm({
     }))
   )
   const engine = useImageEngine()
-  const capabilities = useImageGenerationStore(
-    (state) => state.videoCapabilities
-  )
   const applyIdleSettings = useImageGenerationStore(
     (state) => state.applyIdleSettings
   )
   const generation = useVideoGeneration()
+  // The picked model's, known from the catalog before it starts: the
+  // controls it needs are there at once and do not appear on load.
+  const { capabilities, targetFamilyId } = generation
   const [internalModelsOpen, setInternalModelsOpen] = useState(false)
   const modelsOpen = controlledModelsOpen ?? internalModelsOpen
   const setModelsOpen = onModelsOpenChange ?? setInternalModelsOpen
 
-  // A model just loaded: fold the draft into what it accepts.
+  // A model was picked or loaded: the draft becomes its. Starting the
+  // picked model changes nothing the user set, only the model's report.
   useEffect(() => {
-    if (capabilities) form.clampTo(capabilities)
+    if (targetFamilyId && capabilities)
+      form.adoptModel(targetFamilyId, capabilities)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capabilities])
+  }, [targetFamilyId, capabilities])
 
   const presets = capabilities?.resolutionPresets ?? FALLBACK_PRESETS
   const lattice = capabilities
@@ -312,6 +314,7 @@ export const VideoPromptForm = memo(function VideoPromptForm({
             generating={generation.generating}
             stopRequested={generation.stopRequested}
             disabledReason={generation.disabledReason}
+            modality="video"
             imageCount={1}
             onGenerate={() => void generation.generate()}
             onStop={() => void generation.stop()}

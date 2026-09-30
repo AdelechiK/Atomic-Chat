@@ -52,8 +52,12 @@ export type VideoEstimateHandle = {
    * older core, a refusal).
    */
   estimate: VideoEstimate | null
-  /** The estimate of exactly the current draft, asked at once when the one held is for older numbers. */
-  current: () => Promise<VideoEstimate | null>
+  /**
+   * The estimate of exactly the current draft, asked at once when the one
+   * held is for older numbers. `modelId` names a model that has just been
+   * loaded, before this hook has seen it.
+   */
+  current: (modelId?: string) => Promise<VideoEstimate | null>
 }
 
 /**
@@ -102,11 +106,19 @@ export function useVideoEstimate(
     return () => clearTimeout(timer)
   }, [key, ask])
 
-  const current = useCallback(async (): Promise<VideoEstimate | null> => {
-    if (key === null) return null
-    if (held?.key === key) return held.estimate
-    return ask(key)
-  }, [key, held, ask])
+  const current = useCallback(
+    async (loadedModelId?: string): Promise<VideoEstimate | null> => {
+      const forKey =
+        key ??
+        (loadedModelId === undefined
+          ? null
+          : estimateKey(latest.current, loadedModelId))
+      if (forKey === null) return null
+      if (held?.key === forKey) return held.estimate
+      return ask(forKey)
+    },
+    [key, held, ask]
+  )
 
   return { estimate: key === null ? null : (held?.estimate ?? null), current }
 }

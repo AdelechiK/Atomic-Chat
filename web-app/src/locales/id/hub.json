@@ -50,7 +50,7 @@
   "tooLargeTitle": "Model ini mungkin tidak berjalan di perangkat ini",
   "tooLargeDescription": "Model ini membutuhkan lebih banyak memori daripada yang dimiliki perangkat ini, sehingga mungkin gagal dimuat atau berjalan lambat.",
   "downloadAnyway": "Tetap unduh",
-  "categoryChat": "Chat",
+  "categoryChat": "Text",
   "categoryImages": "Images",
   "categoryVideo": "Video",
   "categories": "Jenis model",

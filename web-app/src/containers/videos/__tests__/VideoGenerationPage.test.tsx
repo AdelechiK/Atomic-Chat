@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   makeCatalog,
   makeFakeDiffusion,
+  makeFilesFor,
   makeStatus,
   Q4_ID,
   Z_IMAGE,
@@ -157,10 +158,15 @@ describe('VideoGenerationPage', () => {
     useImageGenerationStore.setState({
       status: makeStatus(),
       installedArtifacts: [completeVideo],
+      modelFiles: makeFilesFor(LTX_2, 'q4_k_m'),
     })
     await renderPage({ model: 'ltx-2', quant: 'q4_k_m' })
     expect(screen.queryByTestId('image-empty-download')).not.toBeInTheDocument()
     expect(useVideoSetting.getState().selectedArtifactId).toBe(LTX_Q4_ID)
+    // Picked and stopped is enough: Generate starts it, so no "select a model".
+    expect(screen.getByTestId('image-empty-state')).toHaveTextContent(
+      'videos:gallery.empty.description'
+    )
     expect(screen.getByTestId('video-prompt-form')).toHaveAttribute('data-models-open', 'true')
   })
 

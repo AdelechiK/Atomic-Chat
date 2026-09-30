@@ -159,9 +159,10 @@
     "generateCount": "Generate {{count}} images",
     "stop": "Stop",
     "stopping": "Stopping…",
+    "starting": "Starting model…",
     "disabled": {
       "noEngine": "Install the image engine first.",
-      "noModel": "Download and load an image model first.",
+      "noModel": "Download an image model first.",
       "modelLoading": "The model is still loading.",
       "emptyPrompt": "Write a prompt first.",
       "busy": "A generation is already running.",

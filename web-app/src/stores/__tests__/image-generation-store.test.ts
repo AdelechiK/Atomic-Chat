@@ -1117,7 +1117,7 @@ describe('image-generation-store', () => {
       fake.getVideoCapabilities.mockResolvedValue(makeVideoCapabilities())
     })
 
-    it('loads a video checkpoint into the video slot, leaving the image side as it was', async () => {
+    it('loads a video checkpoint into the video slot, leaving both forms as they were', async () => {
       useImageSetting.setState({ selectedArtifactId: 'z-image:q4_k_m' })
       useImageForm.setState({ steps: 17 })
       useVideoForm.setState({ frames: 25, steps: 3, width: 704, height: 1216 })
@@ -1145,12 +1145,13 @@ describe('image-generation-store', () => {
       expect(state.lastError).toBeNull()
       expect(useVideoSetting.getState().selectedArtifactId).toBe(LTX_Q4_ID)
       expect(useImageSetting.getState().selectedArtifactId).toBe('z-image:q4_k_m')
-      // The video form took the family defaults; the image form was not touched.
+      // Loading touches neither form: what was set before the start is what
+      // generates. The page makes a draft a new family's when it picks one.
       expect(useVideoForm.getState()).toMatchObject({
-        frames: 121,
-        steps: 8,
-        width: 768,
-        height: 512,
+        frames: 25,
+        steps: 3,
+        width: 704,
+        height: 1216,
       })
       expect(useImageForm.getState().steps).toBe(17)
     })
