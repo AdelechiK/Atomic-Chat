@@ -5,9 +5,9 @@ Byte-exact copies of the local engines' settings descriptors from
 `mlx.json`, `tensorrt-llm.json`). The copy is pinned to the core version named in the root
 `package.json` under `atomicCore.version`; when that version changes, copy the
 files again from the matching core source with `cp` (never retype them) and
-recompute `CHECKSUM`. `tensorrt-llm.json` is copied from the core's
-`change/add-tensorrt-llm-linux` branch until core `0.7.0` is released and pinned
-(openspec change `add-tensorrt-llm-linux`, task 7.1).
+recompute `CHECKSUM`. The branch pins `0.7.0`, which is not released yet
+(openspec change `add-tensorrt-llm-linux`, task 3.11): until it is (task 7.1),
+the matching source is the core's `change/add-tensorrt-llm-linux` branch.
 
 `CHECKSUM` is the sha256 hex digest over every file in this directory except
 `CHECKSUM` itself, in sorted name order, feeding each file's name bytes and then
