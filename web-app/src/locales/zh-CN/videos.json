@@ -65,7 +65,6 @@
     "duration": "约需 {{range}}",
     "tight": "内存紧张",
     "exceeds": "需要约 {{required}} GB 内存，可用 {{available}} GB。",
-    "exceedsSwap": "生成将使用交换空间，可能需要数小时。",
     "exceedsAdvice": "请降低分辨率或时长，或选择更小的模型。",
     "historyShort": "基于以往运行",
     "history": "根据本机以往的生成记录估算",

@@ -65,7 +65,6 @@
     "duration": "Mất {{range}}",
     "tight": "bộ nhớ sát giới hạn",
     "exceeds": "Cần ~{{required}} GB bộ nhớ, còn trống {{available}} GB.",
-    "exceedsSwap": "Quá trình tạo sẽ dùng swap và có thể kéo dài hàng giờ.",
     "exceedsAdvice": "Giảm độ phân giải hoặc thời lượng, hoặc chọn mô hình nhỏ hơn.",
     "historyShort": "theo các lần trước",
     "history": "Ước tính theo các lần tạo trước trên máy tính này",

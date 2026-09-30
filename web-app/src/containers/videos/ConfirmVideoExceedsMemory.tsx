@@ -14,7 +14,9 @@ import { exceedsSentence } from '@/lib/video/estimate'
 
 /**
  * "This clip does not fit in memory" — asked when Generate is pressed on a
- * draft the core's estimate says exceeds memory, and only then;
+ * draft the core's estimate says exceeds memory, and only then (the form
+ * shows no warning of its own for it): what it needs against what there is,
+ * that it will swap, and what to change instead;
  * `useVideoGeneration` decides when. Cancel is the default answer: it holds
  * the focus, and Enter, Escape, the close button and a click outside all
  * start nothing. Only "Generate anyway" starts the clip, with the draft
@@ -41,9 +43,10 @@ export function ConfirmVideoExceedsMemory({
             {estimate ? exceedsSentence(estimate, t) : null}
           </DialogDescription>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          {t('videos:confirmExceeds.body')}
-        </p>
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <p>{t('videos:confirmExceeds.body')}</p>
+          <p>{t('videos:estimate.exceedsAdvice')}</p>
+        </div>
         <DialogFooter>
           <DialogClose asChild>
             <Button

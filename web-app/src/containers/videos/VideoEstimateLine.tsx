@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { IconAlertTriangle, IconClock } from '@tabler/icons-react'
+import { IconClock } from '@tabler/icons-react'
 
 import {
   Tooltip,
@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/tooltip'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { cn } from '@/lib/utils'
-import { durationUnits, exceedsSentence } from '@/lib/video/estimate'
+import { durationUnits } from '@/lib/video/estimate'
 import { formatDurationRange } from '@/lib/video/format-duration'
 import type { VideoEstimate } from '@/services/diffusion/types'
 
@@ -19,9 +19,10 @@ type VideoEstimateLineProps = {
 
 /**
  * The core's estimate of the draft under Generate: a range of time when the
- * clip fits, a warning tone when memory is tight, and when it exceeds memory
- * what it needs against what there is, that it will swap for hours, and what
- * to change. Nothing at all without an estimate (an older core, no model).
+ * clip fits, and a warning tone when memory is tight. Nothing when it exceeds
+ * memory — `ConfirmVideoExceedsMemory` asks on Generate, and a red box above
+ * that dialog only said the same thing twice — and nothing without an
+ * estimate (an older core, no model).
  */
 export const VideoEstimateLine = memo(function VideoEstimateLine({
   estimate,
@@ -31,33 +32,8 @@ export const VideoEstimateLine = memo(function VideoEstimateLine({
   if (!estimate) return null
   const { verdict } = estimate.memory
 
-  if (verdict === 'exceeds') {
-    return (
-      <div
-        role="status"
-        className={cn(
-          'flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs',
-          className
-        )}
-        data-testid="video-estimate"
-        data-verdict={verdict}
-      >
-        <IconAlertTriangle
-          size={14}
-          className="mt-px shrink-0 text-destructive"
-        />
-        <div className="min-w-0 space-y-0.5">
-          <p className="font-medium text-destructive">
-            {exceedsSentence(estimate, t)}
-          </p>
-          <p className="text-muted-foreground">
-            {t('videos:estimate.exceedsSwap')}{' '}
-            {t('videos:estimate.exceedsAdvice')}
-          </p>
-        </div>
-      </div>
-    )
-  }
+  // The confirmation on Generate says it all, with Cancel as its default.
+  if (verdict === 'exceeds') return null
 
   const range = estimate.seconds
     ? formatDurationRange(

@@ -29,6 +29,7 @@ import {
   expectFits,
   expectNoHorizontalOverflow,
   expectOneLine,
+  expectVerticallyCentered,
   settle,
   setFontSize,
   setTheme,
@@ -177,18 +178,14 @@ describe('media mode selector geometry', () => {
 
         const frame = screen.getByTestId('form-frame')
         const select = screen.getByTestId(`${prefix}-workflow-select`)
-        // The heading is one line, beside the Reset button, inside the column,
-        // and its truncating box is tall enough not to clip a "g".
+        // The heading is one line inside the column, and its truncating box
+        // is tall enough not to clip a "g".
         const title = screen.getByTestId(`${prefix}-workflow-title`)
         expectOneLine(title)
         expect(title.getBoundingClientRect().height).toBeGreaterThanOrEqual(
           Number.parseFloat(getComputedStyle(title).fontSize) * 1.2
         )
         expectFits(select, frame)
-        const reset = screen.getByRole('button', { name: 'Reset' })
-        expect(select.getBoundingClientRect().right).toBeLessThan(
-          reset.getBoundingClientRect().left
-        )
         expectNoHorizontalOverflow(frame)
 
         await userEvent.click(select)
@@ -216,6 +213,74 @@ describe('media mode selector geometry', () => {
           select.getBoundingClientRect().left,
           0
         )
+      }
+    )
+  }
+})
+
+describe('media settings heading geometry', () => {
+  beforeEach(async () => {
+    await seed()
+  })
+
+  for (const pageSpec of PAGES) {
+    it.each([
+      { fontSize: DEFAULT_FONT_SIZE, theme: 'light' as const, width: 1280 },
+      { fontSize: XL_FONT_SIZE, theme: 'dark' as const, width: 1024 },
+    ])(
+      `${pageSpec.name}: Settings and Reset share one line between the prompt card and the knobs at $fontSize/$theme`,
+      async ({ fontSize, theme, width }) => {
+        await page.viewport(width, 900)
+        setFontSize(fontSize)
+        setTheme(theme)
+        pageSpec.seed()
+        const { Form, prefix } = pageSpec
+        render(
+          withTranslations(
+            <div
+              className="flex h-[860px] w-[340px] min-w-0 flex-col overflow-hidden"
+              data-testid="form-frame"
+            >
+              <Form />
+            </div>
+          )
+        )
+        await act(async () => {
+          await settle()
+        })
+
+        const frame = screen.getByTestId('form-frame')
+        const heading = screen.getByTestId(`${prefix}-settings-heading`)
+        const label = within(heading).getByRole('heading', { name: 'Settings' })
+        const reset = within(heading).getByRole('button', { name: 'Reset' })
+        expectFits(heading, frame)
+        expectOneLine(label)
+        // The button is one fixed-height row: its label never spills out,
+        // and its icon sits level with the "Settings" beside it.
+        expect(reset.scrollWidth).toBeLessThanOrEqual(reset.clientWidth)
+        expect(reset.scrollHeight).toBeLessThanOrEqual(reset.clientHeight)
+        expectVerticallyCentered(label, reset)
+        expectVerticallyCentered(label, reset.querySelector('svg')!)
+        expect(label.getBoundingClientRect().right).toBeLessThan(
+          reset.getBoundingClientRect().left
+        )
+        // Under the prompt card, right-aligned with it, over the first knob.
+        const card = screen.getByTestId(`${prefix}-prompt-card`)
+        const cardBox = card.getBoundingClientRect()
+        expect(heading.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+          cardBox.bottom
+        )
+        expect(reset.getBoundingClientRect().right).toBeCloseTo(
+          cardBox.right,
+          0
+        )
+        const steps = document.getElementById(`${prefix}-steps`)!
+        expect(heading.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+          steps.getBoundingClientRect().top
+        )
+        // The page heading no longer carries a Reset of its own.
+        expect(screen.getAllByRole('button', { name: 'Reset' })).toHaveLength(1)
+        expectNoHorizontalOverflow(frame)
       }
     )
   }

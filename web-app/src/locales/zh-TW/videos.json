@@ -65,7 +65,6 @@
     "duration": "約需 {{range}}",
     "tight": "記憶體吃緊",
     "exceeds": "需要約 {{required}} GB 記憶體，可用 {{available}} GB。",
-    "exceedsSwap": "生成將使用交換空間，可能需要數小時。",
     "exceedsAdvice": "請降低解析度或長度，或選擇較小的模型。",
     "historyShort": "依據過去的執行",
     "history": "依據這台電腦過去的生成記錄估算",

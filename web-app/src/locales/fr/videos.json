@@ -65,7 +65,6 @@
     "duration": "Durée : {{range}}",
     "tight": "mémoire juste",
     "exceeds": "Nécessite ~{{required}} Go de mémoire, {{available}} Go disponibles.",
-    "exceedsSwap": "La génération débordera dans le swap et peut durer des heures.",
     "exceedsAdvice": "Réduisez la résolution ou la durée, ou choisissez un modèle plus petit.",
     "historyShort": "d'après les générations passées",
     "history": "Estimé d'après vos générations passées sur cet ordinateur",

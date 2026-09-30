@@ -65,7 +65,6 @@
     "duration": "Potrwa {{range}}",
     "tight": "pamięci jest na styk",
     "exceeds": "Wymaga ~{{required}} GB pamięci, dostępne {{available}} GB.",
-    "exceedsSwap": "Generowanie trafi do pliku wymiany i może trwać godzinami.",
     "exceedsAdvice": "Zmniejsz rozdzielczość lub długość albo wybierz mniejszy model.",
     "historyShort": "na podstawie wcześniejszych",
     "history": "Szacunek na podstawie wcześniejszych generowań na tym komputerze",

@@ -65,7 +65,6 @@
     "duration": "Leva {{range}}",
     "tight": "memória no limite",
     "exceeds": "Precisa de ~{{required}} GB de memória; há {{available}} GB disponíveis.",
-    "exceedsSwap": "A geração vai usar a memória de troca e pode levar horas.",
     "exceedsAdvice": "Reduza a resolução ou a duração, ou escolha um modelo menor.",
     "historyShort": "pelas execuções anteriores",
     "history": "Estimado pelas suas gerações anteriores neste computador",

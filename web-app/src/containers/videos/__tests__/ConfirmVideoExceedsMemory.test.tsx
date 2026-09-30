@@ -49,11 +49,12 @@ const setup = () => {
 }
 
 describe('ConfirmVideoExceedsMemory', () => {
-  it('repeats what the clip needs against what there is, with Cancel focused', () => {
+  it('says what the clip needs against what there is and what to change, with Cancel focused', () => {
     const { dialog } = setup()
     expect(dialog).toHaveTextContent('videos:confirmExceeds.title')
     expect(dialog).toHaveTextContent('Needs 27.3 GB, 13.6 GB available')
     expect(dialog).toHaveTextContent('videos:confirmExceeds.body')
+    expect(dialog).toHaveTextContent('videos:estimate.exceedsAdvice')
     expect(
       within(dialog).getByRole('button', { name: 'common:cancel' })
     ).toHaveFocus()

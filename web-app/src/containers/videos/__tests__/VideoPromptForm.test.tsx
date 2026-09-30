@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -208,8 +208,13 @@ describe('VideoPromptForm', () => {
   it('resets the knobs to the model defaults but keeps the prompt', async () => {
     useVideoForm.setState({ prompt: 'kept', frames: 25, steps: 3, seedText: '9' })
     render(<VideoPromptForm />)
+    // Reset sits in the settings heading, not in the page heading.
+    const heading = screen.getByTestId('video-settings-heading')
+    expect(heading).toHaveTextContent('common:settings')
     await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: 'videos:form.reset' }))
+      await userEvent.click(
+        within(heading).getByRole('button', { name: 'videos:form.reset' })
+      )
     })
     expect(useVideoForm.getState()).toMatchObject({
       prompt: 'kept',
@@ -293,14 +298,13 @@ describe('VideoPromptForm', () => {
       )
     })
 
-    it('says what an exceeding clip needs against what there is, and what to change', async () => {
+    it('leaves an exceeding clip to the confirmation: no warning under Generate', async () => {
       fake.estimateVideo.mockResolvedValue(makeVideoEstimate('exceeds'))
       render(<VideoPromptForm />)
-      const line = await screen.findByTestId('video-estimate')
-      expect(line).toHaveAttribute('data-verdict', 'exceeds')
-      expect(line).toHaveTextContent('Needs 27.3 GB, 13.6 GB available')
-      expect(line).toHaveTextContent('videos:estimate.exceedsSwap')
-      expect(line).toHaveTextContent('videos:estimate.exceedsAdvice')
+      await vi.waitFor(() => expect(fake.estimateVideo).toHaveBeenCalled())
+      await act(async () => {})
+      expect(screen.queryByTestId('video-estimate')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Needs 27\.3 GB/)).not.toBeInTheDocument()
     })
 
     it('shows nothing when the core has no estimate, and Generate works as before', async () => {
@@ -323,13 +327,14 @@ describe('VideoPromptForm', () => {
       fake.estimateVideo.mockResolvedValue(makeVideoEstimate('exceeds'))
       useVideoForm.setState({ prompt: 'a cat' })
       render(<VideoPromptForm />)
-      await screen.findByTestId('video-estimate')
+      await vi.waitFor(() => expect(fake.estimateVideo).toHaveBeenCalled())
+      await act(async () => {})
       await act(async () => {
         await userEvent.click(screen.getByTestId('image-generate'))
       })
-      expect(screen.getByTestId('video-exceeds-dialog')).toHaveTextContent(
-        'Needs 27.3 GB, 13.6 GB available'
-      )
+      const dialog = screen.getByTestId('video-exceeds-dialog')
+      expect(dialog).toHaveTextContent('Needs 27.3 GB, 13.6 GB available')
+      expect(dialog).toHaveTextContent('videos:estimate.exceedsAdvice')
       expect(fake.generateVideo).not.toHaveBeenCalled()
       await act(async () => {
         await userEvent.click(screen.getByText('videos:confirmExceeds.confirm'))

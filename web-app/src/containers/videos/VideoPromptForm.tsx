@@ -11,7 +11,6 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconPhotoVideo,
-  IconRestore,
   IconSettings,
   IconSparkles,
 } from '@tabler/icons-react'
@@ -26,11 +25,6 @@ import {
 } from '@/components/ui/collapsible'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { route } from '@/constants/routes'
 import { ImageApiSettingsCard } from '@/containers/images/ImageApiSettingsCard'
 import { ImageField, ImageFieldHint } from '@/containers/images/ImageField'
@@ -43,6 +37,7 @@ import {
   MediaModeSelect,
   type MediaMode,
 } from '@/containers/images/MediaModeSelect'
+import { MediaSettingsHeading } from '@/containers/images/MediaSettingsHeading'
 import { useImageEngine } from '@/hooks/useImageEngine'
 import {
   IMAGE_IDLE_UNLOAD_OPTIONS,
@@ -260,7 +255,7 @@ export const VideoPromptForm = memo(function VideoPromptForm({
         {/* The same mode heading as Images. Only `create` is served; the
             core parses and refuses `image-to-video` until it lands, so it is
             listed as coming and cannot be picked. */}
-        <div className="mb-1 flex items-start justify-between gap-3">
+        <div className="mb-1">
           <MediaModeSelect
             modes={modes}
             value="create"
@@ -268,24 +263,6 @@ export const VideoPromptForm = memo(function VideoPromptForm({
             label={t('videos:workflow.choose')}
             testIdPrefix="video"
           />
-          {capabilities && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={busy}
-                  aria-label={t('videos:form.reset')}
-                  onClick={() => form.resetToDefaults(capabilities)}
-                >
-                  <IconRestore size={16} />
-                  <span className="sr-only">{t('videos:form.reset')}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('videos:form.resetHint')}</TooltipContent>
-            </Tooltip>
-          )}
         </div>
 
         <div
@@ -361,6 +338,18 @@ export const VideoPromptForm = memo(function VideoPromptForm({
             </CollapsibleContent>
           </Collapsible>
         )}
+
+        {/* Reset sits over what it puts back; the prompts stay. */}
+        <MediaSettingsHeading
+          label={t('common:settings')}
+          resetLabel={t('videos:form.reset')}
+          resetHint={t('videos:form.resetHint')}
+          onReset={
+            capabilities ? () => form.resetToDefaults(capabilities) : undefined
+          }
+          disabled={busy}
+          testIdPrefix="video"
+        />
 
         <VideoResolutionSelect
           width={form.width}
