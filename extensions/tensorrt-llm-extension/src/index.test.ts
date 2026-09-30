@@ -292,9 +292,8 @@ describe('sessions', () => {
     expect(unlisten).toHaveBeenCalled()
   })
 
-  it('unloads through the core and reports only its own sessions as loaded', async () => {
-    const calls = core({
-      'POST /models/tensorrt-llm/qwen3-8b/unload': () => ({ success: true }),
+  it('reports only its own sessions as loaded', async () => {
+    core({
       'GET /sessions': () => ({
         sessions: [
           { ...containerSession, provider: 'tensorrt-llm' },
@@ -302,11 +301,64 @@ describe('sessions', () => {
         ],
       }),
     })
-    const extension = new TensorrtLlmExtension()
 
-    await expect(extension.unload('qwen3-8b')).resolves.toEqual({ success: true })
-    await expect(extension.getLoadedModels()).resolves.toEqual(['qwen3-8b'])
-    expect(calls.map((c) => c.path)).toContain('/models/tensorrt-llm/qwen3-8b/unload')
+    await expect(new TensorrtLlmExtension().getLoadedModels()).resolves.toEqual(['qwen3-8b'])
+  })
+
+  describe('unload (task 3.14, F-9)', () => {
+    const repoId = 'Qwen/Qwen3-1.7B'
+
+    it('sends an id with `/` to the core as it is and reports stopped once the session is gone', async () => {
+      let sessions = [{ ...containerSession, model_id: repoId, provider: 'tensorrt-llm' }]
+      const calls = core({
+        // The core matches the rest of the path; `Qwen%2FQwen3-1.7B` would be a no-op there.
+        'POST /models/tensorrt-llm/Qwen/Qwen3-1.7B/unload': () => {
+          sessions = []
+          return { success: true }
+        },
+        'GET /sessions': () => ({ sessions }),
+      })
+      const extension = new TensorrtLlmExtension()
+
+      await expect(extension.unload(repoId)).resolves.toEqual({ success: true })
+      expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+        'POST /models/tensorrt-llm/Qwen/Qwen3-1.7B/unload',
+        'GET /sessions',
+      ])
+      await expect(extension.getLoadedModels()).resolves.toEqual([])
+    })
+
+    it("does not report stopped when the core answers success but still serves the model", async () => {
+      core({
+        'POST /models/tensorrt-llm/Qwen/Qwen3-1.7B/unload': () => ({ success: true }),
+        'GET /sessions': () => ({
+          sessions: [{ ...containerSession, model_id: repoId, provider: 'tensorrt-llm' }],
+        }),
+      })
+
+      await expect(new TensorrtLlmExtension().unload(repoId)).resolves.toEqual({
+        success: false,
+        error: 'TensorRT-LLM model Qwen/Qwen3-1.7B is still loaded after the unload.',
+      })
+    })
+
+    it('writes the call and its outcome to the app log', async () => {
+      const log = await import('@tauri-apps/plugin-log')
+      core({
+        'POST /models/tensorrt-llm/Qwen/Qwen3-1.7B/unload': () => {
+          throw { code: 'MODEL_NOT_FOUND', message: 'no such model' }
+        },
+      })
+
+      await expect(new TensorrtLlmExtension().unload(repoId)).resolves.toEqual({
+        success: false,
+        error: 'no such model [MODEL_NOT_FOUND]',
+      })
+      expect(log.info).toHaveBeenCalledWith('[tensorrt-llm] unload Qwen/Qwen3-1.7B')
+      expect(log.warn).toHaveBeenCalledWith(
+        '[tensorrt-llm] unload Qwen/Qwen3-1.7B failed: no such model [MODEL_NOT_FOUND]'
+      )
+    })
   })
 
   it('chats through the session gateway with the session key', async () => {

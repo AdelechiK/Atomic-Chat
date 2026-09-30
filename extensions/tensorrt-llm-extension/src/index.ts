@@ -296,12 +296,28 @@ export default class TensorrtLlmExtension extends AIEngine {
     return this.loadCancel.cancelLoad(modelId)
   }
 
+  /**
+   * Stopped means the core no longer serves the model, not that `unload` answered: the core answers
+   * `success` for an id it has no session for, so an id that reached it wrong would look stopped
+   * while the container kept the card (task 3.14, F-9). The call and its outcome go to the app log.
+   */
   override async unload(modelId: string): Promise<UnloadResult> {
+    logger.info(`[tensorrt-llm] unload ${modelId}`)
+    let result: UnloadResult
     try {
-      return await this.core.unload(modelId)
+      result = await this.core.unload(modelId)
+      if (result.success && (await this.core.findSession(modelId))) {
+        result = {
+          success: false,
+          error: `TensorRT-LLM model ${modelId} is still loaded after the unload.`,
+        }
+      }
     } catch (error) {
-      return { success: false, error: describeCoreError(error) }
+      result = { success: false, error: describeCoreError(error) }
     }
+    if (result.success) logger.info(`[tensorrt-llm] unloaded ${modelId}`)
+    else logger.warn(`[tensorrt-llm] unload ${modelId} failed: ${result.error ?? 'no reason given'}`)
+    return result
   }
 
   override async getLoadedModels(): Promise<string[]> {

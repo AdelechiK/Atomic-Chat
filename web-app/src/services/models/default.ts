@@ -100,7 +100,16 @@ const isTauriRuntime = (): boolean => {
     return false
   }
 }
-const localProviders = ['llamacpp', 'llamacpp-upstream', 'mlx'] as const
+// Engines whose loaded models count as the app's active local models: what
+// `getActiveModels()` reports and what `stopAllModels()` / `stopAllModelsExcept()`
+// unload. An engine missing here is invisible to the provider page's Stop, which
+// then shows its model stopped while it keeps running (task 3.14, F-9).
+const localProviders = [
+  'llamacpp',
+  'llamacpp-upstream',
+  'mlx',
+  'tensorrt-llm',
+] as const
 type LocalProviderName = (typeof localProviders)[number]
 
 type HuggingFaceFeedEntry = Pick<

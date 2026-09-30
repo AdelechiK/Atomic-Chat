@@ -355,6 +355,38 @@ describe('DefaultModelsService', () => {
       }
     })
 
+    // The provider page's Stop runs `stopAllModels` and then redraws from
+    // `getActiveModels()`; an engine missing from both left a TensorRT-LLM
+    // model running while its row said stopped (task 3.14, F-9).
+    it('stops a TensorRT-LLM model by its full id and counts it as active until then', async () => {
+      let loaded = ['Qwen/Qwen3-1.7B']
+      const tensorrt = {
+        ...mockEngine,
+        getLoadedModels: vi.fn(async () => loaded),
+        unload: vi.fn(async () => {
+          loaded = []
+          return { success: true }
+        }),
+      }
+      const idle = {
+        ...mockEngine,
+        getLoadedModels: vi.fn().mockResolvedValue([]),
+        unload: vi.fn(),
+      }
+      mockEngineManager.get.mockImplementation((provider: string) =>
+        provider === 'tensorrt-llm' ? tensorrt : idle
+      )
+
+      expect(await modelsService.getActiveModels()).toEqual(['Qwen/Qwen3-1.7B'])
+
+      await modelsService.stopAllModels()
+
+      expect(tensorrt.unload).toHaveBeenCalledTimes(1)
+      expect(tensorrt.unload).toHaveBeenCalledWith('Qwen/Qwen3-1.7B')
+      expect(idle.unload).not.toHaveBeenCalled()
+      expect(await modelsService.getActiveModels()).toEqual([])
+    })
+
     it('should handle empty active models', async () => {
       mockEngine.getLoadedModels.mockResolvedValue(null)
 
