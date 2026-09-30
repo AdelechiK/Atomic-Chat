@@ -399,6 +399,7 @@ export function buildLoadRequest(
   modelsRoot: string,
   opts: {
     offload: DiffusionOffloadPolicy
+    offloadFallback?: DiffusionOffloadPolicy
     engine?: DiffusionEngineId
     threads?: number
     startupTimeoutSecs?: number
@@ -497,6 +498,7 @@ export function buildLoadRequest(
         : {}),
     },
     offload: opts.offload,
+    ...(opts.offloadFallback ? { offloadFallback: opts.offloadFallback } : {}),
     ...(opts.engine ? { engine: opts.engine } : {}),
     ...(opts.threads !== undefined ? { threads: opts.threads } : {}),
     ...(opts.startupTimeoutSecs !== undefined
