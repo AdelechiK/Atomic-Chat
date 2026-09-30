@@ -65,7 +65,6 @@
     "duration": "Butuh {{range}}",
     "tight": "memori pas-pasan",
     "exceeds": "Butuh ~{{required}} GB memori, tersedia {{available}} GB.",
-    "exceedsSwap": "Pembuatan akan memakai swap dan bisa berjalan berjam-jam.",
     "exceedsAdvice": "Turunkan resolusi atau durasi, atau pilih model yang lebih kecil.",
     "historyShort": "dari riwayat",
     "history": "Perkiraan dari pembuatan sebelumnya di komputer ini",

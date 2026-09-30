@@ -65,7 +65,6 @@
     "duration": "所要時間 {{range}}",
     "tight": "メモリがぎりぎりです",
     "exceeds": "約 {{required}} GB のメモリが必要です（使用可能 {{available}} GB）。",
-    "exceedsSwap": "スワップが発生し、数時間かかる場合があります。",
     "exceedsAdvice": "解像度や長さを下げるか、より小さいモデルを選んでください。",
     "historyShort": "過去の実行から",
     "history": "このコンピューターでの過去の生成から推定",

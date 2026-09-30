@@ -1,7 +1,7 @@
 /**
  * How the Video page words the core's estimate: gigabytes as a person reads
  * them off their Mac, the duration units in the user's language, the
- * "needs … of …" sentence the estimate line and the confirmation share, and
+ * "needs … of …" sentence of the confirmation, and
  * the seconds left for a running clip.
  */
 
@@ -27,7 +27,7 @@ export function durationUnits(t: Translation): DurationUnits {
   }
 }
 
-/** "Needs ~27.3 GB of memory, 13.6 GB available." — the line and the dialog say it alike. */
+/** "Needs ~27.3 GB of memory, 13.6 GB available." — the confirmation's first line. */
 export function exceedsSentence(
   estimate: VideoEstimate,
   t: Translation

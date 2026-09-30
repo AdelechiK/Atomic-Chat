@@ -65,7 +65,6 @@
     "duration": "Dauert {{range}}",
     "tight": "Speicher ist knapp",
     "exceeds": "Benötigt ~{{required}} GB Speicher, verfügbar sind {{available}} GB.",
-    "exceedsSwap": "Die Generierung weicht in den Auslagerungsspeicher aus und kann Stunden dauern.",
     "exceedsAdvice": "Verringere Auflösung oder Länge oder wähle ein kleineres Modell.",
     "historyShort": "aus früheren Läufen",
     "history": "Geschätzt aus deinen früheren Generierungen auf diesem Computer",

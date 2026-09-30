@@ -65,7 +65,6 @@
     "duration": "Takes {{range}}",
     "tight": "memory is tight",
     "exceeds": "Needs ~{{required}} GB of memory, {{available}} GB available.",
-    "exceedsSwap": "It will spill into swap and may run for hours.",
     "exceedsAdvice": "Lower the resolution or the length, or pick a smaller model.",
     "historyShort": "from past runs",
     "history": "Estimated from your past generations on this computer",

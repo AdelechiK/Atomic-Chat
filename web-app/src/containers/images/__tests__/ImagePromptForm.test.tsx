@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -225,8 +225,13 @@ describe('ImagePromptForm', () => {
     useImageSetting.setState({ advancedOpen: true })
     render(<ImagePromptForm />)
 
+    // Reset sits in the settings heading, not in the page heading.
+    const heading = screen.getByTestId('image-settings-heading')
+    expect(heading).toHaveTextContent('common:settings')
     await act(async () => {
-      await userEvent.click(screen.getByText('images:form.reset'))
+      await userEvent.click(
+        within(heading).getByRole('button', { name: 'images:form.reset' })
+      )
     })
 
     const state = useImageForm.getState()

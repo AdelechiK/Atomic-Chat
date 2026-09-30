@@ -11,7 +11,6 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   IconChevronDown,
   IconChevronRight,
-  IconRestore,
   IconSettings,
 } from '@tabler/icons-react'
 import { useShallow } from 'zustand/shallow'
@@ -31,11 +30,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { route } from '@/constants/routes'
 import {
   MAX_IMAGE_BATCH,
@@ -65,6 +59,7 @@ import { ImageField, ImageFieldHint } from './ImageField'
 import { ImageApiSettingsCard } from './ImageApiSettingsCard'
 import { ImageWorkflowInputs } from './ImageWorkflowInputs'
 import { MediaModeSelect } from './MediaModeSelect'
+import { MediaSettingsHeading } from './MediaSettingsHeading'
 import { WORKFLOW_ICONS } from './workflowIcons'
 import { ImageGenerateButton } from './ImageGenerateButton'
 import { ImageModelPicker } from './ImageModelPicker'
@@ -262,7 +257,7 @@ export const ImagePromptForm = memo(function ImagePromptForm({
       >
         {/* The sidebar names the section; the heading picks what the column
             does. The route stays the source of truth, so a pick navigates. */}
-        <div className="mb-1 flex items-start justify-between gap-3">
+        <div className="mb-1">
           <MediaModeSelect
             modes={modes}
             value={form.workflow}
@@ -270,24 +265,6 @@ export const ImagePromptForm = memo(function ImagePromptForm({
             label={t('images:workflow.choose')}
             testIdPrefix="image"
           />
-          {capabilities && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={busy}
-                  aria-label={t('images:form.reset')}
-                  onClick={() => form.resetToDefaults(capabilities.defaults)}
-                >
-                  <IconRestore size={16} />
-                  <span className="sr-only">{t('images:form.reset')}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('images:form.resetHint')}</TooltipContent>
-            </Tooltip>
-          )}
         </div>
 
         <ImageWorkflowInputs
@@ -370,6 +347,20 @@ export const ImagePromptForm = memo(function ImagePromptForm({
             </CollapsibleContent>
           </Collapsible>
         )}
+
+        {/* Reset sits over what it puts back; the prompts stay. */}
+        <MediaSettingsHeading
+          label={t('common:settings')}
+          resetLabel={t('images:form.reset')}
+          resetHint={t('images:form.resetHint')}
+          onReset={
+            capabilities
+              ? () => form.resetToDefaults(capabilities.defaults)
+              : undefined
+          }
+          disabled={busy}
+          testIdPrefix="image"
+        />
 
         {/* Inpaint, extend, upscale and edit take their size from the
             source; a size control there would be a knob that does nothing. */}

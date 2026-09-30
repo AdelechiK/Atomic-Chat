@@ -65,7 +65,6 @@
     "duration": "Tardará {{range}}",
     "tight": "memoria justa",
     "exceeds": "Necesita ~{{required}} GB de memoria; hay {{available}} GB disponibles.",
-    "exceedsSwap": "La generación usará la memoria de intercambio y puede tardar horas.",
     "exceedsAdvice": "Reduce la resolución o la duración, o elige un modelo más pequeño.",
     "historyShort": "según ejecuciones anteriores",
     "history": "Estimado a partir de tus generaciones anteriores en este equipo",

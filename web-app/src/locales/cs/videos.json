@@ -65,7 +65,6 @@
     "duration": "Potrvá {{range}}",
     "tight": "paměti je těsně",
     "exceeds": "Potřebuje ~{{required}} GB paměti, k dispozici je {{available}} GB.",
-    "exceedsSwap": "Přejde do swapu a může běžet celé hodiny.",
     "exceedsAdvice": "Snižte rozlišení nebo délku, nebo vyberte menší model.",
     "historyShort": "podle minulých běhů",
     "history": "Odhad podle vašich minulých generování na tomto počítači",
