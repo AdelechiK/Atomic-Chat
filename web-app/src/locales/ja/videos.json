@@ -4,7 +4,8 @@
     "loading": "Getting things ready…"
   },
   "model": {
-    "select": "Select video model"
+    "select": "Select video model",
+    "noneInCatalog": "No video models are listed for this engine."
   },
   "setup": {
     "model": {

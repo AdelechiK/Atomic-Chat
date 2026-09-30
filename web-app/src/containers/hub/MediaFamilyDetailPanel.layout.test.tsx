@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useDownloadStore } from '@/hooks/useDownloadStore'
@@ -17,7 +18,6 @@ import { useImageGenerationStore } from '@/stores/image-generation-store'
 import {
   DEFAULT_FONT_SIZE,
   expectNoHorizontalOverflow,
-  expectSameWidth,
   setFontSize,
   setTheme,
   settle,
@@ -27,6 +27,13 @@ import {
 import { MediaFamilyDetailPanel } from './MediaFamilyDetailPanel'
 
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
+// No network in the layout suite: the README section says it is unavailable.
+vi.stubGlobal(
+  'fetch',
+  vi.fn(async () => {
+    throw new Error('offline')
+  })
+)
 vi.mock('@/hooks/useHardwareTier', () => ({
   useHardwareTier: () => ({
     tier: 'vram_8',
@@ -108,7 +115,7 @@ for (const font of [DEFAULT_FONT_SIZE, XL_FONT_SIZE]) {
         seed()
       })
 
-      it('keeps Open, progress and Download in one column inside the panel', async () => {
+      it('keeps the picked quant, its action and the open list inside the panel', async () => {
         render(
           withTranslations(
             <div
@@ -122,44 +129,66 @@ for (const font of [DEFAULT_FONT_SIZE, XL_FONT_SIZE]) {
         await act(async () => {
           await settle()
         })
+        const frame = screen.getByTestId('panel-frame')
+        expectNoHorizontalOverflow(frame)
 
-        expectNoHorizontalOverflow(screen.getByTestId('panel-frame'))
+        /** The action slot of the quant row, whichever quant it shows. */
+        const actions = () =>
+          document.querySelector<HTMLElement>(
+            '[data-testid="media-quant-actions"]'
+          )!
+        const pick = async (quantId: string) => {
+          await userEvent.click(
+            screen.getByRole('button', { name: 'Download Options' })
+          )
+          await act(async () => {
+            await settle()
+          })
+          await userEvent.click(
+            screen.getByTestId(`media-quant-option-z-image:${quantId}`)
+          )
+          await act(async () => {
+            await settle()
+          })
+        }
 
-        const rows = FAMILY.transformer.quants.map((quant) =>
-          screen.getByTestId(`media-quant-z-image:${quant.id}`)
+        // It opens on the installed quant, with Open.
+        expect(
+          screen.getByTestId('media-quant-z-image:q4_k_m')
+        ).toBeInTheDocument()
+        expect(actions().textContent).toBe('Open')
+        // Measured as each state shows: the node goes when the state changes.
+        const slotWidth = () =>
+          actions()
+            .querySelector('[data-slot="button"]')!
+            .getBoundingClientRect().width
+        const widths = [slotWidth()]
+
+        // The open list stays inside the panel and shows the longest label whole.
+        await userEvent.click(
+          screen.getByRole('button', { name: 'Download Options' })
         )
-        const actions = rows.map(
-          (row) =>
-            row.querySelector<HTMLElement>(
-              '[data-testid="media-quant-actions"]'
-            )!
-        )
-        // One state per row: Open, 100 %, Download.
-        expect(actions.map((group) => group.textContent)).toEqual([
-          'Open',
-          '100%',
-          'Download',
-        ])
-        expectSameWidth(actions)
-        // The longest label is shown whole, and every chip is as wide as it.
-        const labels = rows.map((row) => row.querySelector('.font-mono')!)
-        expectSameWidth(labels)
-        const longest = labels[2] as HTMLElement
+        await act(async () => {
+          await settle()
+        })
+        expectNoHorizontalOverflow(frame)
+        const longest = screen
+          .getByTestId('media-quant-option-z-image:ud_q4_k_xl')
+          .querySelector<HTMLElement>('.font-mono')!
         expect(longest.scrollWidth).toBeLessThanOrEqual(longest.clientWidth)
-        expectSameWidth(
-          actions.map((group) => group.querySelector('[data-slot="button"]')!)
+        await userEvent.click(
+          screen.getByTestId('media-quant-option-z-image:q4_k_m')
         )
-        const rights = actions.map(
-          (group) => group.getBoundingClientRect().right
-        )
-        for (const right of rights) expect(right).toBeCloseTo(rights[0], 0)
-        // Every row wraps the same way, so the actions stay one column.
-        const offsets = rows.map(
-          (row, index) =>
-            actions[index].getBoundingClientRect().top -
-            row.getBoundingClientRect().top
-        )
-        for (const offset of offsets) expect(offset).toBeCloseTo(offsets[0], 0)
+
+        // Progress and Download take the same slot as Open.
+        await pick('q8_0')
+        expect(actions().textContent).toBe('100%')
+        widths.push(slotWidth())
+        await pick('ud_q4_k_xl')
+        expect(actions().textContent).toBe('Download')
+        widths.push(slotWidth())
+        expectNoHorizontalOverflow(frame)
+        for (const width of widths) expect(width).toBeCloseTo(widths[0], 0)
       })
     })
   }

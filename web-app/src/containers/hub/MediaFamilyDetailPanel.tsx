@@ -1,6 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { IconExternalLink, IconTrash } from '@tabler/icons-react'
+import {
+  IconChevronDown,
+  IconChevronUp,
+  IconExternalLink,
+  IconTrash,
+} from '@tabler/icons-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,13 +18,14 @@ import {
 } from '@/components/ui/dialog'
 import { ModelLogo } from '@/containers/ModelLogo'
 import { FitBadge } from '@/containers/hub/FitBadge'
+import { HubReadme } from '@/containers/hub/HubReadme'
 import { ImageArtifactDownloadButton } from '@/containers/images/ImageArtifactDownloadButton'
 import { route } from '@/constants/routes'
 import { useHardwareTier } from '@/hooks/useHardwareTier'
 import { useImageArtifact } from '@/hooks/useImageArtifact'
 import { useSelectedArtifact } from '@/hooks/useVideoSetting'
 import { useTranslation } from '@/i18n/react-i18next-compat'
-import { recommendedQuant } from '@/lib/diffusion/fit'
+import { pickDefaultQuant, recommendedQuant } from '@/lib/diffusion/fit'
 import { artifactId } from '@/lib/diffusion/models'
 import { workflowsForFamily } from '@/lib/diffusion/workflows'
 import { formatBytes } from '@/lib/downloadFormat'
@@ -39,10 +45,12 @@ export type MediaFamilyDetailPanelProps = {
 }
 
 /**
- * The right-hand panel for an image or video family: every quant with its fit
- * and size, a download per quant, and — once one is on disk — the way into the
- * studio that runs it. The same `useImageArtifact` state as the Images and
- * Video model lists, so progress and removals agree with those pages.
+ * The right-hand panel for an image or video family, shaped like the Chat
+ * category's: one quant with its fit, size and download — or, once it is on
+ * disk, the way into the studio that runs it — behind a disclosure listing
+ * every quant, then the details and the repo's README. The same
+ * `useImageArtifact` state as the Images and Video model lists, so progress
+ * and removals agree with those pages.
  */
 export function MediaFamilyDetailPanel({
   family,
@@ -65,16 +73,8 @@ export function MediaFamilyDetailPanel({
   }
 
   const repo = family.transformer.repo
-  const recommendedId = recommendedQuant(family, profile, {
-    teOnCpu: IS_MACOS,
-  })?.id
   const workflows =
     family.modality === 'image' ? workflowsForFamily(family.id) : []
-  // Every label chip as wide as the family's longest, so `UD_Q3_K_XL` and
-  // `UD_Q4_K_XL` stay told apart and the fit badges still line up.
-  const labelWidth = `max(62px, calc(${Math.max(
-    ...family.transformer.quants.map((quant) => quant.label.length)
-  )}ch + 0.75rem))`
 
   return (
     <div className={cn('flex flex-col gap-4 p-6', className)}>
@@ -110,20 +110,9 @@ export function MediaFamilyDetailPanel({
         <p className="text-sm text-muted-foreground">{family.description}</p>
       )}
 
-      <section className="rounded-lg border border-border bg-card p-4">
-        <h2 className="mb-2 text-sm font-medium">{t('hub:downloadOptions')}</h2>
-        <ul className="divide-y divide-border">
-          {family.transformer.quants.map((quant) => (
-            <MediaQuantRow
-              key={quant.id}
-              family={family}
-              quant={quant}
-              recommended={quant.id === recommendedId}
-              labelWidth={labelWidth}
-            />
-          ))}
-        </ul>
-      </section>
+      {/* Keyed by family: a quant picked for one family means nothing for
+          the next. */}
+      <MediaDownloadOptions key={family.id} family={family} profile={profile} />
 
       <section className="rounded-lg border border-border bg-card p-4">
         <h2 className="mb-3 text-sm font-medium">{t('hub:details')}</h2>
@@ -158,7 +147,149 @@ export function MediaFamilyDetailPanel({
           )}
         </dl>
       </section>
+
+      <HubReadme
+        url={`https://huggingface.co/${repo}/resolve/main/README.md`}
+      />
     </div>
+  )
+}
+
+/**
+ * The Chat category's collapsed quant selector for a diffusion family: the
+ * quant the family opens on (an installed one, else the recommended, else the
+ * smallest) with its actions, and a disclosure listing every quant.
+ */
+function MediaDownloadOptions({
+  family,
+  profile,
+}: {
+  family: DiffusionCatalogFamily
+  profile: ReturnType<typeof useHardwareTier>['profile']
+}) {
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const installedArtifacts = useImageGenerationStore(
+    (state) => state.installedArtifacts
+  )
+
+  const recommendedId = recommendedQuant(family, profile, {
+    teOnCpu: IS_MACOS,
+  })?.id
+  const defaultQuant = useMemo(
+    () =>
+      pickDefaultQuant(
+        family,
+        profile,
+        (installedArtifacts ?? [])
+          .filter((artifact) => artifact.family === family.id)
+          .map((artifact) => artifact.id),
+        { teOnCpu: IS_MACOS }
+      ),
+    [family, profile, installedArtifacts]
+  )
+  const selected =
+    family.transformer.quants.find((quant) => quant.id === selectedId) ??
+    defaultQuant
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-4">
+      <h2 className="mb-3 text-sm font-medium">{t('hub:downloadOptions')}</h2>
+      <MediaQuantRow
+        family={family}
+        quant={selected}
+        recommended={selected.id === recommendedId}
+        expanded={expanded}
+        onToggle={() => setExpanded((prev) => !prev)}
+      />
+      {expanded && (
+        <ul className="mt-3 border-t border-border pt-2">
+          {family.transformer.quants.map((quant) => (
+            <MediaQuantOption
+              key={quant.id}
+              family={family}
+              quant={quant}
+              recommended={quant.id === recommendedId}
+              current={quant.id === selected.id}
+              onSelect={() => {
+                setSelectedId(quant.id)
+                setExpanded(false)
+              }}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+/** The facts every quant is told by: fit, label, size, and the recommendation. */
+function QuantFacts({
+  quant,
+  fit,
+  totalBytes,
+  recommended,
+}: {
+  quant: DiffusionCatalogQuant
+  fit: ReturnType<typeof useImageArtifact>['fit']
+  totalBytes: number
+  recommended: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <>
+      <FitBadge fit={fit} className="shrink-0 px-1.5 py-0.5 text-[10px]" />
+      <span className="shrink-0 rounded-[5px] bg-secondary px-[7px] py-0.5 font-mono text-[11px] font-semibold text-muted-foreground">
+        {quant.label}
+      </span>
+      <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+        {t('images:model.sizeGb', { size: gb(totalBytes) })}
+      </span>
+      {recommended && (
+        <span className="min-w-0 truncate rounded-[5px] border border-border px-1.5 py-px text-[10px] font-semibold text-muted-foreground">
+          {t('images:model.recommended')}
+        </span>
+      )}
+    </>
+  )
+}
+
+/** One quant in the disclosure: picking it makes it the one the row acts on. */
+function MediaQuantOption({
+  family,
+  quant,
+  recommended,
+  current,
+  onSelect,
+}: {
+  family: DiffusionCatalogFamily
+  quant: DiffusionCatalogQuant
+  recommended: boolean
+  current: boolean
+  onSelect: () => void
+}) {
+  const artifact = useImageArtifact(artifactId(family.id, quant.id))
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={current ? 'true' : undefined}
+        data-testid={`media-quant-option-${artifactId(family.id, quant.id)}`}
+        className={cn(
+          'flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-muted/40',
+          current && 'bg-muted/60'
+        )}
+      >
+        <QuantFacts
+          quant={quant}
+          fit={artifact.fit}
+          totalBytes={artifact.totalBytes}
+          recommended={recommended}
+        />
+      </button>
+    </li>
   )
 }
 
@@ -179,17 +310,22 @@ function DetailCell({
   )
 }
 
+/**
+ * The selected quant: its facts as the disclosure's toggle, then Download,
+ * its progress or Open, and the remove button once it has files on disk.
+ */
 function MediaQuantRow({
   family,
   quant,
   recommended,
-  labelWidth,
+  expanded,
+  onToggle,
 }: {
   family: DiffusionCatalogFamily
   quant: DiffusionCatalogQuant
   recommended: boolean
-  /** Shared by every row of the family: a CSS width for the label chip. */
-  labelWidth: string
+  expanded: boolean
+  onToggle: () => void
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -232,33 +368,30 @@ function MediaQuantRow({
     }
   }
 
+  const Chevron = expanded ? IconChevronUp : IconChevronDown
+
   return (
-    <li
+    <div
       // At 1024 px the panel is too narrow for the facts and the actions on
-      // one line; every row then wraps the same way, actions under the facts.
-      className="flex flex-wrap items-center gap-x-2 gap-y-1.5 py-2"
+      // one line; the actions then wrap under the facts.
+      className="flex flex-wrap items-center gap-x-3 gap-y-1.5"
       data-testid={`media-quant-${id}`}
     >
-      <span className="flex min-w-0 flex-1 basis-48 items-center gap-2">
-        <span
-          className="shrink-0 truncate rounded-[5px] bg-secondary px-1.5 py-0.5 text-center font-mono text-[11px] font-semibold text-muted-foreground"
-          style={{ width: labelWidth }}
-        >
-          {quant.label}
-        </span>
-        <FitBadge
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        aria-label={t('hub:downloadOptions')}
+        className="flex min-w-0 flex-1 basis-56 items-center gap-2 rounded-md bg-muted/40 px-2 py-2 text-left hover:bg-muted/60"
+      >
+        <QuantFacts
+          quant={quant}
           fit={artifact.fit}
-          className="shrink-0 px-2 py-0.5 text-[10px]"
+          totalBytes={artifact.totalBytes}
+          recommended={recommended}
         />
-        <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-          {t('images:model.sizeGb', { size: gb(artifact.totalBytes) })}
-        </span>
-        {recommended && (
-          <span className="min-w-0 truncate rounded-[5px] border border-border px-1.5 py-px text-[10px] font-semibold text-muted-foreground">
-            {t('images:model.recommended')}
-          </span>
-        )}
-      </span>
+        <Chevron size={15} className="ml-auto shrink-0 text-muted-foreground" />
+      </button>
       {/* One action column in every state: Download, its progress and Open
           share the w-24 slot, and the remove slot is held even when empty. */}
       <span
@@ -334,6 +467,6 @@ function MediaQuantRow({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </li>
+    </div>
   )
 }
