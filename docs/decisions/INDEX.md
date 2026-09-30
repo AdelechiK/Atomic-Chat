@@ -9,7 +9,7 @@ decision is reversed, add a new one that says which record it supersedes.
 2. Add one line to the right section of this index.
 3. Do **not** paste the record body into `AGENTS.md`.
 
-373 records, 2026-05-19 → 2026-09-30.
+374 records, 2026-05-19 → 2026-09-30.
 
 ---
 
@@ -261,8 +261,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-07-15** — [Aggregate Local API Server request telemetry into three-minute summaries (ATO-297)](2026-07-15-aggregate-local-api-server-request-telemetry-into-three-minute.md)
 - **2026-06-09** — [Make the Local API Server "Invalid host header" rejection actionable + fix Trusted Hosts field copy (ATO-118, scope I+II)](2026-06-09-make-the-local-api-server-invalid-host-header-rejection.md)
 
-## Telemetry, crash reporting & error handling (10)
+## Telemetry, crash reporting & error handling (11)
 
+- **2026-09-30** — [Run hardware probes off the UI thread](2026-09-30-run-hardware-probes-off-the-ui-thread.md)
 - **2026-09-22** — [Tell the core "off" in a build that does not report](2026-09-22-tell-the-core-off-in-a-build-that-does-not-report.md)
 - **2026-09-21** — [Tell the core the error-reporting consent, and leave local engine errors to it](2026-09-21-tell-the-core-the-error-reporting-consent-and-leave-local-engine-errors-to-it.md)
 - **2026-09-14** — [Register the shared HTTP commands on mobile, and make a refused connection say so](2026-09-14-register-shared-http-commands-on-mobile-and-surface-network-failures.md)
