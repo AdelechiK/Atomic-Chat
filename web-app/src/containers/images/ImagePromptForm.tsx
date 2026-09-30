@@ -256,9 +256,9 @@ export const ImagePromptForm = memo(function ImagePromptForm({
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-6 pt-4 pb-4 [scrollbar-gutter:stable]"
         data-testid="image-form-scroller"
       >
-        {/* The sidebar and the heading name the section; the pill under
-            them picks what the column does. */}
-        <div className="mb-1 flex flex-col gap-3">
+        {/* The sidebar and the heading name the section; the Mode field
+            under them picks what the column does. */}
+        <div className="flex flex-col gap-4">
           <MediaPageHeading
             title={t('images:page.title')}
             subtitle={t('images:page.subtitle')}

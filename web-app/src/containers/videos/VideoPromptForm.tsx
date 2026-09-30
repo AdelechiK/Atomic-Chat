@@ -255,8 +255,8 @@ export const VideoPromptForm = memo(function VideoPromptForm({
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-6 pt-4 pb-4 [scrollbar-gutter:stable]"
         data-testid="video-form-scroller"
       >
-        {/* The same heading and mode pill as Images. */}
-        <div className="mb-1 flex flex-col gap-3">
+        {/* The same heading and Mode field as Images. */}
+        <div className="flex flex-col gap-4">
           <MediaPageHeading
             title={t('videos:page.title')}
             subtitle={t('videos:page.subtitle')}

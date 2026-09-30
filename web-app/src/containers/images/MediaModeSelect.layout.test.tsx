@@ -186,15 +186,25 @@ describe('media page heading and mode pill geometry', () => {
         expect(subtitle.getBoundingClientRect().top).toBeGreaterThanOrEqual(
           heading.getBoundingClientRect().bottom
         )
-        // The mode pill is its own row under them, as wide as the column's
-        // content, and its truncating title is tall enough not to clip a "g".
+        // The Mode field is its own row under them: a one-line label over a
+        // pill as wide as the column's content, whose truncating title is
+        // tall enough not to clip a "g".
+        const modeLabel = screen.getByText('Mode', { exact: true })
         const select = screen.getByTestId(`${prefix}-workflow-select`)
         const title = screen.getByTestId(`${prefix}-workflow-title`)
         const scroller = screen.getByTestId(`${prefix}-form-scroller`)
         const content = scroller.getBoundingClientRect()
         const padding = getComputedStyle(scroller)
-        expect(select.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        expectOneLine(modeLabel)
+        expect(modeLabel.getBoundingClientRect().top).toBeGreaterThanOrEqual(
           subtitle.getBoundingClientRect().bottom
+        )
+        expect(select.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+          modeLabel.getBoundingClientRect().bottom
+        )
+        expect(modeLabel.getBoundingClientRect().left).toBeCloseTo(
+          select.getBoundingClientRect().left,
+          0
         )
         expect(select.getBoundingClientRect().left).toBeCloseTo(
           content.left + Number.parseFloat(padding.paddingLeft),
