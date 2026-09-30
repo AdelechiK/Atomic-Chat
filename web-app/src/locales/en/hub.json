@@ -7,6 +7,7 @@
   "installedOnDevice": "Installed on this device",
   "loadingModels": "Loading models...",
   "noModels": "No models found",
+  "clearSearch": "Clear search",
   "by": "By",
   "downloads": "Downloads",
   "variants": "Variants",
@@ -64,5 +65,18 @@
   "readmeUnavailable": "README is not available for this model.",
   "tooLargeTitle": "This model may not run on this device",
   "tooLargeDescription": "It needs more memory than this device has, so it may fail to load or run slowly.",
-  "downloadAnyway": "Download anyway"
+  "downloadAnyway": "Download anyway",
+  "categoryChat": "Text",
+  "categoryImages": "Images",
+  "categoryVideo": "Video",
+  "categories": "Model type",
+  "searchImagePlaceholder": "Search image models…",
+  "searchVideoPlaceholder": "Search video models…",
+  "open": "Open",
+  "openInImages": "Open in Images",
+  "openInVideo": "Open in Video",
+  "defaultSize": "Default size",
+  "steps": "Steps",
+  "license": "License",
+  "frameRate": "Frame rate"
 }
