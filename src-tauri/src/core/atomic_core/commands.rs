@@ -491,8 +491,15 @@ async fn run_host_step_unix<R: Runtime>(
                 None,
             )
         })?;
+    // The CLI core beside the core this app runs: the bundled pair, or the local build that
+    // ATOMIC_CORE_CMD points at in development.
     let resource_dir = app.path().resource_dir().unwrap_or_default();
-    let core_binary = super::launch::bundled_core_path(&resource_dir);
+    let command = super::launch::resolve_core_command(
+        &resource_dir,
+        std::env::var(super::launch::CORE_COMMAND_ENV).ok().as_deref(),
+    )?;
+    let core_binary = host_step::executor_binary(&command)
+        .map_err(|why| CoreError::new("MANAGED_HOST_STEP_INVALID", "Could not prepare the privileged step.", Some(why)))?;
     let supervisor = client.supervisor();
     let prepared = host_step::prepare(&runtime_dir, &core_binary, &step, supervisor.data_folder())
         .map_err(|e| {
@@ -504,7 +511,13 @@ async fn run_host_step_unix<R: Runtime>(
         })?;
 
     let (outcome, log_tail) = match host_step::elevate(std::path::Path::new("pkexec"), &prepared).await {
-        Elevation::Finished { outcome, log_tail } => (outcome, log_tail),
+        Elevation::Finished { outcome, log_tail } => {
+            if outcome == ReceiptOutcome::Failed {
+                // The result file goes with the copy; its reason stays in the app log (F-2).
+                log::warn!("[host-step] {} failed: {log_tail}", step.step_id);
+            }
+            (outcome, log_tail)
+        }
         Elevation::Declined => (ReceiptOutcome::Declined, String::new()),
         Elevation::Manual { command } => {
             let app = app.clone();
@@ -515,6 +528,9 @@ async fn run_host_step_unix<R: Runtime>(
                     MANUAL_HOST_STEP_WAIT,
                 )
                 .await;
+                if let Some((ReceiptOutcome::Failed, why)) = &result {
+                    log::warn!("[host-step] {} failed: {why}", step.step_id);
+                }
                 if let (Some((outcome, _)), Some(client)) = (result, app.try_state::<AtomicCoreClient>()) {
                     send_host_step_receipt(&client, &step, outcome).await;
                 }

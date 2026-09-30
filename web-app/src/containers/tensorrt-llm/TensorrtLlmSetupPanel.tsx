@@ -59,12 +59,19 @@ type Approval = { kind: 'setup'; digest: Sha256Digest } | { kind: 'remove' }
  * second password prompt for a step whose executor may still be running.
  */
 const promptedSteps = new Set<string>()
-/** Steps whose prompt is open, as a store so every mounted panel sees it close. */
-const useElevatingSteps = create<{ steps: string[] }>()(() => ({ steps: [] }))
+/**
+ * Steps whose prompt is open, and why a privileged step failed, by operation: a store so every
+ * mounted panel sees them, including one opened after the step ended. The core's own error for the
+ * operation is generic; the executor's reason (the step, its exit code, its stderr) is only here.
+ */
+const useElevatingSteps = create<{ steps: string[]; failures: Record<string, string> }>()(() => ({
+  steps: [],
+  failures: {},
+}))
 
 export function resetHostStepPromptsForTests(): void {
   promptedSteps.clear()
-  useElevatingSteps.setState({ steps: [] })
+  useElevatingSteps.setState({ steps: [], failures: {} })
 }
 
 const errorText = (error: unknown) =>
@@ -90,6 +97,7 @@ export function TensorrtLlmSetupPanel() {
   const approval = useRef<Approval | null>(null)
   const answeredConsent = useRef<string | null>(null)
   const elevatingSteps = useElevatingSteps((state) => state.steps)
+  const stepFailures = useElevatingSteps((state) => state.failures)
   const environmentRef = useRef(environment)
   environmentRef.current = environment
 
@@ -197,6 +205,13 @@ export function TensorrtLlmSetupPanel() {
     void runHostStep(operationId)
       .then((answer) => {
         if (answer.outcome === 'manual') setManualCommand(answer.command)
+        if (answer.outcome === 'failed' && answer.log_tail) {
+          const reason = answer.log_tail
+          console.warn(`[tensorrt-llm] privileged step ${stepId} failed: ${reason}`)
+          useElevatingSteps.setState(({ failures }) => ({
+            failures: { ...failures, [operationId]: reason },
+          }))
+        }
       })
       .catch((error) => setActionError(errorText(error)))
       .finally(() =>
@@ -274,6 +289,11 @@ export function TensorrtLlmSetupPanel() {
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">{t('providers:tensorrt.failed')}</p>
           <p className="text-sm text-destructive break-words">{view.operation.error?.message}</p>
+          {stepFailures[view.operation.operation_id] && (
+            <pre className="max-h-60 overflow-auto rounded bg-main-view-fg/5 p-2 text-xs whitespace-pre-wrap break-words">
+              {stepFailures[view.operation.operation_id]}
+            </pre>
+          )}
           <div>
             <Button
               variant="outline"
@@ -503,6 +523,9 @@ function OperationStatus({
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium">{t('providers:tensorrt.relogin.title')}</p>
           <p className="text-sm text-main-view-fg/70">{t('providers:tensorrt.relogin.body')}</p>
+          <p className="text-sm text-main-view-fg/70">
+            {t('providers:tensorrt.relogin.stillWaiting')}
+          </p>
         </div>
       ) : (
         <p className="text-sm font-medium">{t(`providers:tensorrt.phase.${operation.phase}`)}</p>

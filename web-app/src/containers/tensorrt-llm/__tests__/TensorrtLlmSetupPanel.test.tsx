@@ -339,6 +339,48 @@ describe('TensorrtLlmSetupPanel', () => {
     expect(client.beginOperation).not.toHaveBeenCalled()
   })
 
+  it('shows why the privileged step failed, not only that it did, even after the page opens again', async () => {
+    // Manual run F-2: the screen said only "Preparing the system did not finish".
+    client.runHostStep.mockResolvedValue({
+      outcome: 'failed',
+      log_tail: 'docker-service failed (exit 1): all predefined address pools have been fully subnetted',
+    })
+    seed(environment({ active_operation_id: 'op-1' }), [
+      operation({
+        phase: 'preparing-host',
+        revision: 3,
+        pending_host_step: { step_id: 'step-f2' } as EnvironmentOperation['pending_host_step'],
+      }),
+    ])
+    const first = render(<TensorrtLlmSetupPanel />)
+    await waitFor(() => expect(client.runHostStep).toHaveBeenCalled())
+    coreSays(
+      operation({
+        phase: 'failed',
+        revision: 4,
+        error: { code: 'MANAGED_HOST_STEP_FAILED', message: 'Preparing the system did not finish.' },
+      })
+    )
+    expect(await screen.findByText(/fully subnetted/)).toBeInTheDocument()
+    first.unmount()
+
+    render(<TensorrtLlmSetupPanel />)
+
+    expect(await screen.findByText(/docker-service failed \(exit 1\)/)).toBeInTheDocument()
+  })
+
+  it('suggests a restart when signing out and in did not bring the docker group', async () => {
+    // Manual run F-7: a user systemd that outlives the sign-out keeps the old groups.
+    seed(environment({ active_operation_id: 'op-1' }), [
+      operation({ phase: 'relogin-required', revision: 5 }),
+    ])
+
+    render(<TensorrtLlmSetupPanel />)
+
+    expect(await screen.findByText('providers:tensorrt.relogin.title')).toBeInTheDocument()
+    expect(screen.getByText('providers:tensorrt.relogin.stillWaiting')).toBeInTheDocument()
+  })
+
   it('never asks for the system password twice for one step, even after the page opens again', async () => {
     let finish!: (answer: { outcome: string }) => void
     client.runHostStep.mockImplementation(() => new Promise((resolve) => (finish = resolve)))

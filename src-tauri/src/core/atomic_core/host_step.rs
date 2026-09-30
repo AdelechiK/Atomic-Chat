@@ -37,6 +37,48 @@ const NO_AGENT_MARKER: &str = "No authentication agent";
 /// How often the result file is looked for while the person runs the `sudo` command.
 pub const MANUAL_POLL_INTERVAL: Duration = Duration::from_secs(2);
 
+/// The app core's file name, and the CLI core's: the pair `yarn download:core` bundles and
+/// `npm run build:bin` builds side by side (with a `-<triple>` suffix there).
+const APP_CORE_NAME: &str = "atomic-chat-app-core";
+const CLI_CORE_NAME: &str = "atomic-chat-core";
+
+/// The binary that executes a privileged step: the CLI core next to the core the app runs.
+///
+/// Only the CLI core has `host-step exec`; the app core accepts nothing but `daemon` (manual run
+/// F-1). The pair always sits together — `resources/bin` in the app bundle and the AppImage, and
+/// `dist/bin` of a local core build that `ATOMIC_CORE_CMD` points at in development (F-3) — so the
+/// executor is found from the same command the app starts its core with, never from a second place
+/// that could hold another build.
+pub fn executor_binary(command: &super::launch::CoreCommand) -> Result<PathBuf, String> {
+    if !command.prefix.is_empty() {
+        return Err(format!(
+            "The core runs from source ({} …), which has no compiled `{CLI_CORE_NAME}` to run the \
+             privileged step with. Build the core (`npm run build:bin`) and point ATOMIC_CORE_CMD \
+             at the `{APP_CORE_NAME}` binary it builds.",
+            command.program
+        ));
+    }
+    let program = Path::new(&command.program);
+    let name = program
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| name.starts_with(APP_CORE_NAME))
+        .ok_or_else(|| {
+            format!(
+                "The core `{}` is not an `{APP_CORE_NAME}` build, so its `{CLI_CORE_NAME}` twin cannot be found.",
+                program.display()
+            )
+        })?;
+    let executor = program.with_file_name(name.replacen(APP_CORE_NAME, CLI_CORE_NAME, 1));
+    if !executor.is_file() {
+        return Err(format!(
+            "`{}` is missing: the privileged step runs on the CLI core that ships beside the app core.",
+            executor.display()
+        ));
+    }
+    Ok(executor)
+}
+
 /// Steps whose executor is running now, in this app. A second run of the same step would race the
 /// first over the package manager, and its receipt would be refused.
 static IN_FLIGHT: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
@@ -299,7 +341,7 @@ fn finished(prepared: &PreparedStep, code: Option<i32>, stderr: &str) -> Elevati
 pub fn read_result(path: &Path) -> Option<(ReceiptOutcome, String)> {
     let text = std::fs::read_to_string(path).ok()?;
     let result: Value = serde_json::from_str(&text).ok()?;
-    let log_tail = result
+    let mut log_tail = result
         .get("log_tail")
         .and_then(Value::as_str)
         .unwrap_or_default()
@@ -308,6 +350,24 @@ pub fn read_result(path: &Path) -> Option<(ReceiptOutcome, String)> {
         Some("completed") => ReceiptOutcome::Completed,
         _ => ReceiptOutcome::Failed,
     };
+    // The step that failed, its exit code and its own stderr come first: the tail of the log alone
+    // did not say which change broke (manual run F-2).
+    let failed = result
+        .get("steps")
+        .and_then(Value::as_array)
+        .and_then(|steps| steps.iter().find(|step| step.get("status").and_then(Value::as_str) == Some("failed")));
+    if let Some(step) = failed {
+        let id = step.get("id").and_then(Value::as_str).unwrap_or("a step");
+        let code = step
+            .get("exit_code")
+            .and_then(Value::as_i64)
+            .map(|code| format!(" (exit {code})"))
+            .unwrap_or_default();
+        let stderr = step.get("stderr").and_then(Value::as_str).unwrap_or_default().trim();
+        let detail = step.get("detail").and_then(Value::as_str).unwrap_or_default().trim();
+        let why = if stderr.is_empty() { detail } else { stderr };
+        log_tail = format!("{id} failed{code}: {why}\n{log_tail}");
+    }
     Some((outcome, log_tail))
 }
 
@@ -471,6 +531,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_failed_step_is_named_with_its_exit_code_and_error() {
+        // Manual run F-2: the person saw only "did not finish"; the result file said why.
+        let bin = tempfile::tempdir().unwrap();
+        let core = fake_core(
+            bin.path(),
+            Some(r#"{"outcome":"failed","log_tail":"docker.service: start-limit-hit","steps":[{"id":"docker-engine","status":"applied","exit_code":0,"stderr":"","detail":""},{"id":"docker-service","status":"failed","exit_code":1,"stderr":"all predefined address pools have been fully subnetted","detail":"systemctl enable --now docker"}]}"#),
+            1,
+        );
+        let (_runtime, prepared) = laid_out(&core);
+
+        match elevate(&passthrough_pkexec(bin.path()), &prepared).await {
+            Elevation::Finished { outcome, log_tail } => {
+                assert_eq!(outcome, ReceiptOutcome::Failed);
+                assert!(log_tail.starts_with("docker-service failed (exit 1)"), "{log_tail}");
+                assert!(log_tail.contains("fully subnetted"), "{log_tail}");
+                assert!(log_tail.contains("start-limit-hit"), "{log_tail}");
+            }
+            other => panic!("expected a failure, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
     async fn no_result_file_is_a_failure() {
         // Exit 2: the executor did not trust the folder, or could not write its result.
         let bin = tempfile::tempdir().unwrap();
@@ -557,6 +639,51 @@ mod tests {
         let picked = wait_for_result(&prepared, Duration::from_millis(5), Duration::from_millis(30)).await;
 
         assert_eq!(picked, None);
+    }
+
+    fn command(program: &Path, prefix: &[&str]) -> super::super::launch::CoreCommand {
+        super::super::launch::CoreCommand {
+            program: program.to_string_lossy().into_owned(),
+            prefix: prefix.iter().map(|arg| arg.to_string()).collect(),
+            resources_dir: None,
+            cloudflared_bin: None,
+        }
+    }
+
+    #[test]
+    fn the_executor_is_the_cli_core_next_to_the_bundled_app_core() {
+        // Manual run F-1: the app core accepts only `daemon`; `host-step exec` is the CLI core's.
+        let bin = tempfile::tempdir().unwrap();
+        let app_core = script(bin.path(), "atomic-chat-app-core", "exit 0");
+        let cli_core = script(bin.path(), "atomic-chat-core", "exit 0");
+
+        assert_eq!(executor_binary(&command(&app_core, &[])).unwrap(), cli_core);
+    }
+
+    #[test]
+    fn a_local_core_build_is_paired_with_the_cli_core_built_beside_it() {
+        // Manual run F-3: in Linux dev the core runs through ATOMIC_CORE_CMD from `npm run build:bin`.
+        let bin = tempfile::tempdir().unwrap();
+        let app_core = script(bin.path(), "atomic-chat-app-core-x86_64-unknown-linux-gnu", "exit 0");
+        let cli_core = script(bin.path(), "atomic-chat-core-x86_64-unknown-linux-gnu", "exit 0");
+
+        assert_eq!(executor_binary(&command(&app_core, &[])).unwrap(), cli_core);
+    }
+
+    #[test]
+    fn a_core_without_its_cli_twin_is_named_rather_than_guessed() {
+        let bin = tempfile::tempdir().unwrap();
+        let app_core = script(bin.path(), "atomic-chat-app-core", "exit 0");
+
+        let error = executor_binary(&command(&app_core, &[])).unwrap_err();
+        assert!(error.contains("atomic-chat-core"), "{error}");
+    }
+
+    #[test]
+    fn a_core_run_from_source_has_no_binary_to_elevate() {
+        let error = executor_binary(&command(Path::new("/usr/bin/bun"), &["run", "src/app-daemon.ts"]))
+            .unwrap_err();
+        assert!(error.contains("ATOMIC_CORE_CMD"), "{error}");
     }
 
     #[test]

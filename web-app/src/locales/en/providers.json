@@ -125,7 +125,8 @@
     },
     "relogin": {
       "title": "Sign out and sign back in",
-      "body": "You were added to the docker group, which takes effect at your next sign-in. After you sign back in and open Atomic Chat, the installation continues by itself."
+      "body": "You were added to the docker group, which takes effect at your next sign-in. After you sign back in and open Atomic Chat, the installation continues by itself.",
+      "stillWaiting": "Already signed out and back in, and still waiting here? Restart the computer: a session that stays running in the background (a remote login, or services kept alive after sign-out) can keep your old groups."
     },
     "phase": {
       "checking": "Checking this computer…",
