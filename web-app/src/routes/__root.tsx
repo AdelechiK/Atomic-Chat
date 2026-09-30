@@ -24,6 +24,7 @@ import { AnalyticProvider } from '@/providers/AnalyticProvider'
 import { useLeftPanel } from '@/hooks/useLeftPanel'
 import { useTrayStatusSync } from '@/hooks/useTrayStatusSync'
 import { useRemoteAccessSync } from '@/hooks/useRemoteAccessSync'
+import { useManagedEnvironmentSync } from '@/hooks/useManagedEnvironmentSync'
 import ToolApproval from '@/containers/dialogs/ToolApproval'
 import AgentApprovalDialog from '@/containers/dialogs/AgentApprovalDialog'
 import AgentFolderAccessDialog from '@/containers/dialogs/AgentFolderAccessDialog'
@@ -68,6 +69,9 @@ const AppLayout = () => {
   // starts the tunnel with the Local API Server when asked to. No-op wherever
   // there is no Local API Server (mobile, web).
   useRemoteAccessSync()
+  // Follows the core's TensorRT-LLM environment and its setup for the whole session, so the
+  // provider page finds a running setup as it is. No-op off Linux.
+  useManagedEnvironmentSync()
   const isSetupCompleted = useSetupCompleted()
 
   return (
