@@ -22,8 +22,10 @@ export function RemoteLanSection({
   const remote = useRemoteAccess({ server })
   const lan = useLanAccess({ server, hasApiKey: remote.hasApiKey })
 
+  // Side by side the two cards share the row's height: the shorter one
+  // stretches instead of leaving a hole above the metrics.
   return (
-    <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       <RemoteAccessCard remote={remote} />
       <LanAccessCard lan={lan} />
     </div>
