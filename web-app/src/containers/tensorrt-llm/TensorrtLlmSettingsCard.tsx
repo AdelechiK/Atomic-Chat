@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { DropdownControl } from '@/containers/dynamicControllerSetting/DropdownControl'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { formatBytes } from '@/lib/utils'
 import type { GpuFacts, ManagedError } from '@/services/managed-environment/types'
@@ -81,27 +82,25 @@ export function TensorrtLlmSettingsCard({
     <div className="flex flex-col gap-3 rounded-lg border border-main-view-fg/10 p-4">
       <h2 className="font-medium text-main-view-fg">{t('providers:tensorrt.settings.title')}</h2>
 
-      <label className="flex min-w-0 flex-col gap-1 text-sm">
+      <div className="flex min-w-0 flex-col gap-1 text-sm">
         <span className="font-medium">{t('providers:tensorrt.settings.gpu')}</span>
-        <select
-          className="min-w-0 rounded-md border border-main-view-fg/10 bg-transparent px-2 py-1"
+        {/* The app's own menu, not a native <select>: WebKitGTK draws a select's list with the
+            system theme, so in the app's dark theme it came up light (F-11). */}
+        <DropdownControl
           value={gpuId}
-          onChange={(event) => onChange('gpu_id', event.target.value)}
-        >
-          <option value="">{t('providers:tensorrt.settings.gpuDefault')}</option>
-          {gpus.map((gpu) => (
-            <option key={gpu.gpu_id} value={gpu.gpu_id}>
-              {gpuLabel(gpu)}
-            </option>
-          ))}
-          {gpuGone && <option value={gpuId}>{gpuId}</option>}
-        </select>
+          options={[
+            { value: '', name: t('providers:tensorrt.settings.gpuDefault') },
+            ...gpus.map((gpu) => ({ value: gpu.gpu_id, name: gpuLabel(gpu) })),
+            ...(gpuGone ? [{ value: gpuId, name: gpuId }] : []),
+          ]}
+          onChange={(value) => onChange('gpu_id', String(value))}
+        />
         {gpuGone && (
           <span className="text-xs text-main-view-fg/70">
             {t('providers:tensorrt.settings.gpuMissing', { gpu: gpuId })}
           </span>
         )}
-      </label>
+      </div>
 
       {Number.isFinite(context) && Number.isFinite(output) && output >= context && (
         <p className="text-sm text-destructive">

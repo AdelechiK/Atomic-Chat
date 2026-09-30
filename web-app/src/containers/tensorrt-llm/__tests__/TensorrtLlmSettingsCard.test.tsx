@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/i18n/react-i18next-compat', () => ({
@@ -59,9 +60,11 @@ const settings = (values: Record<string, unknown>) =>
   })) as unknown as ProviderSetting[]
 
 describe('TensorrtLlmSettingsCard', () => {
-  it('offers the cards the core found, by name, with the most-free-memory default first', () => {
+  it('offers the cards the core found, by name, with the most-free-memory default first', async () => {
+    // Through the app's own menu, never a native <select> (task 3.19, F-11: dark theme).
     const onChange = vi.fn()
-    render(
+    const user = userEvent.setup()
+    const { container } = render(
       <TensorrtLlmSettingsCard
         settings={settings({ gpu_id: '', context_length: 8192, max_output_tokens: 4096 })}
         models={[]}
@@ -69,14 +72,37 @@ describe('TensorrtLlmSettingsCard', () => {
       />
     )
 
-    const select = screen.getByRole('combobox') as HTMLSelectElement
-    expect([...select.options].map((o) => o.value)).toEqual(['', 'GPU-aaa', 'GPU-bbb'])
-    expect(select.value).toBe('')
-    fireEvent.change(select, { target: { value: 'GPU-bbb' } })
-    expect(onChange).toHaveBeenCalledWith('gpu_id', 'GPU-bbb')
+    expect(container.querySelector('select')).toBeNull()
+    const trigger = screen.getByRole('button', { name: 'providers:tensorrt.settings.gpuDefault' })
+    await user.click(trigger)
+    const items = screen.getAllByRole('menuitem').map((item) => item.textContent)
+    expect(items).toEqual([
+      'providers:tensorrt.settings.gpuDefault',
+      'RTX 4090 (8.9) · 19.0 GB / 24.0 GB',
+      'RTX 4090 (8.9) · 23.0 GB / 24.0 GB',
+    ])
+    await user.click(screen.getByRole('menuitem', { name: 'RTX 4090 (8.9) · 23.0 GB / 24.0 GB' }))
+    expect(onChange.mock.calls).toEqual([['gpu_id', 'GPU-bbb']])
   })
 
-  it('keeps a saved card that is gone visible, so the person sees what the load will replace', () => {
+  it('goes back to the default card from a chosen one', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <TensorrtLlmSettingsCard
+        settings={settings({ gpu_id: 'GPU-aaa', context_length: 8192, max_output_tokens: 4096 })}
+        models={[]}
+        onChange={onChange}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'RTX 4090 (8.9) · 19.0 GB / 24.0 GB' }))
+    await user.click(screen.getByRole('menuitem', { name: 'providers:tensorrt.settings.gpuDefault' }))
+    expect(onChange.mock.calls).toEqual([['gpu_id', '']])
+  })
+
+  it('keeps a saved card that is gone visible, so the person sees what the load will replace', async () => {
+    const user = userEvent.setup()
     render(
       <TensorrtLlmSettingsCard
         settings={settings({ gpu_id: 'GPU-gone', context_length: 8192, max_output_tokens: 4096 })}
@@ -85,8 +111,8 @@ describe('TensorrtLlmSettingsCard', () => {
       />
     )
 
-    const select = screen.getByRole('combobox') as HTMLSelectElement
-    expect(select.value).toBe('GPU-gone')
+    await user.click(screen.getByRole('button', { name: 'GPU-gone' }))
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toContain('GPU-gone')
     expect(screen.getByText(/providers:tensorrt.settings.gpuMissing/)).toBeInTheDocument()
   })
 
