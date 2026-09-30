@@ -246,6 +246,20 @@ describe('DefaultModelsService', () => {
       expect(mockEngine.delete).toHaveBeenCalledWith(id)
     })
 
+    it('answers what an engine that measures its deletes freed (TensorRT-LLM, task 3.15)', async () => {
+      const engine = {
+        delete: vi.fn(),
+        deleteWithReport: vi.fn().mockResolvedValue({ freedBytes: 4_100_000_000 }),
+      }
+      mockEngineManager.get.mockReturnValueOnce(engine)
+
+      await expect(
+        modelsService.deleteModel('Qwen/Qwen3-1.7B', 'tensorrt-llm')
+      ).resolves.toEqual({ freedBytes: 4_100_000_000 })
+      expect(engine.deleteWithReport).toHaveBeenCalledWith('Qwen/Qwen3-1.7B')
+      expect(engine.delete).not.toHaveBeenCalled()
+    })
+
     it('rejects instead of reporting success when the provider has no engine', async () => {
       mockEngineManager.get.mockReturnValueOnce(undefined)
 

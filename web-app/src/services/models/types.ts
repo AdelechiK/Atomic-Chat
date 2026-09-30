@@ -147,6 +147,14 @@ export type PreflightReason =
   | 'NETWORK'
   | 'UNKNOWN'
 
+/**
+ * What a delete freed, from an engine that deletes through the core and has it measured there
+ * (TensorRT-LLM: the model folder and every engine cache of it, core task 2.24).
+ */
+export interface ModelDeletionReport {
+  freedBytes: number
+}
+
 export interface ModelsService {
   getModel(modelId: string): Promise<modelInfo | undefined>
   fetchModels(): Promise<modelInfo[]>
@@ -199,7 +207,8 @@ export interface ModelsService {
     resume?: boolean
   ): Promise<DownloadRefusal | undefined>
   abortDownload(id: string): Promise<void>
-  deleteModel(id: string, provider?: string): Promise<void>
+  /** Resolves with what the delete freed when the engine measures it (TensorRT-LLM does). */
+  deleteModel(id: string, provider?: string): Promise<ModelDeletionReport | void>
   getActiveModels(provider?: string): Promise<string[]>
   stopModel(model: string, provider?: string): Promise<UnloadResult | undefined>
   stopAllModels(): Promise<void>

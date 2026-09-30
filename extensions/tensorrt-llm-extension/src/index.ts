@@ -33,7 +33,7 @@ import {
 import { info, warn, error as logError } from '@tauri-apps/plugin-log'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { createCoreRuntime, describeCoreError } from '../../shared/atomicCoreRuntime'
+import { createCoreRuntime, describeCoreError, isCoreError } from '../../shared/atomicCoreRuntime'
 import type {
   CoreSessionInfo,
   CoreSessionLoadProgress,
@@ -61,6 +61,30 @@ interface TensorrtLlmModelYml {
   architectures?: string[]
   quantization?: string | null
   files?: Array<{ path: string; size: number; sha256?: string | null }>
+}
+
+/** What `DELETE /models/tensorrt-llm/:id` answers (core task 2.24). */
+interface TensorrtLlmModelDeletion {
+  model_id: string
+  was_loaded: boolean
+  freed_bytes: number
+  engine_caches_removed: number
+}
+
+/**
+ * A refused deletion as an `Error` the app can show as it is, keeping the core's `code`. The two
+ * refusals a person can meet get their own words: the model would not stop (nothing was deleted),
+ * and the model is not there (never read as a success, design D12a).
+ */
+function deletionError(modelId: string, error: unknown): Error & { code?: string } {
+  const code = isCoreError(error) ? error.code : undefined
+  const message =
+    code === 'MANAGED_STOP_UNCONFIRMED'
+      ? `TensorRT-LLM could not stop ${modelId}, so its files were not touched. Try again, or check Docker.`
+      : code === 'MODEL_NOT_FOUND'
+        ? `TensorRT-LLM has no model ${modelId}. It may have been deleted already.`
+        : `TensorRT-LLM could not delete ${modelId}: ${describeCoreError(error)}`
+  return Object.assign(new Error(message), { code })
 }
 
 const logger = {
@@ -396,10 +420,30 @@ export default class TensorrtLlmExtension extends AIEngine {
 
   // ── Operations the app does elsewhere ──────────────────────────────────────
 
-  override async delete(_modelId: string): Promise<void> {
-    // Only the core knows whether the model is loaded and owns its engine cache; deleting one model
-    // is not part of this release (design D12a). Removing the engine removes models on request.
-    throw new Error('Deleting a single TensorRT-LLM model is not supported yet. Remove the engine instead.')
+  override async delete(modelId: string): Promise<void> {
+    await this.deleteWithReport(modelId)
+  }
+
+  /**
+   * Delete a model through the core (`DELETE /models/tensorrt-llm/:id`, design D12a): only the core
+   * knows whether the model is loaded and owns its engine caches, so it stops the container, waits
+   * for Docker to confirm, then removes every engine cache of the model and its folder. The app
+   * never touches the folder itself. Answers the space freed; `AIEngine.delete` has no room for
+   * it, so the app asks for this method by name where it can show the number.
+   */
+  async deleteWithReport(modelId: string): Promise<{ freedBytes: number }> {
+    logger.info(`[tensorrt-llm] delete ${modelId}`)
+    try {
+      const deletion = await this.coreCall<TensorrtLlmModelDeletion>('DELETE', `/models/${ENGINE_ID}/${modelId}`)
+      logger.info(
+        `[tensorrt-llm] deleted ${modelId}: ${deletion.freed_bytes} bytes freed, ` +
+          `${deletion.engine_caches_removed} engine caches, ${deletion.was_loaded ? 'was' : 'was not'} loaded`
+      )
+      return { freedBytes: deletion.freed_bytes }
+    } catch (error) {
+      logger.warn(`[tensorrt-llm] delete ${modelId} failed: ${describeCoreError(error)}`)
+      throw deletionError(modelId, error)
+    }
   }
 
   override async update(_modelId: string, _model: Partial<modelInfo>): Promise<void> {
@@ -426,7 +470,7 @@ export default class TensorrtLlmExtension extends AIEngine {
     }
   }
 
-  private coreCall<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  private coreCall<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T> {
     return invoke<T>('atomic_core_call', { method, path, body: body ?? null })
   }
 }

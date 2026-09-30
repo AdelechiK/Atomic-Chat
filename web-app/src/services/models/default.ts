@@ -36,6 +36,7 @@ import type {
   HuggingFaceFeedSort,
   HuggingFaceFeedFormat,
   CatalogModel,
+  ModelDeletionReport,
   ModelValidationResult,
 } from './types'
 import { fetch as fetchTauri } from '@tauri-apps/plugin-http'
@@ -774,7 +775,10 @@ export class DefaultModelsService implements ModelsService {
     }
   }
 
-  async deleteModel(id: string, provider?: string): Promise<void> {
+  async deleteModel(
+    id: string,
+    provider?: string
+  ): Promise<ModelDeletionReport | void> {
     const engine = this.getEngine(provider)
     // `getEngine()?.delete()` used to resolve to `undefined` when the provider
     // had no engine registered, so the caller reported a successful delete and
@@ -785,6 +789,8 @@ export class DefaultModelsService implements ModelsService {
         `No engine registered for provider "${provider ?? defaultProvider}"`
       )
     }
+    // `AIEngine.delete` answers nothing; an engine that can say what it freed offers this too.
+    if (reportsDeletion(engine)) return engine.deleteWithReport(id)
     return engine.delete(id)
   }
 
@@ -1285,4 +1291,14 @@ export class DefaultModelsService implements ModelsService {
       return 0
     }
   }
+}
+
+/** An engine whose delete reports the space it freed (the TensorRT-LLM extension, task 3.15). */
+function reportsDeletion(engine: unknown): engine is {
+  deleteWithReport(modelId: string): Promise<ModelDeletionReport>
+} {
+  return (
+    typeof (engine as { deleteWithReport?: unknown }).deleteWithReport ===
+    'function'
+  )
 }

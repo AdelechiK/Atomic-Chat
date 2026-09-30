@@ -361,6 +361,76 @@ describe('sessions', () => {
     })
   })
 
+  describe('delete (task 3.15, core 2.24)', () => {
+    const repoId = 'Qwen/Qwen3-1.7B'
+
+    it('deletes through the core with the id as it is and reports the space freed', async () => {
+      const calls = core({
+        'DELETE /models/tensorrt-llm/Qwen/Qwen3-1.7B': () => ({
+          model_id: repoId,
+          was_loaded: true,
+          freed_bytes: 4_100_000_000,
+          engine_caches_removed: 2,
+        }),
+      })
+      const extension = new TensorrtLlmExtension()
+
+      await expect(extension.deleteWithReport(repoId)).resolves.toEqual({ freedBytes: 4_100_000_000 })
+      await expect(extension.delete(repoId)).resolves.toBeUndefined()
+      // The core stops the model and removes its folder and caches; the extension does nothing else.
+      expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+        'DELETE /models/tensorrt-llm/Qwen/Qwen3-1.7B',
+        'DELETE /models/tensorrt-llm/Qwen/Qwen3-1.7B',
+      ])
+      expect(fsMock.existsSync).not.toHaveBeenCalled()
+    })
+
+    it('says the files were not touched when the core could not confirm the stop', async () => {
+      core({
+        'DELETE /models/tensorrt-llm/Qwen/Qwen3-1.7B': () => {
+          throw { code: 'MANAGED_STOP_UNCONFIRMED', message: 'Docker did not confirm the stop.' }
+        },
+      })
+
+      await expect(new TensorrtLlmExtension().delete(repoId)).rejects.toMatchObject({
+        code: 'MANAGED_STOP_UNCONFIRMED',
+        message: 'TensorRT-LLM could not stop Qwen/Qwen3-1.7B, so its files were not touched. Try again, or check Docker.',
+      })
+    })
+
+    it('fails, not succeeds, for a model the core does not have, and logs both ends', async () => {
+      const log = await import('@tauri-apps/plugin-log')
+      core({
+        'DELETE /models/tensorrt-llm/Qwen/Qwen3-1.7B': () => {
+          throw { code: 'MODEL_NOT_FOUND', message: 'Model not found' }
+        },
+      })
+
+      const failure = new TensorrtLlmExtension().delete(repoId)
+      await expect(failure).rejects.toBeInstanceOf(Error)
+      await expect(failure).rejects.toMatchObject({
+        code: 'MODEL_NOT_FOUND',
+        message: 'TensorRT-LLM has no model Qwen/Qwen3-1.7B. It may have been deleted already.',
+      })
+      expect(log.info).toHaveBeenCalledWith('[tensorrt-llm] delete Qwen/Qwen3-1.7B')
+      expect(log.warn).toHaveBeenCalledWith(
+        '[tensorrt-llm] delete Qwen/Qwen3-1.7B failed: Model not found [MODEL_NOT_FOUND]'
+      )
+    })
+
+    it('passes any other refusal on with the core\'s own words', async () => {
+      core({
+        'DELETE /models/tensorrt-llm/Qwen/Qwen3-1.7B': () => {
+          throw { code: 'MANAGED_OPERATION_CONFLICT', message: 'The model is being deleted.' }
+        },
+      })
+
+      await expect(new TensorrtLlmExtension().delete(repoId)).rejects.toThrow(
+        'TensorRT-LLM could not delete Qwen/Qwen3-1.7B: The model is being deleted. [MANAGED_OPERATION_CONFLICT]'
+      )
+    })
+  })
+
   it('chats through the session gateway with the session key', async () => {
     core({
       'GET /sessions': () => ({ sessions: [{ ...containerSession, provider: 'tensorrt-llm' }] }),
