@@ -13,8 +13,8 @@
       "description": "We picked the best version of each model for this computer."
     },
     "card": {
-      "title": "Create your first video",
-      "description": "A private video studio that runs on your computer. Two downloads are all it needs.",
+      "title": "Create videos with Local AI",
+      "description": "Turn text or a picture into video right on your computer. To start, install the media engine, then download a model.",
       "engine": "Install the media engine",
       "downloadModel": "Download model"
     }
@@ -168,7 +168,7 @@
       "body": "{{frames}} frames at {{size}} ({{seconds}} s) did not fit in memory. A shorter duration or a smaller size usually fixes it."
     },
     "INTERNAL": {
-      "title": "The video engine failed",
+      "title": "The media engine failed",
       "body": "The engine stopped without a clip. The details are in the app log."
     }
   },

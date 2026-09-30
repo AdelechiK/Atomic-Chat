@@ -47,7 +47,7 @@
     "done": "Done",
     "doneBlocked": "Install the engine and at least one model first.",
     "engine": {
-      "unsupported": "There is no image engine build for this computer yet.",
+      "unsupported": "There is no media engine build for this computer yet.",
       "failed": "The engine could not be installed.",
       "progress": "{{current}} / {{total}} GB",
       "backend": "{{backend}} · {{tag}}",
@@ -64,9 +64,9 @@
       "descriptionRunning": "The model is running. Press Done and write your first prompt."
     },
     "card": {
-      "title": "Set up image generation",
-      "description": "Two things are needed before the first image: the engine and a model.",
-      "engine": "Install the image engine"
+      "title": "Create images with Local AI",
+      "description": "Turn text into images right on your computer. To start, install the media engine, then download a model.",
+      "engine": "Install the media engine"
     }
   },
   "model": {
@@ -141,7 +141,7 @@
     "stopping": "Stopping…",
     "starting": "Starting model…",
     "disabled": {
-      "noEngine": "Install the image engine first.",
+      "noEngine": "Install the media engine first.",
       "noModel": "Download an image model first.",
       "modelLoading": "The model is still loading.",
       "emptyPrompt": "Write a prompt first.",
@@ -318,7 +318,7 @@
       "retry": "Try again"
     },
     "ENGINE_MISSING": {
-      "title": "The image engine is not installed",
+      "title": "The media engine is not installed",
       "body": "Install stable-diffusion.cpp to render images on this computer."
     },
     "ENGINE_INSTALL_FAILED": {
@@ -327,7 +327,7 @@
     },
     "ENGINE_CRASHED": {
       "title": "The renderer stopped unexpectedly",
-      "body": "sd-server exited during the job. Generating again restarts it; if it keeps happening, try a smaller model."
+      "body": "The media engine has been reset. Use a smaller resolution, then try again."
     },
     "MODEL_MISSING": {
       "title": "The model file is missing",

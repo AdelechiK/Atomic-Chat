@@ -40,6 +40,42 @@ export function describeFinishedDownload(
   }
 }
 
+export type DiffusionDownloadToast = {
+  kind: 'model' | 'engine'
+  /** While the downloaded files are checked. */
+  finishing: string
+  ready: string
+}
+
+/**
+ * What the in-app toasts say while an image or video download is checked and
+ * once it is ready; `null` for any other download. One media engine serves
+ * both pages, and a model is named by its family's modality, so a video model
+ * never reads "image model".
+ */
+export function describeDiffusionDownloadToast(
+  id: string,
+  catalog: DiffusionCatalog | null,
+  t: Translate
+): DiffusionDownloadToast | null {
+  if (id.startsWith('diffusion-backend-'))
+    return {
+      kind: 'engine',
+      finishing: t('images:download.finishingEngine'),
+      ready: t('images:download.engineReady'),
+    }
+  if (!id.startsWith('diffusion-model-')) return null
+  const family = catalog
+    ? resolveDiffusionDownloadTaskId(catalog, id)?.family
+    : undefined
+  const namespace = family?.modality === 'video' ? 'videos' : 'images'
+  return {
+    kind: 'model',
+    finishing: t(`${namespace}:download.finishingModel`),
+    ready: t(`${namespace}:download.modelReady`),
+  }
+}
+
 /** A diffusion task names its catalog family; other ids end in the file name. */
 function modelName(id: string, catalog: DiffusionCatalog | null): string {
   const diffusion = catalog ? resolveDiffusionDownloadTaskId(catalog, id) : null
