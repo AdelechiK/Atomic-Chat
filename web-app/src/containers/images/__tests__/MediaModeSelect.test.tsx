@@ -38,11 +38,12 @@ function renderSelect(value: 'create' | 'inpaint' | 'animate' = 'create') {
 }
 
 describe('MediaModeSelect', () => {
-  it('names the active mode in its pill and keeps the hints for the list', () => {
+  it('labels the pill Mode, names the active mode in it and keeps the hints for the list', () => {
     renderSelect('inpaint')
 
+    expect(screen.getByText('Mode')).toBeVisible()
     expect(
-      screen.getByRole('button', { name: 'Mode: Inpaint' })
+      screen.getByRole('button', { name: 'Mode Inpaint' })
     ).toBeInTheDocument()
     expect(screen.queryByRole('heading')).not.toBeInTheDocument()
     expect(screen.getByTestId('image-workflow-title')).toHaveTextContent(
