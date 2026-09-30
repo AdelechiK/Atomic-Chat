@@ -15,6 +15,7 @@ import HeaderPage from '@/containers/HeaderPage'
 import { HubFilters } from '@/containers/hub/HubFilters'
 import { ModelDetailPanel } from '@/containers/hub/ModelDetailPanel'
 import { ModelListRow } from '@/containers/hub/ModelListRow'
+import { TensorrtLlmHubHint } from '@/containers/tensorrt-llm/TensorrtLlmHubHint'
 import { RECOMMENDED_MODEL_FALLBACKS } from '@/constants/models'
 import { route } from '@/constants/routes'
 import { useGeneralSetting } from '@/hooks/useGeneralSetting'
@@ -837,6 +838,7 @@ function HubContent() {
               }
             }}
           />
+          <TensorrtLlmHubHint />
         </div>
 
         <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto p-2">

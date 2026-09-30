@@ -64,5 +64,20 @@
   "readmeUnavailable": "README is not available for this model.",
   "tooLargeTitle": "This model may not run on this device",
   "tooLargeDescription": "It needs more memory than this device has, so it may fail to load or run slowly.",
-  "downloadAnyway": "Download anyway"
+  "downloadAnyway": "Download anyway",
+  "tensorrt": {
+    "title": "Models for TensorRT-LLM",
+    "choose-model": {
+      "body": "TensorRT-LLM runs models on your NVIDIA GPU. Its models are chosen and downloaded on its provider page.",
+      "action": "Choose a TensorRT-LLM model"
+    },
+    "install": {
+      "body": "TensorRT-LLM can run models on your NVIDIA GPU. Install the engine first: it downloads the engine image and, if needed, sets up Docker and the NVIDIA Container Toolkit.",
+      "action": "Install TensorRT-LLM"
+    },
+    "blocked": {
+      "body": "TensorRT-LLM needs something changed on this computer before it can be installed. Its provider page says what.",
+      "action": "See what is needed"
+    }
+  }
 }
