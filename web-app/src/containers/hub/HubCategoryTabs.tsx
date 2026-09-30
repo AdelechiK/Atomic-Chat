@@ -15,9 +15,11 @@ export type HubCategoryTabsProps = {
 }
 
 /**
- * Chat / Images / Video switch above the Hub filters. A segmented control
+ * Text / Images / Video switch above the Hub filters. A segmented control
  * rather than another dropdown: the category decides which list the column
- * shows at all, so every choice stays in sight.
+ * shows at all, so every choice stays in sight. The `chat` category reads
+ * "Text": it lists language models, and next to Images and Video the tab
+ * names what a model makes, not where it is used.
  */
 export function HubCategoryTabs({
   value,
