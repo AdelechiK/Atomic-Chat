@@ -57,6 +57,8 @@ function plan(overrides: Partial<RequirementPlan> = {}): RequirementPlan {
     ],
     download_bytes: 21 * 1024 ** 3,
     required_disk_bytes: 63 * 1024 ** 3,
+    docker_root_dir: '/var/lib/docker',
+    free_disk_bytes: 200 * 1024 ** 3,
     requires_elevation: true,
     may_require_relogin: true,
     may_require_reboot: false,
@@ -254,6 +256,8 @@ describe('TensorrtLlmSetupPanel', () => {
       plan({
         availability: 'prerequisite-blocked',
         docker_root_dir: '/var/lib/docker',
+        // The core reports the same number here as in the blocker's `params.free`.
+        free_disk_bytes: 20 * 1024 ** 3,
         blockers: [
           {
             code: 'MANAGED_PREREQUISITE_BLOCKED',

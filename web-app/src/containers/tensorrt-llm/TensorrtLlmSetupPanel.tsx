@@ -113,8 +113,8 @@ export function TensorrtLlmSetupPanel() {
     void recheck()
   }, [recheck])
 
-  // The NVIDIA notices of the descriptor this plan installs (gap G-app-2: empty until the core
-  // reports them, and the plan then says they were not reported).
+  // The NVIDIA notices of the descriptor this plan installs; when the core cannot serve that
+  // descriptor, the plan says the notices were not reported.
   const planDescriptor = plan?.descriptor_id ?? null
   useEffect(() => {
     setNotices([])
@@ -406,7 +406,7 @@ function DiskLine({ summary }: { summary: PlanSummary }) {
   const { path, requiredBytes, freeBytes } = summary.disk
   const required = formatBytes(requiredBytes ?? undefined)
   if (path === null) {
-    // The core does not report where the image goes yet (gap G-app-1).
+    // The core measured nothing this time (the free-space read failed).
     return (
       <p className="text-sm break-words">
         {freeBytes !== null

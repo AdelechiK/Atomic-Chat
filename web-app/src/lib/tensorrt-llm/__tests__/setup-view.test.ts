@@ -23,6 +23,8 @@ function plan(overrides: Partial<RequirementPlan> = {}): RequirementPlan {
     system_changes: [],
     download_bytes: 21_000_000_000,
     required_disk_bytes: 67_000_000_000,
+    docker_root_dir: null,
+    free_disk_bytes: null,
     requires_elevation: true,
     may_require_relogin: true,
     may_require_reboot: false,
@@ -214,7 +216,7 @@ describe('planSummary', () => {
   })
 
   it('takes the free space from the disk blocker when the plan does not carry it', () => {
-    // Until the core reports `free_disk_bytes` (gap G-app-1), the blocker is the only source.
+    // A plan with nothing measured still says what the blocker knows.
     const summary = planSummary(
       plan({
         blockers: [
@@ -237,7 +239,7 @@ describe('planSummary', () => {
   })
 
   it('lists the NVIDIA notices of the descriptor the plan installs, when the core reports them', () => {
-    // They come from the descriptor route (gap G-app-2), not from the plan.
+    // They come from the descriptor route (core task 2.22), not from the plan.
     expect(planSummary(plan(), ['NGC terms apply.']).notices).toEqual(['NGC terms apply.'])
     expect(planSummary(plan()).notices).toEqual([])
   })

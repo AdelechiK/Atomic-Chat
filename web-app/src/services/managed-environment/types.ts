@@ -157,13 +157,13 @@ export interface RequirementPlan {
   may_require_reboot: boolean
   blockers: ManagedBlocker[]
   /**
-   * Where Docker keeps images and the free space there. The spec asks the app to show both before
-   * consent, but the core does not report them yet (gap G-app-1 in the openspec change): shown
-   * when present, and the plan says so when absent. The NVIDIA notices come from the descriptor
-   * route instead (gap G-app-2).
+   * The path the core measured free space for (`DockerRootDir`, or `/var/lib/docker` where Docker
+   * does not answer yet) and the free bytes there as of this probe — the same number an
+   * `insufficient-disk` blocker carries. Both null when the core measured nothing (the read failed,
+   * a removal, no descriptor). Core task 2.22; the NVIDIA notices come from the descriptor route.
    */
-  docker_root_dir?: string | null
-  free_disk_bytes?: number | null
+  docker_root_dir: string | null
+  free_disk_bytes: number | null
 }
 
 /** One file of a checkpoint as `check` and `model.yml` list it; `sha256` only for LFS files. */
@@ -196,8 +196,8 @@ export interface CuratedModel {
 }
 
 /**
- * What the core tells clients about one cached descriptor (gap G-app-2: the route is proposed and
- * not in the core yet).
+ * `GET /environments/descriptors/:descriptorId` (core task 2.22): the part of one cached descriptor
+ * a client shows — NVIDIA notices before consent, curated checkpoints on the model screen.
  */
 export interface DescriptorSummary {
   descriptor_id: string

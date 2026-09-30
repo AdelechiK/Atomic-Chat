@@ -215,9 +215,10 @@ export function checkTensorrtModel(request: Parameters<InstallDeps['check']>[0])
 }
 
 /**
- * The curated models and NVIDIA notices of a descriptor the core has cached. The route is proposed
- * to the core and not there yet (gap G-app-2): until it is, this answers `null` and the app shows
- * no curated list.
+ * The curated models and NVIDIA notices of a descriptor the core has cached, by the id an
+ * installation pins or a plan names. The core answers from its cache without the network; an id
+ * it does not hold (404) or a core without managed runtimes (422) answers `null`, and the app shows
+ * no curated list and says the notices were not reported.
  */
 export async function describeDescriptor(descriptorId: string): Promise<DescriptorSummary | null> {
   try {
