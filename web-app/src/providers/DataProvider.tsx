@@ -91,7 +91,12 @@ export async function restoreServerModelAfterRecovery(
 }
 
 /** Providers whose session lookups `ModelFactory` caches (Foundation Models resolves every time). */
-const SESSION_CACHED_PROVIDERS = ['llamacpp', 'llamacpp-upstream', 'mlx'] as const
+const SESSION_CACHED_PROVIDERS = [
+  'llamacpp',
+  'llamacpp-upstream',
+  'mlx',
+  'tensorrt-llm',
+] as const
 type SessionCachedProvider = (typeof SESSION_CACHED_PROVIDERS)[number]
 
 const isSessionCachedProvider = (
@@ -158,7 +163,10 @@ export function handleCoreSessionDied(
       id: `session-died-${modelId ?? 'unknown'}`,
       description: vulkanAdvice
         ? "The model's backend process exited unexpectedly. This can happen with Vulkan backends on some GPU drivers. Try reloading the model, or switch to a CPU backend in Settings → Providers."
-        : "The model's backend process exited unexpectedly. Try reloading the model.",
+        : provider === 'tensorrt-llm'
+          ? // A container, not a process on this machine: its log is on the provider's page.
+            "The model's engine container stopped unexpectedly. Try reloading the model; its logs are in Settings → Providers → TensorRT-LLM."
+          : "The model's backend process exited unexpectedly. Try reloading the model.",
     }
   )
 }
@@ -181,7 +189,8 @@ const syncRemoteProviders = () => {
 
   providers.forEach((provider) => {
     // Only cloud providers should be registered with the backend proxy. Local
-    // engines (`llamacpp`, `llamacpp-upstream`, `mlx`, `foundation-models`)
+    // engines (`llamacpp`, `llamacpp-upstream`, `mlx`, `foundation-models`,
+    // `tensorrt-llm`)
     // run in-process and must never be treated as remote. Both local llama.cpp
     // provider ids are packaged on every desktop platform.
     // The pre-fix check excluded only `'llamacpp'`, which silently leaked

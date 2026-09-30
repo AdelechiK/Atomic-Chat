@@ -342,8 +342,17 @@ export async function findFoundationModelsSession(
  * table rather than the webview reading a cache of its own: a cached answer could be a moment out
  * of date and name a port that now belongs to nothing. `null` and errors are authoritative.
  */
+/** Local engines whose sessions `ModelFactory` resolves through the core's mirror and caches. */
+type CachedLocalProvider = 'llamacpp' | 'llamacpp-upstream' | 'mlx' | 'tensorrt-llm'
+
+/** How an error about a missing session names the engine, e.g. "No running MLX session". */
+const SESSION_ENGINE_LABEL: Partial<Record<CachedLocalProvider, string>> = {
+  mlx: 'MLX ',
+  'tensorrt-llm': 'TensorRT-LLM ',
+}
+
 export async function findLocalSession(
-  providerName: 'llamacpp' | 'llamacpp-upstream' | 'mlx',
+  providerName: CachedLocalProvider,
   modelId: string
 ): Promise<SessionInfo | null> {
   return invoke<SessionInfo | null>('resolve_local_session', {
@@ -704,7 +713,7 @@ export class ModelFactory {
    * pre-warm from the chat input and the real send don't both hit IPC.
    */
   private static async resolveLocalSession(
-    providerName: 'llamacpp' | 'llamacpp-upstream' | 'mlx',
+    providerName: CachedLocalProvider,
     modelId: string,
     provider: ProviderObject | undefined
   ): Promise<SessionInfo> {
@@ -746,7 +755,7 @@ export class ModelFactory {
       const sessionInfo = await findLocalSession(providerName, modelId)
       if (!sessionInfo) {
         throw new Error(
-          `No running ${providerName === 'mlx' ? 'MLX ' : ''}session found for model: ${modelId}`
+          `No running ${SESSION_ENGINE_LABEL[providerName] ?? ''}session found for model: ${modelId}`
         )
       }
       ModelFactory.localSessionCache.set(key, {
@@ -777,7 +786,7 @@ export class ModelFactory {
 
   /** Resolve immediately before a request; never reuse a cached bearer key or port. */
   private static async resolveFreshLocalSession(
-    providerName: 'llamacpp' | 'llamacpp-upstream' | 'mlx',
+    providerName: CachedLocalProvider,
     modelId: string,
     provider: ProviderObject | undefined
   ): Promise<SessionInfo> {
@@ -793,7 +802,7 @@ export class ModelFactory {
     if (!sessionInfo) {
       ModelFactory.invalidateLocalSessionCache(providerName, modelId)
       throw new Error(
-        `No running ${providerName === 'mlx' ? 'MLX ' : ''}session found for model: ${modelId}`
+        `No running ${SESSION_ENGINE_LABEL[providerName] ?? ''}session found for model: ${modelId}`
       )
     }
     ModelFactory.localSessionCache.set(
@@ -823,13 +832,14 @@ export class ModelFactory {
     if (
       lower !== 'llamacpp' &&
       lower !== 'llamacpp-upstream' &&
-      lower !== 'mlx'
+      lower !== 'mlx' &&
+      lower !== 'tensorrt-llm'
     ) {
       return
     }
     try {
       await ModelFactory.resolveLocalSession(
-        lower as 'llamacpp' | 'llamacpp-upstream' | 'mlx',
+        lower as CachedLocalProvider,
         modelId,
         provider
       )
@@ -954,6 +964,9 @@ export class ModelFactory {
           provider,
           localInjected
         )
+
+      case 'tensorrt-llm':
+        return this.createTensorrtLlmModel(modelId, provider, localInjected)
 
       case 'anthropic':
         return this.createAnthropicModel(modelId, provider, override)
@@ -1118,6 +1131,55 @@ export class ModelFactory {
 
     return wrapLanguageModel({
       model: model,
+      middleware: extractReasoningMiddleware({
+        tagName: 'think',
+        separator: '\n',
+      }),
+    })
+  }
+
+  /**
+   * Create a TensorRT-LLM model (Linux). The core runs `trtllm-serve` in a
+   * container and serves the session on a loopback gateway that checks the
+   * session's Bearer key, so from here it is one more OpenAI-compatible local
+   * session, resolved and re-resolved the way llama.cpp's is: every load gets a
+   * new gateway port and key, so a model object must not keep the first one.
+   * The IPC streaming fetch is used because the HTTP plugin's stream bridge does
+   * not relay SSE chunks; aborting it drops the connection, which the gateway
+   * passes on to the engine.
+   */
+  private static async createTensorrtLlmModel(
+    modelId: string,
+    provider?: ProviderObject,
+    parameters: Record<string, unknown> = {}
+  ): Promise<LanguageModel> {
+    const sessionInfo = await ModelFactory.resolveLocalSession(
+      'tensorrt-llm',
+      modelId,
+      provider
+    )
+
+    const liveFetch = createLiveSessionFetch(
+      createLocalStreamingFetch(httpFetch, parameters),
+      () =>
+        ModelFactory.resolveFreshLocalSession('tensorrt-llm', modelId, provider)
+    )
+
+    const model = new OpenAICompatibleChatLanguageModel(modelId, {
+      provider: 'tensorrt-llm',
+      headers: () => ({
+        Authorization: `Bearer ${sessionInfo.api_key}`,
+        Origin: 'tauri://localhost',
+      }),
+      url: ({ path }) =>
+        new URL(`http://localhost:${sessionInfo.port}/v1${path}`).toString(),
+      includeUsage: true,
+      fetch: liveFetch,
+      metadataExtractor: providerMetadataExtractor,
+    })
+
+    return wrapLanguageModel({
+      model,
       middleware: extractReasoningMiddleware({
         tagName: 'think',
         separator: '\n',

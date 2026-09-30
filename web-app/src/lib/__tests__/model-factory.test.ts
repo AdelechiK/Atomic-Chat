@@ -318,6 +318,75 @@ describe('ModelFactory', () => {
   })
 })
 
+describe('ModelFactory tensorrt-llm provider', () => {
+  const tensorrtProvider = {
+    provider: 'tensorrt-llm',
+    // Never used for a local engine: requests go to the session the core serves.
+    base_url: 'http://example.invalid/v1',
+    api_key: '',
+    settings: [],
+    models: [],
+    active: true,
+  } as unknown as ProviderObject
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockStartModel.mockResolvedValue(undefined)
+    seedServiceHub({
+      models: {
+        startModel: mockStartModel,
+      } as ModelsService,
+    })
+    ModelFactory.invalidateLocalSessionCache('tensorrt-llm')
+  })
+
+  it('starts the model through the core and talks to its session gateway with the session key', async () => {
+    mockedInvoke.mockResolvedValue({
+      // What the Rust resolver hands back for a container session (protocol 2).
+      pid: null,
+      port: 4001,
+      model_id: 'qwen3-8b',
+      api_key: 'gateway-key',
+      execution: 'container',
+      generation: 'g-1',
+    })
+    const { OpenAICompatibleChatLanguageModel } = await import(
+      '@ai-sdk/openai-compatible'
+    )
+
+    await ModelFactory.createModel('qwen3-8b', tensorrtProvider)
+
+    expect(mockStartModel).toHaveBeenCalledWith(tensorrtProvider, 'qwen3-8b')
+    expect(mockedInvoke).toHaveBeenCalledWith('resolve_local_session', {
+      provider: 'tensorrt-llm',
+      modelId: 'qwen3-8b',
+    })
+    const [modelId, config] = vi.mocked(OpenAICompatibleChatLanguageModel)
+      .mock.calls[0] as unknown as [
+      string,
+      {
+        provider: string
+        url: (options: { path: string }) => string
+        headers: () => Record<string, string>
+      },
+    ]
+    expect(modelId).toBe('qwen3-8b')
+    expect(config.provider).toBe('tensorrt-llm')
+    expect(config.url({ path: '/chat/completions' })).toBe(
+      'http://localhost:4001/v1/chat/completions'
+    )
+    expect(config.headers().Authorization).toBe('Bearer gateway-key')
+  })
+
+  it('fails with the provider named when the core serves no session after the start', async () => {
+    mockedInvoke.mockResolvedValue(null)
+
+    await expect(
+      ModelFactory.createModel('qwen3-8b', tensorrtProvider)
+    ).rejects.toThrow('No running TensorRT-LLM session found for model: qwen3-8b')
+  })
+})
+
 describe('countLocalPromptTokens', () => {
   const session = { port: 4242, api_key: 'k', model_id: 'm' }
 

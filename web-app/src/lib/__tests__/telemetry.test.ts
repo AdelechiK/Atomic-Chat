@@ -13,6 +13,7 @@ import {
   finalizeChatTurnOnce,
   gpuOffloadBucket,
   lengthBucket,
+  loadBackendFromProvider,
   markModelDownloaded,
   modelLoadSource,
   normalizeModelId,
@@ -24,6 +25,15 @@ import {
   shouldEmitModelLoadSuccess,
   toolNameForAnalytics,
 } from '@/lib/telemetry'
+
+describe('loadBackendFromProvider', () => {
+  it('names every local engine as its own backend', () => {
+    expect(loadBackendFromProvider('tensorrt-llm')).toBe('tensorrt-llm')
+    expect(loadBackendFromProvider('mlx')).toBe('mlx')
+    expect(loadBackendFromProvider('openai')).toBe('unknown')
+    expect(loadBackendFromProvider(undefined)).toBe('unknown')
+  })
+})
 
 describe('lengthBucket', () => {
   it('separates unknown from genuinely empty', () => {

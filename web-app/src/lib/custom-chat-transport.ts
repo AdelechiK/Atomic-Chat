@@ -107,7 +107,7 @@ import {
 } from '@/utils/registerRemoteProvider'
 
 /// Local inference backends (mlx, llamacpp, llamacpp-upstream,
-/// foundation-models) get special handling at the `streamText` boundary:
+/// foundation-models, tensorrt-llm) get special handling at the `streamText` boundary:
 ///   * when tools are also active, the assistant system prompt is not passed
 ///     as a `system` message — gemma-4 and similar local models reliably
 ///     auto-emit a chain-of-thought block whenever the rendered prompt
@@ -125,6 +125,7 @@ const LOCAL_INFERENCE_PROVIDERS = new Set<string>([
   'llamacpp',
   'llamacpp-upstream',
   'foundation-models',
+  'tensorrt-llm',
 ])
 
 /// Engines that constrain sampling with a GBNF grammar compiled from the tool

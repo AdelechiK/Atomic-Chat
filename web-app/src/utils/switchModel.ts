@@ -228,6 +228,7 @@ const LOCAL_PROVIDERS = [
   'llamacpp-upstream',
   'mlx',
   'foundation-models',
+  'tensorrt-llm',
 ] as const
 type LocalProviderName = (typeof LOCAL_PROVIDERS)[number]
 
