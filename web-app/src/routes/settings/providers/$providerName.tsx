@@ -3,6 +3,7 @@ import { Card, CardItem } from '@/containers/Card'
 import HeaderPage from '@/containers/HeaderPage'
 import { TensorrtLlmSetupPanel } from '@/containers/tensorrt-llm/TensorrtLlmSetupPanel'
 import { TensorrtLlmModelPicker } from '@/containers/tensorrt-llm/TensorrtLlmModelPicker'
+import { TensorrtLlmSettingsCard } from '@/containers/tensorrt-llm/TensorrtLlmSettingsCard'
 import {
   selectTensorrtInstallation,
   useManagedEnvironmentStore,
@@ -1949,6 +1950,28 @@ function ProviderDetail() {
 
             {/* TensorRT-LLM: setting up the engine comes before its settings and models. */}
             {providerName === 'tensorrt-llm' && <TensorrtLlmSetupPanel />}
+            {providerName === 'tensorrt-llm' && provider && (
+              <TensorrtLlmSettingsCard
+                settings={provider.settings}
+                models={provider.models.map((model) => model.id)}
+                onChange={(key, value) => {
+                  // Applies from the next load: the extension hands the settings to the core then.
+                  const next = provider.settings.map((setting) =>
+                    setting.key === key
+                      ? {
+                          ...setting,
+                          controller_props: {
+                            ...setting.controller_props,
+                            value: value as never,
+                          },
+                        }
+                      : setting
+                  )
+                  serviceHub.providers().updateSettings(providerName, next)
+                  updateProvider(providerName, { ...provider, settings: next })
+                }}
+              />
+            )}
             {providerName === 'tensorrt-llm' && tensorrtInstalled && (
               <TensorrtLlmModelPicker
                 onInstalled={() =>
@@ -2000,6 +2023,10 @@ function ProviderDetail() {
                   // on; hide the row entirely otherwise to reduce clutter.
                   const isHiddenByConcurrentMode =
                     !concurrentModeOn && setting.key === 'concurrent_slots'
+                  // TensorRT-LLM picks its card from the GPUs the core found, in
+                  // its own card below, rather than as a typed UUID.
+                  const isHiddenForTensorrt =
+                    providerName === 'tensorrt-llm' && setting.key === 'gpu_id'
 
                   // The DFlash speculative-decoding toggle is the master
                   // switch over `block_size`; the MTP toggle does the
@@ -2204,7 +2231,8 @@ function ProviderDetail() {
                           className={cn(
                             setting.key === 'device' && 'hidden',
                             isHiddenByConcurrentMode && 'hidden',
-                            isHiddenByDflash && 'hidden'
+                            isHiddenByDflash && 'hidden',
+                            isHiddenForTensorrt && 'hidden'
                           )}
                           onChange={(newValue) => {
                             // Manual "Latest <variant>" picks carry a
@@ -2411,6 +2439,7 @@ function ProviderDetail() {
                         setting.key === 'device' && 'hidden',
                         isHiddenByConcurrentMode && 'hidden',
                         isHiddenByDflash && 'hidden',
+                        isHiddenForTensorrt && 'hidden',
                         isManagedByConcurrentMode &&
                           'opacity-60 pointer-events-none'
                       )}

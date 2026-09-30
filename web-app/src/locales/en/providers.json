@@ -162,6 +162,16 @@
       "downloading": "Downloading {{repository}}…",
       "otherCard": "It would fit on: {{cards}}. Choose that card in the settings below.",
       "gated": "Hugging Face refused access. Open the model page, accept its terms (and set your Hugging Face token in Settings if needed), then try again: {{url}}"
+    },
+    "settings": {
+      "title": "TensorRT-LLM settings",
+      "gpu": "GPU",
+      "gpuDefault": "The card with the most free memory at load time",
+      "gpuMissing": "The saved card {{gpu}} is not in this computer now; the next load uses the card with the most free memory and says so.",
+      "outputTooLong": "Max output tokens ({{output}}) must be less than the context length ({{context}}).",
+      "logs": "Model logs",
+      "viewLogs": "View logs",
+      "noLogs": "No log yet: this model has not been loaded."
     }
   }
 }
