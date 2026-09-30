@@ -82,6 +82,10 @@ export const ImageModelSelector = memo(function ImageModelSelector({
   onDownloadStarted,
 }: ImageModelSelectorProps) {
   const { t } = useTranslation()
+  const noneInCatalogKey =
+    modality === 'video'
+      ? 'videos:model.noneInCatalog'
+      : 'images:model.noneInCatalog'
   const catalog = useImageGenerationStore((state) => state.catalog)
   const installedArtifacts = useImageGenerationStore(
     (state) => state.installedArtifacts
@@ -89,14 +93,13 @@ export const ImageModelSelector = memo(function ImageModelSelector({
 
   const families = useMemo(
     () =>
-      (catalog?.families ?? [])
-        .filter(
-          (family) =>
-            family.modality === modality &&
-            family.engines.includes('sdcpp') &&
-            (workflow === undefined ||
-              familySupportsWorkflow(family.id, workflow))
-        ),
+      (catalog?.families ?? []).filter(
+        (family) =>
+          family.modality === modality &&
+          family.engines.includes('sdcpp') &&
+          (workflow === undefined ||
+            familySupportsWorkflow(family.id, workflow))
+      ),
     [catalog, modality, workflow]
   )
 
@@ -155,7 +158,7 @@ export const ImageModelSelector = memo(function ImageModelSelector({
         ))}
         {choices.length === 0 && (
           <p className="p-3 text-sm text-muted-foreground">
-            {t('images:model.noneInCatalog')}
+            {t(noneInCatalogKey)}
           </p>
         )}
       </div>
@@ -192,9 +195,7 @@ export const ImageModelSelector = memo(function ImageModelSelector({
         </Section>
       )}
       {families.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          {t('images:model.noneInCatalog')}
-        </p>
+        <p className="text-sm text-muted-foreground">{t(noneInCatalogKey)}</p>
       )}
     </div>
   )
@@ -286,10 +287,7 @@ function SetupFamilyRow({
                     <span className="w-16 font-mono text-[11px] font-semibold">
                       {option.label}
                     </span>
-                    <FitBadge
-                      fit={fit}
-                      className="px-2 py-0.5 text-[10px]"
-                    />
+                    <FitBadge fit={fit} className="px-2 py-0.5 text-[10px]" />
                     <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
                       {t('images:model.sizeGb', {
                         size: gb(totalBytes),
@@ -303,10 +301,7 @@ function SetupFamilyRow({
               })}
             </DropdownMenuContent>
           </DropdownMenu>
-          <FitBadge
-            fit={artifact.fit}
-            className="px-2 py-0.5 text-[10px]"
-          />
+          <FitBadge fit={artifact.fit} className="px-2 py-0.5 text-[10px]" />
           <span aria-hidden>·</span>
           <span>
             {t('images:model.sizeGb', { size: gb(artifact.totalBytes) })}
@@ -387,16 +382,11 @@ function FamilyBlock({ family, quants, modality }: FamilyBlockProps) {
 
   useEffect(() => {
     const currentExists = quants.some((quant) => quant.id === quantId)
-    const currentIsInstalled = installedIds.has(
-      artifactId(family.id, quantId)
-    )
+    const currentIsInstalled = installedIds.has(artifactId(family.id, quantId))
     const familyHasInstalledQuant = quants.some((quant) =>
       installedIds.has(artifactId(family.id, quant.id))
     )
-    if (
-      !currentExists ||
-      (familyHasInstalledQuant && !currentIsInstalled)
-    ) {
+    if (!currentExists || (familyHasInstalledQuant && !currentIsInstalled)) {
       setQuantId(initialQuantId ?? quants[0]?.id ?? '')
     }
   }, [family.id, initialQuantId, installedIds, quantId, quants])

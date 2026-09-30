@@ -143,6 +143,25 @@ describe('fetchDiffusionCatalog', () => {
     expect(result.catalog).toEqual(getBaselineDiffusionCatalog())
   })
 
+  it('adds the families this release bundles to a cache written without them', async () => {
+    // A catalog cached by a build that does not know the video families: the
+    // same profile runs builds of other branches, and their cache is ours.
+    fetchOk(manifest())
+    await fetchDiffusionCatalog({ url: REMOTE_URL })
+    const bundledIds = getBaselineDiffusionCatalog().families.map((f) => f.id)
+
+    const fresh = await fetchDiffusionCatalog()
+    expect(fresh.source).toBe('cache')
+    expect(fresh.catalog.families.map((f) => f.id)).toEqual(bundledIds)
+
+    fetchFails(new Error('offline'))
+    const stale = await fetchDiffusionCatalog({ force: true })
+    expect(stale.source).toBe('cache')
+    expect(stale.catalog.families.map((f) => f.id)).toEqual(
+      expect.arrayContaining(['ltx-2', 'wan2.2-ti2v-5b'])
+    )
+  })
+
   it('rejects a manifest written for a newer client', async () => {
     fetchOk(
       manifest([family()], { schema_version: SUPPORTED_SCHEMA_VERSION + 1 })
@@ -378,7 +397,9 @@ describe('strict parsing', () => {
       })
     )
     const other = sanitizeDiffusionFamily(
-      family({ defaults: { steps: 8, cfg_scale: 1, width: 2048, height: 1536 } })
+      family({
+        defaults: { steps: 8, cfg_scale: 1, width: 2048, height: 1536 },
+      })
     )
 
     expect(qwen?.defaults).toMatchObject({ width: 1024, height: 1024 })
@@ -449,10 +470,7 @@ describe('baseline and lookups', () => {
   })
 
   it('bundles the verified non-commercial Qwen-Image-2.1 definition', () => {
-    const family = findFamily(
-      getBaselineDiffusionCatalog(),
-      'qwen-image-2.1'
-    )
+    const family = findFamily(getBaselineDiffusionCatalog(), 'qwen-image-2.1')
 
     expect(family).toMatchObject({
       name: 'Qwen-Image-2.1',
@@ -566,49 +584,94 @@ describe('baseline and lookups', () => {
 })
 
 describe('video families', () => {
-  const raw = (family: unknown) => JSON.parse(JSON.stringify(family)) as Record<string, unknown>
+  const raw = (family: unknown) =>
+    JSON.parse(JSON.stringify(family)) as Record<string, unknown>
 
   it('keeps LTX-2.3 and Wan 2.2 verbatim: the audio VAE, the connectors, the sigma schedule and the video block', () => {
     expect(sanitizeDiffusionFamily(raw(LTX_2))).toEqual(LTX_2)
     expect(sanitizeDiffusionFamily(raw(WAN_22))).toEqual(WAN_22)
     const ltx = sanitizeDiffusionFamily(raw(LTX_2))!
-    expect(ltx.text_encoders.map((t) => t.field)).toEqual(['llm', 'embeddings_connectors'])
-    expect(ltx.audio_vae?.filename).toBe('vae/ltx-2.3-22b-distilled_audio_vae.safetensors')
+    expect(ltx.text_encoders.map((t) => t.field)).toEqual([
+      'llm',
+      'embeddings_connectors',
+    ])
+    expect(ltx.audio_vae?.filename).toBe(
+      'vae/ltx-2.3-22b-distilled_audio_vae.safetensors'
+    )
     expect(ltx.defaults.sigmas).toHaveLength(8)
     expect(ltx.video?.frame_range).toEqual([9, 257])
   })
 
   it('drops a video family whose video block is missing or off its own lattice, grid or range', () => {
     const withVideo = (video: unknown) => ({ ...raw(LTX_2), video })
-    expect(sanitizeDiffusionFamily({ ...raw(LTX_2), video: undefined })).toBeNull()
+    expect(
+      sanitizeDiffusionFamily({ ...raw(LTX_2), video: undefined })
+    ).toBeNull()
     expect(sanitizeDiffusionFamily(withVideo('x'))).toBeNull()
     const video = LTX_2.video!
-    expect(sanitizeDiffusionFamily(withVideo({ ...video, frames: 120 }))).toBeNull()
-    expect(sanitizeDiffusionFamily(withVideo({ ...video, frames: 265 }))).toBeNull()
+    expect(
+      sanitizeDiffusionFamily(withVideo({ ...video, frames: 120 }))
+    ).toBeNull()
+    expect(
+      sanitizeDiffusionFamily(withVideo({ ...video, frames: 265 }))
+    ).toBeNull()
     expect(sanitizeDiffusionFamily(withVideo({ ...video, fps: 0 }))).toBeNull()
-    expect(sanitizeDiffusionFamily(withVideo({ ...video, frame_step: 0 }))).toBeNull()
-    expect(sanitizeDiffusionFamily(withVideo({ ...video, frame_offset: -1 }))).toBeNull()
-    expect(sanitizeDiffusionFamily(withVideo({ ...video, frame_range: [9] }))).toBeNull()
-    expect(sanitizeDiffusionFamily(withVideo({ ...video, resolution_presets: [] }))).toBeNull()
-    expect(sanitizeDiffusionFamily(withVideo({ ...video, resolution_presets: [[770, 512]] }))).toBeNull()
-    expect(sanitizeDiffusionFamily(withVideo({ ...video, resolution_presets: [[2048, 512]] }))).toBeNull()
-    expect(sanitizeDiffusionFamily(withVideo({ ...video, resolution_presets: [[768]] }))).toBeNull()
-    expect(sanitizeDiffusionFamily(withVideo({ ...video, resolution_presets: 'x' }))).toBeNull()
+    expect(
+      sanitizeDiffusionFamily(withVideo({ ...video, frame_step: 0 }))
+    ).toBeNull()
+    expect(
+      sanitizeDiffusionFamily(withVideo({ ...video, frame_offset: -1 }))
+    ).toBeNull()
+    expect(
+      sanitizeDiffusionFamily(withVideo({ ...video, frame_range: [9] }))
+    ).toBeNull()
+    expect(
+      sanitizeDiffusionFamily(withVideo({ ...video, resolution_presets: [] }))
+    ).toBeNull()
+    expect(
+      sanitizeDiffusionFamily(
+        withVideo({ ...video, resolution_presets: [[770, 512]] })
+      )
+    ).toBeNull()
+    expect(
+      sanitizeDiffusionFamily(
+        withVideo({ ...video, resolution_presets: [[2048, 512]] })
+      )
+    ).toBeNull()
+    expect(
+      sanitizeDiffusionFamily(
+        withVideo({ ...video, resolution_presets: [[768]] })
+      )
+    ).toBeNull()
+    expect(
+      sanitizeDiffusionFamily(withVideo({ ...video, resolution_presets: 'x' }))
+    ).toBeNull()
   })
 
   it('ignores a video block on an image family, and refuses a bad audio VAE or sigma schedule', () => {
     const image = sanitizeDiffusionFamily({ ...family(), video: LTX_2.video })
     expect(image).not.toBeNull()
     expect(image).not.toHaveProperty('video')
-    expect(sanitizeDiffusionFamily({ ...raw(LTX_2), audio_vae: { repo: 'x' } })).toBeNull()
     expect(
-      sanitizeDiffusionFamily({ ...raw(LTX_2), defaults: { ...LTX_2.defaults, sigmas: [1, 0] } })
+      sanitizeDiffusionFamily({ ...raw(LTX_2), audio_vae: { repo: 'x' } })
     ).toBeNull()
     expect(
-      sanitizeDiffusionFamily({ ...raw(LTX_2), defaults: { ...LTX_2.defaults, sigmas: [] } })
+      sanitizeDiffusionFamily({
+        ...raw(LTX_2),
+        defaults: { ...LTX_2.defaults, sigmas: [1, 0] },
+      })
     ).toBeNull()
     expect(
-      sanitizeDiffusionFamily({ ...raw(LTX_2), defaults: { ...LTX_2.defaults, sigmas: 'x' } })
+      sanitizeDiffusionFamily({
+        ...raw(LTX_2),
+        defaults: { ...LTX_2.defaults, sigmas: [] },
+      })
+    ).toBeNull()
+    expect(
+      sanitizeDiffusionFamily({
+        ...raw(LTX_2),
+        defaults: { ...LTX_2.defaults, sigmas: 'x' },
+      })
     ).toBeNull()
     // A text encoder with a field the client does not know is refused, as before.
     expect(
@@ -624,11 +687,26 @@ describe('video families', () => {
     const ltx = findFamily(baseline, 'ltx-2')
     const wan = findFamily(baseline, 'wan2.2-ti2v-5b')
     expect(ltx?.modality).toBe('video')
-    expect(ltx?.video).toMatchObject({ fps: 24, frame_step: 8, frame_offset: 1, frames: 121 })
+    expect(ltx?.video).toMatchObject({
+      fps: 24,
+      frame_step: 8,
+      frame_offset: 1,
+      frames: 121,
+    })
     expect(ltx?.audio_vae?.repo).toBe('unsloth/LTX-2.3-GGUF')
-    expect(ltx?.text_encoders.map((t) => t.field)).toEqual(['llm', 'embeddings_connectors'])
-    expect(ltx?.defaults.sigmas).toEqual([1, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875])
-    expect(wan?.video).toMatchObject({ fps: 24, frame_step: 4, frame_offset: 1, frames: 121 })
+    expect(ltx?.text_encoders.map((t) => t.field)).toEqual([
+      'llm',
+      'embeddings_connectors',
+    ])
+    expect(ltx?.defaults.sigmas).toEqual([
+      1, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875,
+    ])
+    expect(wan?.video).toMatchObject({
+      fps: 24,
+      frame_step: 4,
+      frame_offset: 1,
+      frames: 121,
+    })
     expect(wan?.capabilities.negative_prompt).toBe(true)
     expect(findQuant(ltx!, 'q4_k_m')?.recommended).toBe(true)
   })
