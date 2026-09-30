@@ -48,6 +48,14 @@ const APPLE_MODEL_ID = 'apple/on-device'
 /** Display name shown in the Jan UI. */
 const APPLE_MODEL_NAME = 'Apple On-Device Model'
 
+/**
+ * Whether the provider is offered at all. Off since 2026-09-30: chats with the
+ * on-device model fail even on Macs whose `--check` answers `available`, so the
+ * provider stays hidden everywhere until that is fixed (ADR
+ * 2026-09-30-hide-the-apple-on-device-provider).
+ */
+const OFFERED = false
+
 // ─── Logger ──────────────────────────────────────────────────────────────────
 
 const logger = {
@@ -92,6 +100,10 @@ export default class FoundationModelsExtension extends AIEngine {
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   override async onLoad(): Promise<void> {
+    // Never registered while hidden, so no picker, provider list or
+    // availability check sees it.
+    if (!OFFERED) return
+
     super.onLoad() // registers into EngineManager
 
     // Check device eligibility and silently remove ourselves if not supported.

@@ -20,8 +20,10 @@ type VideoGenerationProgressProps = {
 /**
  * The live preview of a clip, with everything about the job inside its frame:
  * the phase, the core's whole-job fraction as a bar, and the step, the
- * elapsed time and the time left on one line. Past its forecast the decode
- * has no time left to show; the phase already says what is running.
+ * elapsed time and the time left on one line. Past its forecast the core
+ * forecasts the rest again instead of dropping the time left (core ADR
+ * 2026-09-30-keep-the-video-eta-past-its-forecast); an older core drops it,
+ * and the phase alone says what is running.
  */
 export const VideoGenerationProgress = memo(function VideoGenerationProgress({
   job,

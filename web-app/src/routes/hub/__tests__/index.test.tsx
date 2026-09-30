@@ -427,6 +427,44 @@ describe('/hub route', () => {
     )
   })
 
+  it('clears the query from the cross in the search box', async () => {
+    const user = userEvent.setup()
+    render(<HubPage />)
+    const input = screen.getByRole('textbox', { name: 'hub:searchPlaceholder' })
+    expect(
+      screen.queryByRole('button', { name: 'hub:clearSearch' })
+    ).not.toBeInTheDocument()
+
+    await user.type(input, 'llama')
+    await user.click(screen.getByRole('button', { name: 'hub:clearSearch' }))
+
+    expect(input).toHaveValue('')
+    expect(input).toHaveFocus()
+    await waitFor(() =>
+      expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
+    )
+  })
+
+  it('offers to clear a search that found nothing', async () => {
+    const user = userEvent.setup()
+    render(<HubPage />)
+    const input = screen.getByRole('textbox', { name: 'hub:searchPlaceholder' })
+
+    await user.type(input, 'zzzz')
+    await waitFor(() =>
+      expect(screen.getByText('hub:noModels')).toBeInTheDocument()
+    )
+    // The cross in the search box and the button under the message.
+    const clears = screen.getAllByRole('button', { name: 'hub:clearSearch' })
+    expect(clears).toHaveLength(2)
+    await user.click(clears[1])
+
+    expect(input).toHaveValue('')
+    await waitFor(() =>
+      expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
+    )
+  })
+
   it('writes the picked repo into the URL', async () => {
     const user = userEvent.setup()
     render(<HubPage />)
