@@ -4,6 +4,7 @@ import {
 } from '@tauri-apps/plugin-autostart'
 import { invoke } from '@tauri-apps/api/core'
 import { useModelProvider } from '@/hooks/useModelProvider'
+import { refreshAppManagedProviders } from '@/lib/provider-visibility'
 import {
   BACKEND_PRESERVE_KEYS,
   localStorageKey,
@@ -289,6 +290,13 @@ export function DataProvider() {
       .getProviders()
       .then((providers) => {
         setProviders(providers)
+        // An engine that decides its own visibility (TensorRT-LLM) answers after its probe, which
+        // runs in the background so it does not hold the app start up.
+        void refreshAppManagedProviders(() =>
+          serviceHub.providers().getProviders()
+        ).catch((error) =>
+          console.warn('Could not refresh gated providers:', error)
+        )
         // Register active remote providers with the backend
         providers.forEach((provider) => {
           if (provider.active) {

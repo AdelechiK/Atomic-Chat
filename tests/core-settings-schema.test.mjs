@@ -11,9 +11,8 @@ const REPO_ROOT = new URL('..', import.meta.url).pathname
 const VENDORED = join(REPO_ROOT, 'web-app/src/lib/core-settings-schema')
 // Every schema the web-app vendors from the core.
 const SCHEMAS = ['llamacpp', 'llamacpp-upstream', 'mlx', 'tensorrt-llm']
-// The ones an engine extension also registers from its own settings.json. `tensorrt-llm` joins when
-// its extension exists (task 3.3); until then the core is its only other copy.
-const EXTENSION_SCHEMAS = ['llamacpp', 'llamacpp-upstream', 'mlx']
+// Each is also registered by its engine extension from that extension's own settings.json.
+const EXTENSION_SCHEMAS = SCHEMAS
 
 function coreSchemaDir() {
   if (process.env.ATOMIC_CORE_SRC) {

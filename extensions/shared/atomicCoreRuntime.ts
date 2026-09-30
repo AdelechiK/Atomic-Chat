@@ -25,6 +25,7 @@ export type CoreProvider =
   | 'llamacpp'
   | 'mlx'
   | 'foundation-models'
+  | 'tensorrt-llm'
 
 export type Invoke = <T>(
   command: string,
