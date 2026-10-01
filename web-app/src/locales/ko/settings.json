@@ -451,5 +451,41 @@
     "checking": "Checking…",
     "upToDate": "The engine is up to date.",
     "updateCheckFailed": "Could not check for updates"
+  },
+  "decision": {
+    "multilingual": "100+ languages",
+    "context": "{{tokens}} tokens",
+    "diskSize": "{{size}} GB on disk",
+    "progress": "{{current}} of {{total}} GB",
+    "start": "Start",
+    "stop": "Stop",
+    "remove": "Remove",
+    "removeTitle": "Remove {{name}}?",
+    "removeDescription": "The model files and its converted copy will be deleted. If the model is running, it is stopped first.",
+    "removed": "{{name}} removed",
+    "installEngine": "Install TurboQuant",
+    "engineLatest": "TurboQuant is up to date. A build that runs decision models is not released yet.",
+    "engineInstallFailed": "TurboQuant could not be installed",
+    "state": {
+      "disabled": "Stopped",
+      "idle": "Starts on the next request",
+      "starting": "Starting…",
+      "ready": "Running",
+      "restarting": "Restarting…",
+      "failed": "Failed",
+      "unsupported": "Engine not supported"
+    },
+    "errors": {
+      "engineUnsupported": "The installed TurboQuant engine cannot run decision models.",
+      "notConfigured": "No decision model is selected. Download a model and press Start.",
+      "checkpointIncomplete": "The model folder is missing files. Remove the model and download it again.",
+      "modelFileNotFound": "The model files are not on disk. Download the model again.",
+      "notChat": "A decision model cannot be used as a chat model.",
+      "generic": "The decision model could not start."
+    },
+    "sectionTitle": "Decision models",
+    "noneTitle": "No decision models downloaded",
+    "noneDescription": "Download one in the Decision category of the",
+    "availableInApi": "Available in the API"
   }
 }

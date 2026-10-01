@@ -13,6 +13,7 @@
 //! own channels carry previews — and the core is told to collect them only while
 //! the API screen is open.
 
+use std::future::Future;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -78,27 +79,50 @@ pub fn ingest<R: Runtime>(app: &AppHandle<R>, name: &str, payload: &Value) -> bo
     true
 }
 
+static PUSH_TURN: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+
+/// One push at a time, with the flag read once it is this push's turn. Opening and closing the
+/// screen in quick succession (StrictMode mounts it twice in dev) queues several pushes, and
+/// unordered requests could leave the core on a stale `false` while the screen watches.
+async fn push_in_turn<Fut>(
+    turn: &tokio::sync::Mutex<()>,
+    read: impl FnOnce() -> Option<bool>,
+    send: impl FnOnce(bool) -> Fut,
+) where
+    Fut: Future<Output = ()>,
+{
+    let _turn = turn.lock().await;
+    if let Some(enabled) = read() {
+        send(enabled).await;
+    }
+}
+
 /// Tell the core whether the API screen is watching. Fire and forget: a core
 /// that did not hear it keeps sending no previews, which is the safe side.
 pub fn push_inspecting<R: Runtime>(app: &AppHandle<R>) {
-    let Some(state) = app.try_state::<AppState>() else {
+    if app.try_state::<AppState>().is_none() {
         return;
-    };
-    let enabled = state.api_request_inspector.enabled();
+    }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let Some(client) = app.try_state::<super::commands::AtomicCoreClient>() else {
-            return;
-        };
-        if !client.is_enabled() {
-            return;
-        }
-        if let Err(error) = client
-            .call("PUT", "/server/inspector", Some(json!({ "enabled": enabled })))
-            .await
-        {
-            log::debug!("[atomic-core] could not tell the core about the API screen: {}", error.message);
-        }
+        let turn = PUSH_TURN.get_or_init(Default::default);
+        let app = &app;
+        let read = || Some(app.try_state::<AppState>()?.api_request_inspector.enabled());
+        push_in_turn(turn, read, |enabled| async move {
+            let Some(client) = app.try_state::<super::commands::AtomicCoreClient>() else {
+                return;
+            };
+            if !client.is_enabled() {
+                return;
+            }
+            if let Err(error) = client
+                .call("PUT", "/server/inspector", Some(json!({ "enabled": enabled })))
+                .await
+            {
+                log::debug!("[atomic-core] could not tell the core about the API screen: {}", error.message);
+            }
+        })
+        .await;
     });
 }
 
@@ -109,5 +133,54 @@ mod tests {
     #[test]
     fn only_the_api_request_event_is_taken() {
         assert_eq!(EVENT, "atomic-core://api:request");
+    }
+
+    #[tokio::test]
+    async fn the_core_ends_on_the_flag_the_screen_has_now() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Mutex;
+
+        let turn = Arc::new(tokio::sync::Mutex::new(()));
+        let watching = Arc::new(AtomicBool::new(true));
+        let sent = Arc::new(Mutex::new(Vec::new()));
+
+        // The first push reads `true` and is slow to deliver; the screen closes meanwhile.
+        let slow = tokio::spawn({
+            let (turn, watching, sent) = (turn.clone(), watching.clone(), sent.clone());
+            async move {
+                push_in_turn(&turn, || Some(watching.load(Ordering::SeqCst)), |enabled| async move {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    sent.lock().unwrap().push(enabled);
+                })
+                .await;
+            }
+        });
+        tokio::task::yield_now().await;
+        watching.store(false, Ordering::SeqCst);
+        let fast = tokio::spawn({
+            let (turn, watching, sent) = (turn.clone(), watching.clone(), sent.clone());
+            async move {
+                push_in_turn(&turn, || Some(watching.load(Ordering::SeqCst)), |enabled| async move {
+                    sent.lock().unwrap().push(enabled);
+                })
+                .await;
+            }
+        });
+        slow.await.unwrap();
+        fast.await.unwrap();
+
+        assert_eq!(*sent.lock().unwrap(), vec![true, false]);
+    }
+
+    #[tokio::test]
+    async fn no_app_state_sends_nothing() {
+        let turn = tokio::sync::Mutex::new(());
+        let mut sent = None;
+        push_in_turn(&turn, || None, |enabled| {
+            sent = Some(enabled);
+            async {}
+        })
+        .await;
+        assert_eq!(sent, None);
     }
 }

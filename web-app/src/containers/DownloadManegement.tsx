@@ -44,6 +44,7 @@ import {
   resolveDiffusionDownloadTaskId,
 } from '@/lib/diffusion/models'
 import { cancelTransfer } from '@/services/diffusion/transfer'
+import { isDecisionDownloadTaskId } from '@/lib/decision/models'
 import { useImageGenerationStore } from '@/stores/image-generation-store'
 import { useImageForm } from '@/hooks/useImageForm'
 import { notifyWhenAway } from '@/lib/notifications'
@@ -840,8 +841,11 @@ export function DownloadManagement() {
   // ATO-154: pause/resume is only offered for resumable model (GGUF) downloads.
   // Backend-binary downloads (`llamacpp*`) and MLX repos (`mlx-community/*`,
   // which start with `mlx`) get cancel-only, matching Jan's gating.
+  // Decision models resume from their settings card, not from here.
   const isPausableDownload = (id: string): boolean =>
-    !id.startsWith('llamacpp') && !id.startsWith('mlx')
+    !id.startsWith('llamacpp') &&
+    !id.startsWith('mlx') &&
+    !isDecisionDownloadTaskId(id)
 
   const handlePauseDownload = useCallback(
     (download: { id: string; name: string }) => {

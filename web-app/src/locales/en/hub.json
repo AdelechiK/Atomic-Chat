@@ -78,5 +78,15 @@
   "defaultSize": "Default size",
   "steps": "Steps",
   "license": "License",
-  "frameRate": "Frame rate"
+  "frameRate": "Frame rate",
+  "categoryChatHint": "Language models for chat",
+  "categoryImagesHint": "Generate images from a prompt",
+  "categoryVideoHint": "Generate short videos",
+  "categoryDecision": "Decision",
+  "categoryDecisionHint": "Answer questions about a text",
+  "searchDecisionPlaceholder": "Search decision models…",
+  "available": "Available",
+  "cpu": "CPU",
+  "languages": "Languages",
+  "backbone": "Backbone"
 }

@@ -7,6 +7,7 @@ import type { ResolvedStaffPick } from '@/hooks/useStaffPicks'
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   mediaSupported: false,
+  decisionSupported: false,
   search: {} as Record<string, unknown>,
   staffPicks: [] as ResolvedStaffPick[],
   mlxStaffPicks: [] as ResolvedStaffPick[],
@@ -76,6 +77,28 @@ vi.mock('@/containers/hub/HubFilters', () => ({
   HubFilters: () => <div data-testid="hub-filters" />,
 }))
 
+vi.mock('@/containers/hub/DecisionHub', () => ({
+  DecisionHub: ({
+    categoryTabs,
+    query,
+    selectedModelId,
+    onSelectModel,
+  }: {
+    categoryTabs?: React.ReactNode
+    query: string
+    selectedModelId: string | null
+    onSelectModel: (id: string) => void
+  }) => (
+    <main data-testid="decision-hub">
+      {categoryTabs}
+      <span>{`decision catalog, query "${query}", open ${selectedModelId}`}</span>
+      <button type="button" onClick={() => onSelectModel('laya')}>
+        pick laya
+      </button>
+    </main>
+  ),
+}))
+
 // The Images / Video catalog has tests of its own; here it only has to show
 // what the route handed it, and hand a pick back.
 vi.mock('@/containers/hub/MediaHub', () => ({
@@ -110,7 +133,9 @@ vi.mock('@/lib/platform/const', async (importOriginal) => {
       get: (target, key) =>
         key === 'mediaGeneration'
           ? mocks.mediaSupported
-          : target[key as keyof typeof target],
+          : key === 'localInference'
+            ? true
+            : target[key as keyof typeof target],
     }),
   }
 })
@@ -156,9 +181,16 @@ vi.mock('@/hooks/useGeneralSetting', () => {
 vi.mock('@/hooks/useHardware', () => ({
   useHardware: (
     selector: (s: {
-      hardwareData: { total_memory: number; gpus: unknown[] }
+      hardwareData: {
+        total_memory: number
+        gpus: unknown[]
+        cpu: { arch: string }
+      }
     }) => unknown
-  ) => selector({ hardwareData: { total_memory: 64 * 1024, gpus: [] } }),
+  ) =>
+    selector({
+      hardwareData: { total_memory: 64 * 1024, gpus: [], cpu: { arch: '' } },
+    }),
 }))
 
 vi.mock('@/hooks/useServiceHub', () => ({
@@ -170,6 +202,7 @@ vi.mock('@/hooks/useServiceHub', () => ({
         convertHfRepoToCatalogModel: (repo: CatalogModel) => repo,
       }),
       providers: () => ({ getProviders: async () => [] }),
+      decision: () => ({ isSupported: () => mocks.decisionSupported }),
   }),
 }))
 
@@ -218,6 +251,7 @@ describe('/hub route', () => {
     setHubSearchQuery('')
     mocks.search = {}
     mocks.mediaSupported = false
+    mocks.decisionSupported = false
     mocks.sources = []
     mocks.staffPicks = [
       {
@@ -654,24 +688,46 @@ describe('/hub route', () => {
         replace?: boolean
       }
 
+    const picker = () => screen.queryByTestId('hub-category-workflow-select')
+    const pick = async (category: string) => {
+      await userEvent.click(screen.getByTestId('hub-category-workflow-select'))
+      await userEvent.click(
+        screen.getByTestId(`hub-category-workflow-option-${category}`)
+      )
+    }
+
     it('stays the chat catalog without the media engine, whatever the URL says', () => {
       mocks.search = { category: 'image' }
       render(<HubPage />)
 
-      expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+      expect(picker()).not.toBeInTheDocument()
       expect(screen.queryByTestId('media-hub')).not.toBeInTheDocument()
       expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
     })
 
-    it('opens on Chat, with the switch above the filters', () => {
+    it('opens on Text, with the picker above the filters', () => {
       mocks.mediaSupported = true
       render(<HubPage />)
 
-      expect(
-        screen.getByRole('tab', { name: 'hub:categoryChat' })
-      ).toHaveAttribute('aria-selected', 'true')
+      expect(picker()).toHaveAttribute('data-mode', 'chat')
       expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
       expect(screen.queryByTestId('media-hub')).not.toBeInTheDocument()
+    })
+
+    it('lists only the types this machine can run, each with what it does', async () => {
+      mocks.decisionSupported = true
+      render(<HubPage />)
+
+      await userEvent.click(screen.getByTestId('hub-category-workflow-select'))
+      const menu = screen.getByTestId('hub-category-workflow-menu')
+      expect(menu).toHaveTextContent('hub:categoryChatHint')
+      expect(menu).toHaveTextContent('hub:categoryDecisionHint')
+      expect(
+        screen.queryByTestId('hub-category-workflow-option-image')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId('hub-category-workflow-option-video')
+      ).not.toBeInTheDocument()
     })
 
     it('shows the image catalog the URL names, with its search and selection', () => {
@@ -682,21 +738,38 @@ describe('/hub route', () => {
       expect(
         screen.getByText('image catalog, query "flux", open z-image')
       ).toBeInTheDocument()
-      expect(
-        screen.getByRole('tab', { name: 'hub:categoryImages' })
-      ).toHaveAttribute('aria-selected', 'true')
+      expect(picker()).toHaveAttribute('data-mode', 'image')
       // The chat feed is not even asked for.
       expect(screen.queryByText('Qwen3.5 4B')).not.toBeInTheDocument()
       expect(mocks.listHuggingFaceFeed.mock.calls).toEqual([])
+    })
+
+    it('shows the decision catalog the URL names, with its search and selection', () => {
+      mocks.decisionSupported = true
+      mocks.search = { category: 'decision', q: 'multi', model: 'laya' }
+      render(<HubPage />)
+
+      expect(
+        screen.getByText('decision catalog, query "multi", open laya')
+      ).toBeInTheDocument()
+      expect(picker()).toHaveAttribute('data-mode', 'decision')
+      expect(mocks.listHuggingFaceFeed.mock.calls).toEqual([])
+    })
+
+    it('stays the chat catalog where decision models cannot run', () => {
+      mocks.mediaSupported = true
+      mocks.search = { category: 'decision' }
+      render(<HubPage />)
+
+      expect(screen.queryByTestId('decision-hub')).not.toBeInTheDocument()
+      expect(picker()).toHaveAttribute('data-mode', 'chat')
     })
 
     it('drops the selection of the old category when switching', async () => {
       mocks.mediaSupported = true
       render(<HubPage />)
 
-      await userEvent.click(
-        screen.getByRole('tab', { name: 'hub:categoryVideo' })
-      )
+      await pick('video')
 
       const navigation = lastNavigation()
       expect(navigation.replace).toBe(true)
@@ -714,18 +787,31 @@ describe('/hub route', () => {
       })
     })
 
-    it('leaves Chat out of the URL when switching back to it', async () => {
+    it('leaves Text out of the URL when switching back to it', async () => {
       mocks.mediaSupported = true
       mocks.search = { category: 'video', model: 'wan-2.2-ti2v-5b' }
       render(<HubPage />)
 
-      await userEvent.click(
-        screen.getByRole('tab', { name: 'hub:categoryChat' })
-      )
+      await pick('chat')
 
       expect(
         lastNavigation().search({ category: 'video', model: 'wan-2.2-ti2v-5b' })
       ).toEqual({ category: undefined, model: undefined, repo: undefined })
+    })
+
+    it('puts a decision model picked in its catalog into the URL', async () => {
+      mocks.decisionSupported = true
+      mocks.search = { category: 'decision' }
+      render(<HubPage />)
+
+      await userEvent.click(screen.getByRole('button', { name: 'pick laya' }))
+
+      const navigation = lastNavigation()
+      expect(navigation.replace).toBe(false)
+      expect(navigation.search({ category: 'decision' })).toEqual({
+        category: 'decision',
+        model: 'laya',
+      })
     })
 
     it('puts a family picked in the media catalog into the URL', async () => {

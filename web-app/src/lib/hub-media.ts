@@ -1,12 +1,14 @@
 /**
- * Pure logic behind the Hub's Images and Video categories.
+ * Pure logic behind the Hub's Images, Video and Decision categories.
  *
  * Chat models come from the open Hugging Face catalog; image and video models
  * do not. A diffusion checkpoint only runs with the VAE and text encoders the
  * curated catalog pairs it with, so these categories list that catalog and
- * nothing else — the same families the Images and Video pages offer.
+ * nothing else — the same families the Images and Video pages offer. Decision
+ * models likewise come from their own curated catalog only.
  */
 
+import type { DecisionCatalogModel } from '@/services/decision-catalog-registry'
 import type { DiffusionModality } from '@/services/diffusion/types'
 import type {
   DiffusionCatalog,
@@ -14,9 +16,14 @@ import type {
 } from '@/services/diffusion-catalog-registry'
 import { artifactId } from '@/lib/diffusion/models'
 
-export type HubCategory = 'chat' | DiffusionModality
+export type HubCategory = 'chat' | DiffusionModality | 'decision'
 
-export const HUB_CATEGORIES: readonly HubCategory[] = ['chat', 'image', 'video']
+export const HUB_CATEGORIES: readonly HubCategory[] = [
+  'chat',
+  'image',
+  'video',
+  'decision',
+]
 
 export const isHubCategory = (value: unknown): value is HubCategory =>
   typeof value === 'string' && HUB_CATEGORIES.includes(value as HubCategory)
@@ -52,6 +59,25 @@ export function filterFamiliesBySearch(
       family.description,
       family.transformer.repo,
     ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return terms.every((term) => haystack.includes(term))
+  })
+}
+
+/**
+ * The Decision category's search: every word in the model's name,
+ * description, repo or backbone.
+ */
+export function filterDecisionModels(
+  models: readonly DecisionCatalogModel[],
+  query: string
+): DecisionCatalogModel[] {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return [...models]
+  return models.filter((model) => {
+    const haystack = [model.name, model.description, model.repo, model.backbone]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()

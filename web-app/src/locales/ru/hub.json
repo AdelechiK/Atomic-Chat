@@ -68,5 +68,15 @@
   "defaultSize": "Размер по умолчанию",
   "steps": "Шаги",
   "license": "Лицензия",
-  "frameRate": "Частота кадров"
+  "frameRate": "Частота кадров",
+  "categoryChatHint": "Языковые модели для чата",
+  "categoryImagesHint": "Генерация изображений по описанию",
+  "categoryVideoHint": "Генерация коротких видео",
+  "categoryDecision": "Decision",
+  "categoryDecisionHint": "Ответы на вопросы о тексте",
+  "searchDecisionPlaceholder": "Поиск decision-моделей…",
+  "available": "Доступные",
+  "cpu": "CPU",
+  "languages": "Языки",
+  "backbone": "Основа"
 }

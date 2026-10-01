@@ -62,5 +62,15 @@
   "defaultSize": "Domyślny rozmiar",
   "steps": "Kroki",
   "license": "Licencja",
-  "frameRate": "Liczba klatek na sekundę"
+  "frameRate": "Liczba klatek na sekundę",
+  "categoryChatHint": "Language models for chat",
+  "categoryImagesHint": "Generate images from a prompt",
+  "categoryVideoHint": "Generate short videos",
+  "categoryDecision": "Decision",
+  "categoryDecisionHint": "Answer questions about a text",
+  "searchDecisionPlaceholder": "Search decision models…",
+  "available": "Available",
+  "cpu": "CPU",
+  "languages": "Languages",
+  "backbone": "Backbone"
 }
