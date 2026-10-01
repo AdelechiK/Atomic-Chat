@@ -51,7 +51,7 @@ test('every bundled extension still publishes under its legacy @janhq name', () 
 /**
  * The extensions this platform's build packs, read from the root `build:extensions:<platform>`
  * script rather than listed here: its `--exclude` flags are the one place that decides, e.g. MLX
- * and Foundation Models only on macOS, TensorRT-LLM only on Linux.
+ * and Foundation Models only on macOS, TensorRT-LLM on Linux and Windows.
  */
 function builtHere(platform = process.platform) {
   const scripts = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')).scripts
@@ -60,11 +60,13 @@ function builtHere(platform = process.platform) {
   return extensionPackages().filter((pkg) => !excluded.has(pkg.name))
 }
 
-test('only Linux builds the TensorRT-LLM extension', () => {
+test('Linux and Windows build the TensorRT-LLM extension, macOS does not', () => {
+  // On Windows the extension ships in every build; the core hides it on ARM and until conf
+  // publishes the Windows environment manifest (change add-tensorrt-llm-windows, design D14).
   const names = (platform) => builtHere(platform).map((pkg) => pkg.name)
   assert.ok(names('linux').includes('@janhq/tensorrt-llm-extension'))
+  assert.ok(names('win32').includes('@janhq/tensorrt-llm-extension'))
   assert.ok(!names('darwin').includes('@janhq/tensorrt-llm-extension'))
-  assert.ok(!names('win32').includes('@janhq/tensorrt-llm-extension'))
 })
 
 test('each extension this platform builds has a pre-install tarball under the name the installer looks for', () => {

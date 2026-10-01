@@ -9,7 +9,7 @@ decision is reversed, add a new one that says which record it supersedes.
 2. Add one line to the right section of this index.
 3. Do **not** paste the record body into `AGENTS.md`.
 
-378 records, 2026-05-19 → 2026-09-30.
+379 records, 2026-05-19 → 2026-10-01.
 
 ---
 
@@ -412,6 +412,10 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-09-15** — [jan-cli keeps its file name and becomes a copy of the core](2026-09-15-jan-cli-keeps-its-name-and-becomes-the-core.md)
 - **2026-09-15** — [Sign the core with JIT entitlements and verify the universal artifact](2026-09-15-sign-the-core-with-jit-entitlements.md)
 - **2026-09-15** — [Pin the core version in the app and reject protocol mismatches](2026-09-15-pin-the-core-version-and-reject-mismatches.md)
+
+## TensorRT-LLM on Windows (1)
+
+- **2026-10-01** — [Ship TensorRT-LLM on Linux and Windows and let the core hide it](2026-10-01-ship-tensorrt-llm-on-linux-and-windows-and-let-the-core-hide-it.md) (supersedes the Linux-only extension record below)
 
 ## TensorRT-LLM on Linux (3)
 

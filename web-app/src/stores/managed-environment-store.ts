@@ -8,8 +8,8 @@ import type {
 } from '@/services/managed-environment/types'
 
 /**
- * The app's copy of the core's managed-runtime state: the container environment on Linux, the
- * TensorRT-LLM installation in it and the durable operations that set it up and remove it.
+ * The app's copy of the core's managed-runtime state: the container environment on Linux (on
+ * Windows, Atomic Chat's own WSL distribution), the TensorRT-LLM installation in it and the durable operations that set it up and remove it.
  *
  * The core is the truth and outlives every dialog: a setup keeps running when the window closes,
  * and an operation waiting for the user to sign in again is continued by the next core. So this is

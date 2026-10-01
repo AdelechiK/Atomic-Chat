@@ -1,5 +1,5 @@
 /**
- * TensorRT-LLM Extension (Linux)
+ * TensorRT-LLM Extension (Linux and Windows)
  *
  * NVIDIA's TensorRT-LLM as one more local engine. `atomic-chat-core` runs `trtllm-serve` in a
  * Docker container on one NVIDIA GPU and serves each loaded model on a loopback gateway that
@@ -12,7 +12,10 @@
  * always keeps: the model list (`<data>/tensorrt-llm/models/<id>/model.yml`, written last by the
  * app's downloader), the settings, and whether the provider is shown at all.
  *
- * Built into the Linux app only (`build:extensions:linux`).
+ * Built into the Linux and Windows apps (`build:extensions:linux`, `build:extensions:win32`). On
+ * Windows the core runs the container inside Atomic Chat's own WSL distribution (change
+ * `add-tensorrt-llm-windows`) and hides the provider on ARM and until conf publishes the Windows
+ * environment manifest.
  */
 
 import {

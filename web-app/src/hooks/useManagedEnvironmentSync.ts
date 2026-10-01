@@ -6,13 +6,14 @@ import { startManagedEnvironmentSync } from '@/services/managed-environment/sync
 
 /**
  * Follows the core's managed-runtime state for the whole session (`startManagedEnvironmentSync`).
- * Linux only: the core has no managed environment anywhere else in this release.
+ * Linux and Windows: the core has no managed environment on macOS. On Windows on ARM the core
+ * answers `unsupported` itself, so the architecture is not checked here.
  */
 export function useManagedEnvironmentSync(): void {
   const serviceHub = useServiceHub()
 
   useEffect(() => {
-    if (!IS_LINUX) return
+    if (!IS_LINUX && !IS_WINDOWS) return
     let stop: (() => void) | undefined
     let cancelled = false
     void startManagedEnvironmentSync({

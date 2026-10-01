@@ -3,8 +3,9 @@ import { EngineManager } from '@janhq/core'
 /**
  * Engines that decide for themselves whether they belong in the provider lists.
  *
- * TensorRT-LLM is built into every Linux app, but it can only run — or be set up — on a machine
- * with an NVIDIA GPU and once the engine's descriptor is published (spec `tensorrt-llm-desktop`).
+ * TensorRT-LLM is built into every Linux and Windows app, but it can only run — or be set up — on
+ * a machine with an NVIDIA GPU (x64 on Windows) and once the engine's descriptor is published — on
+ * Windows also the environment manifest (spec `tensorrt-llm-desktop`).
  * Its extension asks the core and answers `isHidden()`; `refreshVisibility()` asks again, which the
  * provider settings do each time they open, so a descriptor published later shows the provider
  * without an app update.

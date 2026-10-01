@@ -2,7 +2,7 @@
   "name": "@janhq/tensorrt-llm-extension",
   "productName": "TensorRT-LLM",
   "version": "1.0.0",
-  "description": "Run models with NVIDIA TensorRT-LLM on Linux: atomic-chat-core runs the engine in a Docker container on your NVIDIA GPU",
+  "description": "Run models with NVIDIA TensorRT-LLM on Linux and Windows: atomic-chat-core runs the engine in a Docker container on your NVIDIA GPU (on Windows, inside Atomic Chat's own WSL distribution)",
   "main": "dist/index.js",
   "module": "dist/module.js",
   "engine": "tensorrt-llm",

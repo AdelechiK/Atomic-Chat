@@ -3,9 +3,9 @@
  * `environment:*` events; the relay's own snapshot on every reattach (`atomic-core://snapshot`,
  * payload `{generation, snapshot}`), and a detach that makes events stop counting until then.
  *
- * Mounted once at the app root on Linux, not by the provider page: a setup runs whether or not the
- * page is open, and the page must find it as it is when it opens (spec `tensorrt-llm-desktop`,
- * "Закрыли окно и открыли снова").
+ * Mounted once at the app root on Linux and Windows, not by the provider page: a setup runs whether
+ * or not the page is open, and the page must find it as it is when it opens (spec
+ * `tensorrt-llm-desktop`, "Закрыли окно и открыли снова").
  */
 
 import {

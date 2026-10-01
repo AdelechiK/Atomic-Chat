@@ -18,9 +18,10 @@ export type HubHint =
   | 'blocked'
 
 /**
- * `null` — no hint — when the provider is hidden (no NVIDIA card, not Linux, no descriptor: the
- * extension's own answer, R-app-5) or before the core's snapshot is in, when nothing true can be
- * said yet. The snapshot exists on Linux only, so no platform check is needed on top.
+ * `null` — no hint — when the provider is hidden (no NVIDIA card, macOS or Windows on ARM, no
+ * descriptor or no Windows environment manifest: the extension's own answer, R-app-5) or before
+ * the core's snapshot is in, when nothing true can be said yet. The snapshot exists on Linux and
+ * Windows only, so no platform check is needed on top.
  */
 export function hubHint(options: {
   providerShown: boolean

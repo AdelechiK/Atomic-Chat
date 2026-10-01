@@ -34,6 +34,19 @@ describe('isProviderHidden', () => {
     }
   })
 
+  it('on Windows, hides it where the core answers unsupported and shows what the person can fix', () => {
+    // Change add-tensorrt-llm-windows: Windows on ARM, a build older than Windows 11 and no
+    // `windows.json` in conf are `unsupported`; the WSL blockers carry instructions and stay shown.
+    for (const reason of ['unsupported-architecture', 'windows-build-too-old', 'environment-manifest-unavailable']) {
+      expect(isProviderHidden({ availability: 'unsupported', blockers: [blocker(reason)] })).toBe(true)
+    }
+    for (const reason of ['wsl-version', 'virtualization-disabled', 'foreign-distribution', 'elevated-process']) {
+      expect(
+        isProviderHidden({ availability: 'prerequisite-blocked', blockers: [blocker(reason)] })
+      ).toBe(false)
+    }
+  })
+
   it('shows a host that can be set up or already runs the engine', () => {
     expect(isProviderHidden({ availability: 'setup-required', blockers: [] })).toBe(false)
     expect(isProviderHidden({ availability: 'supported', blockers: [] })).toBe(false)
