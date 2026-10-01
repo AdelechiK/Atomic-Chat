@@ -107,12 +107,14 @@ export function descriptorHint(environment: EnvironmentSnapshot | undefined): st
 }
 
 export type HostStepAnswer =
-  | { outcome: 'completed' | 'failed' | 'declined'; log_tail?: string }
+  | { outcome: 'completed' | 'reboot-required' | 'failed' | 'declined'; log_tail?: string }
   | { outcome: 'manual'; command: string }
 
 /**
- * Run the privileged step the operation waits on (Rust: `pkexec` on a copy of the core). Only the
- * operation id crosses over: Rust reads the step from the core and writes the request itself.
+ * Run the privileged step the operation waits on (Rust: `pkexec` on a copy of the core on Linux,
+ * the UAC prompt on Windows). Only the operation id crosses over: Rust reads the step from the
+ * core and writes the request itself. `manual` hands over a command to run by hand: on Linux the
+ * receipt follows once it ran, on Windows (UAC cannot be raised) the person checks again.
  */
 export function runHostStep(operationId: string): Promise<HostStepAnswer> {
   return invoke<HostStepAnswer>('atomic_core_run_host_step', { operationId })

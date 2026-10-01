@@ -128,8 +128,10 @@ function seed(env: EnvironmentSnapshot, operations: EnvironmentOperation[] = [])
 /** The core's next word on the operation, as the relay delivers it. */
 function coreSays(op: EnvironmentOperation) {
   act(() => {
+    // The environment keeps its executor: Linux by default, the WSL one in the Windows cases.
+    const executor = Object.values(store().environments)[0]?.executor ?? 'linux-docker'
     store().applyEnvironment(
-      environment({ revision: op.revision + 100, active_operation_id: op.operation_id })
+      environment({ executor, revision: op.revision + 100, active_operation_id: op.operation_id })
     )
     store().applyOperation(op)
   })
@@ -363,6 +365,107 @@ describe('TensorrtLlmSetupPanel', () => {
         'sudo /run/user/1000/x/atomic-chat-core host-step exec /run/user/1000/x/step-1.request.json'
       )
     ).toBeInTheDocument()
+  })
+
+  describe('on Windows (change add-tensorrt-llm-windows)', () => {
+    const distributionPath = 'C:\\Users\\ann\\AppData\\Local\\AtomicChat\\wsl\\AtomicChat'
+    const windowsPlan = () =>
+      plan({
+        recipe_id: 'linux.install-container-runtime',
+        system_changes: [
+          { code: 'enable-wsl', text: 'Turn on the Windows Subsystem for Linux (wsl --install --no-distribution).' },
+          {
+            code: 'import-distribution',
+            text: `Download ubuntu 24.04 and import it as Atomic Chat’s own WSL distribution "AtomicChat" in ${distributionPath}.`,
+            params: { name: 'AtomicChat', path: distributionPath },
+          },
+          {
+            code: 'provision-distribution',
+            text: 'Inside it, install Docker Engine and the NVIDIA Container Toolkit and generate the NVIDIA CDI specification.',
+          },
+        ],
+        docker_root_dir: distributionPath,
+        free_disk_bytes: 200 * 1024 ** 3,
+        may_require_relogin: false,
+        may_require_reboot: true,
+      })
+    const enableWsl = {
+      step_id: 'step-w',
+      action: 'windows.enable-wsl',
+      recipe_id: 'windows.enable-wsl',
+      parameters: {},
+    } as unknown as EnvironmentOperation['pending_host_step']
+
+    beforeEach(() => {
+      seed(environment({ executor: 'wsl-docker' }))
+      client.probe.mockResolvedValue(windowsPlan())
+    })
+
+    it('asks for UAC, then for a restart, and goes on after it with no new consent', async () => {
+      // spec "Windows без WSL".
+      render(<TensorrtLlmSetupPanel />)
+      expect(await screen.findByText('providers:tensorrt.notInstalledWindows')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'providers:tensorrt.install' }))
+
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByText(/wsl --install --no-distribution/)).toBeInTheDocument()
+      expect(within(dialog).getByText(/import it as Atomic Chat’s own WSL distribution/)).toBeInTheDocument()
+      expect(within(dialog).getByText(/install Docker Engine and the NVIDIA Container Toolkit/)).toBeInTheDocument()
+      expect(within(dialog).getByText('providers:tensorrt.plan.reboot')).toBeInTheDocument()
+      expect(within(dialog).queryByText('providers:tensorrt.plan.relogin')).not.toBeInTheDocument()
+      // The mock `t` prints its parameters as JSON, which doubles the path's backslashes.
+      const disk = within(dialog).getByText(/providers:tensorrt.plan.wslDisk /)
+      expect(disk).toHaveTextContent(JSON.stringify(distributionPath).slice(1, -1))
+      expect(disk).toHaveTextContent('"free":"200.0 GB"')
+      fireEvent.click(within(dialog).getByRole('button', { name: 'providers:tensorrt.plan.agree' }))
+      await waitFor(() => expect(client.beginOperation).toHaveBeenCalledTimes(1))
+
+      coreSays(operation({ phase: 'awaiting-consent', revision: 2, plan_digest: digest }))
+      await waitFor(() => expect(client.resumeOperation).toHaveBeenCalledWith('op-1', 2, digest))
+
+      let answer: (value: unknown) => void = () => {}
+      client.runHostStep.mockReturnValue(new Promise((resolve) => (answer = resolve)))
+      coreSays(operation({ phase: 'preparing-host', revision: 3, pending_host_step: enableWsl }))
+      await waitFor(() => expect(client.runHostStep).toHaveBeenCalledWith('op-1'))
+      expect(screen.getByText('providers:tensorrt.phaseWindows.preparing-host')).toBeInTheDocument()
+      expect(screen.getByText('providers:tensorrt.hostStep.uac.waiting')).toBeInTheDocument()
+
+      await act(async () => answer({ outcome: 'reboot-required', log_tail: '' }))
+      coreSays(operation({ phase: 'reboot-required', revision: 4, completed_step_ids: ['step-w'] }))
+      expect(await screen.findByText('providers:tensorrt.reboot.title')).toBeInTheDocument()
+      expect(screen.getByText('providers:tensorrt.reboot.body')).toBeInTheDocument()
+
+      // After the restart: a new core, the same operation going on by itself.
+      act(() => {
+        store().applySnapshot({
+          instance_id: 'core-b',
+          environments: [environment({ executor: 'wsl-docker', instance_id: 'core-b', active_operation_id: 'op-1' })],
+          environment_operations: [
+            operation({ instance_id: 'core-b', phase: 'preparing-environment', revision: 5, completed_step_ids: ['step-w'] }),
+          ],
+        })
+      })
+      expect(await screen.findByText('providers:tensorrt.phaseWindows.preparing-environment')).toBeInTheDocument()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(client.resumeOperation).toHaveBeenCalledTimes(1)
+      expect(client.runHostStep).toHaveBeenCalledTimes(1)
+    })
+
+    it('where UAC cannot be raised, hands over the command for an administrator terminal and checks again on request', async () => {
+      client.runHostStep.mockResolvedValue({ outcome: 'manual', command: 'wsl --install --no-distribution' })
+      seed(environment({ executor: 'wsl-docker', active_operation_id: 'op-1' }), [
+        operation({ phase: 'preparing-host', revision: 3, pending_host_step: enableWsl }),
+      ])
+
+      render(<TensorrtLlmSetupPanel />)
+
+      expect(await screen.findByText('wsl --install --no-distribution')).toBeInTheDocument()
+      expect(screen.getByText('providers:tensorrt.hostStep.uac.manual')).toBeInTheDocument()
+      const probes = client.probe.mock.calls.length
+      fireEvent.click(screen.getByRole('button', { name: 'providers:tensorrt.checkAgain' }))
+      await waitFor(() => expect(client.cancelOperation).toHaveBeenCalledWith('op-1'))
+      await waitFor(() => expect(client.probe.mock.calls.length).toBe(probes + 1))
+    })
   })
 
   it('answers a removal still waiting for consent with the removal dialog, not a setup plan', async () => {

@@ -66,5 +66,31 @@
     "neverUpdated": "Noch nicht geladen",
     "successDescription": "Anbieterkatalog wurde aktualisiert.",
     "errorDescription": "Katalog konnte nicht aktualisiert werden. Zwischenspeicher oder integrierte Anbieter werden verwendet."
+  },
+  "tensorrt": {
+    "checkAgain": "Erneut prüfen",
+    "notInstalledWindows": "TensorRT-LLM ist nicht installiert. Bei der Installation wird WSL bei Bedarf aktiviert, eine eigene WSL-Distribution von Atomic Chat mit Docker und dem NVIDIA Container Toolkit eingerichtet und das Engine-Image heruntergeladen.",
+    "plan": {
+      "reboot": "Nach dem Aktivieren von WSL kann Windows einen Neustart verlangen. Öffnen Sie Atomic Chat nach dem Neustart: Die Installation wird von selbst fortgesetzt.",
+      "wslDisk": "Speicher: {{required}} für die WSL-Distribution von Atomic Chat in {{path}}; dort {{free}} frei.",
+      "wslDiskNoFree": "Speicher: {{required}} für die WSL-Distribution von Atomic Chat in {{path}}.",
+      "wslDiskNoPath": "Speicher: {{required}} für die WSL-Distribution von Atomic Chat benötigt; dort {{free}} frei.",
+      "wslDiskUnknown": "Speicher: {{required}} für die WSL-Distribution von Atomic Chat. Speicherort und freier Platz wurden nicht gemeldet."
+    },
+    "hostStep": {
+      "uac": {
+        "waiting": "Warten auf Ihre Bestätigung der Windows-Administratorabfrage (UAC), die WSL aktiviert…",
+        "manual": "Windows kann hier keine Administratorabfrage für Atomic Chat anzeigen. Öffnen Sie ein Terminal als Administrator, führen Sie diesen Befehl aus, starten Sie den Computer neu, falls verlangt, und klicken Sie dann auf „Erneut prüfen“:",
+        "retry": "Erneut um Bestätigung bitten"
+      }
+    },
+    "reboot": {
+      "title": "Computer neu starten",
+      "body": "WSL ist aktiviert, und Windows benötigt einen Neustart, um dies abzuschließen. Öffnen Sie Atomic Chat nach dem Neustart: Die Installation wird von selbst fortgesetzt, ohne erneute Zustimmung."
+    },
+    "phaseWindows": {
+      "preparing-host": "WSL wird aktiviert",
+      "preparing-environment": "Die WSL-Distribution von Atomic Chat wird eingerichtet und geprüft, ob sie Ihre GPU sieht"
+    }
   }
 }

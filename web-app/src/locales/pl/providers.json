@@ -66,5 +66,31 @@
     "neverUpdated": "Jeszcze nie załadowano",
     "successDescription": "Katalog dostawców został zaktualizowany.",
     "errorDescription": "Nie udało się odświeżyć katalogu. Używana jest pamięć podręczna lub wbudowani dostawcy."
+  },
+  "tensorrt": {
+    "checkAgain": "Sprawdź ponownie",
+    "notInstalledWindows": "TensorRT-LLM nie jest zainstalowany. Instalacja w razie potrzeby włączy WSL, utworzy własną dystrybucję WSL Atomic Chat z Dockerem i NVIDIA Container Toolkit oraz pobierze obraz silnika.",
+    "plan": {
+      "reboot": "Po włączeniu WSL system Windows może wymagać ponownego uruchomienia. Po ponownym uruchomieniu otwórz Atomic Chat: instalacja będzie kontynuowana sama.",
+      "wslDisk": "Dysk: {{required}} na dystrybucję WSL Atomic Chat w {{path}}; wolne {{free}}.",
+      "wslDiskNoFree": "Dysk: {{required}} na dystrybucję WSL Atomic Chat w {{path}}.",
+      "wslDiskNoPath": "Dysk: potrzeba {{required}} na dystrybucję WSL Atomic Chat; wolne {{free}}.",
+      "wslDiskUnknown": "Dysk: {{required}} na dystrybucję WSL Atomic Chat. Nie podano lokalizacji ani wolnego miejsca."
+    },
+    "hostStep": {
+      "uac": {
+        "waiting": "Czekamy, aż zatwierdzisz monit administratora Windows (UAC), który włącza WSL…",
+        "manual": "Windows nie może tu wyświetlić monitu administratora dla Atomic Chat. Otwórz terminal jako administrator, uruchom to polecenie, uruchom komputer ponownie, jeśli o to poprosi, a potem naciśnij „Sprawdź ponownie”:",
+        "retry": "Poproś o zgodę ponownie"
+      }
+    },
+    "reboot": {
+      "title": "Uruchom komputer ponownie",
+      "body": "WSL jest włączony, a Windows potrzebuje ponownego uruchomienia, aby to dokończyć. Po ponownym uruchomieniu otwórz Atomic Chat: instalacja będzie kontynuowana sama, bez ponownej zgody."
+    },
+    "phaseWindows": {
+      "preparing-host": "Włączanie WSL",
+      "preparing-environment": "Konfigurowanie dystrybucji WSL Atomic Chat i sprawdzanie, czy widzi Twoją kartę graficzną"
+    }
   }
 }

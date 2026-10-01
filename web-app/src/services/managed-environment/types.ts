@@ -1,10 +1,11 @@
 /**
  * The managed-runtime surface of `atomic-chat-core` 0.7.5 (control protocol 2) as the app reads it:
- * the container environment the core owns on Linux, the TensorRT-LLM installation inside it, the
- * durable operations that set it up and remove it, and the core's verdict on a checkpoint.
+ * the container environment the core owns on Linux — on Windows, Atomic Chat's own WSL
+ * distribution — the TensorRT-LLM installation inside it, the durable operations that set it up and
+ * remove it, and the core's verdict on a checkpoint.
  *
- * A copy of the fields the app uses from the core's `src/contracts/environment.ts` (openspec change
- * `add-tensorrt-llm-linux`); snake_case because the core emits them so. Nothing here is computed by
+ * A copy of the fields the app uses from the core's `src/contracts/environment.ts` (openspec changes
+ * `add-tensorrt-llm-linux`, `add-tensorrt-llm-windows`); snake_case because the core emits them so. Nothing here is computed by
  * the app: every value comes from the core, over `atomic_core_call` or a relayed event.
  */
 
@@ -78,11 +79,21 @@ export interface ManagedBlocker extends ManagedError {
   commands?: string[]
 }
 
+/** Atomic Chat's own WSL distribution, once imported (Windows only). */
+export interface WslDistribution {
+  name: string
+  /** The Windows folder that holds its `ext4.vhdx`. */
+  path: string
+  /** What the distribution takes on disk; null when the core could not read it. */
+  size_bytes: number | null
+}
+
 export interface EnvironmentSnapshot {
   schema_version: 1
   environment_id: string
   instance_id: string
   revision: number
+  /** `wsl-docker` on Windows: Docker inside Atomic Chat's WSL distribution. */
   executor: 'linux-docker' | 'wsl-docker'
   availability: ManagedAvailability
   gpus: GpuFacts[]
@@ -91,6 +102,8 @@ export interface EnvironmentSnapshot {
   installations: RuntimeInstallation[]
   active_operation_id: string | null
   minimum_app_version: string | null
+  /** Null before the import and always on Linux; absent from a core built before Windows. */
+  distribution?: WslDistribution | null
 }
 
 export interface ContainerRuntimeStepParameters {
@@ -102,16 +115,29 @@ export interface ContainerRuntimeStepParameters {
   components: string[]
 }
 
-export interface ManagedHostStep {
-  step_id: string
-  action: 'linux.install-container-runtime' | 'windows.enable-wsl'
-  recipe_id: string
-  recipe_digest: Sha256Digest
-  parameters_digest: Sha256Digest
-  parameters: ContainerRuntimeStepParameters
-  nonce: string
-  expected_operation_revision: number
+/** `windows.enable-wsl` takes nothing: its executor only runs `wsl --install --no-distribution`. */
+export type EnableWslStepParameters = Record<string, never>
+
+/** Each privileged action with the parameters the core sends for it. */
+export interface ManagedHostStepParameters {
+  'linux.install-container-runtime': ContainerRuntimeStepParameters
+  'windows.enable-wsl': EnableWslStepParameters
 }
+
+export type ManagedHostAction = keyof ManagedHostStepParameters
+
+export type ManagedHostStep = {
+  [Action in ManagedHostAction]: {
+    step_id: string
+    action: Action
+    recipe_id: string
+    recipe_digest: Sha256Digest
+    parameters_digest: Sha256Digest
+    parameters: ManagedHostStepParameters[Action]
+    nonce: string
+    expected_operation_revision: number
+  }
+}[ManagedHostAction]
 
 export interface EnvironmentOperation {
   schema_version: 1
@@ -173,6 +199,8 @@ export interface RequirementPlan {
    * does not answer yet) and the free bytes there as of this probe — the same number an
    * `insufficient-disk` blocker carries. Both null when the core measured nothing (the read failed,
    * a removal, no descriptor). Core task 2.22; the NVIDIA notices come from the descriptor route.
+   * On Windows the path is the distribution's folder under `%LOCALAPPDATA%` and the space is on its
+   * volume — once imported, the smaller of that and the guest's (core ruling 2.1).
    */
   docker_root_dir: string | null
   free_disk_bytes: number | null

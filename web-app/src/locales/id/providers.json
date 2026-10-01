@@ -66,5 +66,31 @@
     "neverUpdated": "Belum dimuat",
     "successDescription": "Katalog penyedia diperbarui.",
     "errorDescription": "Tidak dapat memperbarui katalog. Menggunakan cache atau penyedia bawaan."
+  },
+  "tensorrt": {
+    "checkAgain": "Periksa lagi",
+    "notInstalledWindows": "TensorRT-LLM belum terpasang. Pemasangan akan menyalakan WSL bila perlu, menyiapkan distribusi WSL milik Atomic Chat dengan Docker dan NVIDIA Container Toolkit di dalamnya, lalu mengunduh image mesin.",
+    "plan": {
+      "reboot": "Windows mungkin perlu dimulai ulang setelah WSL dinyalakan. Setelah dimulai ulang, buka Atomic Chat: pemasangan berlanjut dengan sendirinya.",
+      "wslDisk": "Disk: {{required}} untuk distribusi WSL Atomic Chat di {{path}}; tersedia {{free}} di sana.",
+      "wslDiskNoFree": "Disk: {{required}} untuk distribusi WSL Atomic Chat di {{path}}.",
+      "wslDiskNoPath": "Disk: dibutuhkan {{required}} untuk distribusi WSL Atomic Chat; tersedia {{free}} di sana.",
+      "wslDiskUnknown": "Disk: {{required}} untuk distribusi WSL Atomic Chat. Lokasi dan ruang kosong tidak dilaporkan."
+    },
+    "hostStep": {
+      "uac": {
+        "waiting": "Menunggu Anda menyetujui permintaan administrator Windows (UAC) untuk menyalakan WSL…",
+        "manual": "Windows tidak dapat menampilkan permintaan administrator untuk Atomic Chat di sini. Buka terminal sebagai administrator, jalankan perintah ini, mulai ulang komputer bila diminta, lalu tekan Periksa lagi:",
+        "retry": "Minta persetujuan lagi"
+      }
+    },
+    "reboot": {
+      "title": "Mulai ulang komputer",
+      "body": "WSL sudah dinyalakan, dan Windows perlu dimulai ulang untuk menyelesaikannya. Setelah dimulai ulang, buka Atomic Chat: pemasangan berlanjut dengan sendirinya, tanpa meminta persetujuan lagi."
+    },
+    "phaseWindows": {
+      "preparing-host": "Menyalakan WSL",
+      "preparing-environment": "Menyiapkan distribusi WSL Atomic Chat dan memeriksa bahwa GPU Anda terlihat"
+    }
   }
 }

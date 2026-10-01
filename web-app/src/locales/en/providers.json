@@ -114,7 +114,12 @@
         "addressPoolsFix": "To avoid it, exclude Docker's address ranges from the VPN, or give Docker other ranges with \"default-address-pools\" in /etc/docker/daemon.json. You can still install now."
       },
       "cancel": "Cancel",
-      "agree": "Agree and install"
+      "agree": "Agree and install",
+      "reboot": "Windows may need a restart after WSL is turned on. After the restart, open Atomic Chat: the installation continues by itself.",
+      "wslDisk": "Disk: {{required}} for Atomic Chat's WSL distribution in {{path}}; {{free}} free there.",
+      "wslDiskNoFree": "Disk: {{required}} for Atomic Chat's WSL distribution in {{path}}.",
+      "wslDiskNoPath": "Disk: {{required}} needed for Atomic Chat's WSL distribution; {{free}} free there.",
+      "wslDiskUnknown": "Disk: {{required}} for Atomic Chat's WSL distribution. Its location and free space were not reported."
     },
     "consent": {
       "review": "Review the plan"
@@ -122,7 +127,12 @@
     "hostStep": {
       "waiting": "Waiting for your system password to set up Docker and the NVIDIA Container Toolkit…",
       "manual": "This desktop has no password prompt Atomic Chat can use. Run this command in a terminal; the installation continues when it finishes:",
-      "retry": "Ask for the password again"
+      "retry": "Ask for the password again",
+      "uac": {
+        "waiting": "Waiting for you to approve the Windows administrator prompt (UAC) that turns on WSL…",
+        "manual": "Windows cannot show an administrator prompt for Atomic Chat here. Open a terminal as administrator, run this command, restart the computer if it asks, then press Check again:",
+        "retry": "Ask for approval again"
+      }
     },
     "relogin": {
       "title": "Sign out and sign back in",
@@ -174,6 +184,15 @@
       "logs": "Model logs",
       "viewLogs": "View logs",
       "noLogs": "No log yet: this model has not been loaded."
+    },
+    "notInstalledWindows": "TensorRT-LLM is not installed. Installing it turns on WSL if needed, sets up Atomic Chat's own WSL distribution with Docker and the NVIDIA Container Toolkit inside it, and downloads the engine image.",
+    "reboot": {
+      "title": "Restart the computer",
+      "body": "WSL is turned on, and Windows needs a restart to finish. After the restart, open Atomic Chat: the installation continues by itself, without asking again."
+    },
+    "phaseWindows": {
+      "preparing-host": "Turning on WSL",
+      "preparing-environment": "Setting up Atomic Chat's WSL distribution and checking that it sees your GPU"
     }
   }
 }

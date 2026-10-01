@@ -68,5 +68,31 @@
     "neverUpdated": "아직 불러오지 않음",
     "successDescription": "제공자 카탈로그가 업데이트되었습니다.",
     "errorDescription": "제공자 카탈로그를 새로고침할 수 없습니다. 캐시된 또는 내장된 제공자를 사용합니다."
+  },
+  "tensorrt": {
+    "checkAgain": "다시 확인",
+    "notInstalledWindows": "TensorRT-LLM이 설치되어 있지 않습니다. 설치하면 필요한 경우 WSL을 켜고, Docker와 NVIDIA Container Toolkit이 들어 있는 Atomic Chat 전용 WSL 배포판을 만든 뒤 엔진 이미지를 다운로드합니다.",
+    "plan": {
+      "reboot": "WSL을 켠 뒤 Windows를 다시 시작해야 할 수 있습니다. 다시 시작한 후 Atomic Chat을 열면 설치가 자동으로 계속됩니다.",
+      "wslDisk": "디스크: {{path}}의 Atomic Chat WSL 배포판에 {{required}}, 여유 공간 {{free}}.",
+      "wslDiskNoFree": "디스크: {{path}}의 Atomic Chat WSL 배포판에 {{required}}.",
+      "wslDiskNoPath": "디스크: Atomic Chat WSL 배포판에 {{required}} 필요, 여유 공간 {{free}}.",
+      "wslDiskUnknown": "디스크: Atomic Chat WSL 배포판에 {{required}}. 위치와 여유 공간이 보고되지 않았습니다."
+    },
+    "hostStep": {
+      "uac": {
+        "waiting": "WSL을 켜는 Windows 관리자 확인(UAC)을 승인하기를 기다리는 중…",
+        "manual": "여기서는 Windows가 Atomic Chat의 관리자 확인을 표시할 수 없습니다. 관리자 권한으로 터미널을 열고 이 명령을 실행한 뒤, 요청하면 컴퓨터를 다시 시작하고 '다시 확인'을 누르세요:",
+        "retry": "다시 승인 요청"
+      }
+    },
+    "reboot": {
+      "title": "컴퓨터를 다시 시작하세요",
+      "body": "WSL이 켜졌으며, 완료하려면 Windows를 다시 시작해야 합니다. 다시 시작한 후 Atomic Chat을 열면 다시 동의를 묻지 않고 설치가 자동으로 계속됩니다."
+    },
+    "phaseWindows": {
+      "preparing-host": "WSL을 켜는 중",
+      "preparing-environment": "Atomic Chat WSL 배포판을 설정하고 GPU를 인식하는지 확인하는 중"
+    }
   }
 }

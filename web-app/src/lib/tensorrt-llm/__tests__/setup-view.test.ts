@@ -208,6 +208,7 @@ describe('planSummary', () => {
     )
 
     expect(summary.disk).toEqual({
+      location: 'docker',
       path: '/var/lib/docker',
       requiredBytes: 67_000_000_000,
       freeBytes: 20_000_000_000,
@@ -232,6 +233,7 @@ describe('planSummary', () => {
     )
 
     expect(summary.disk).toEqual({
+      location: 'docker',
       path: null,
       requiredBytes: 67_000_000_000,
       freeBytes: 20_000_000_000,
@@ -273,5 +275,53 @@ describe('planSummary', () => {
   it('reads a plan from a core that predates warnings as one without any', () => {
     const { warnings: _omitted, ...older } = plan()
     expect(planSummary(older as RequirementPlan).warnings).toEqual([])
+  })
+})
+
+describe('Windows (change add-tensorrt-llm-windows)', () => {
+  const windowsPlan = () =>
+    plan({
+      system_changes: [
+        { code: 'enable-wsl', text: 'Turn on the Windows Subsystem for Linux (wsl --install --no-distribution).' },
+        {
+          code: 'import-distribution',
+          text: 'Download ubuntu 24.04 and import it as "AtomicChat" in C:\\Users\\ann\\AppData\\Local\\AtomicChat\\wsl\\AtomicChat.',
+          params: { name: 'AtomicChat', path: 'C:\\Users\\ann\\AppData\\Local\\AtomicChat\\wsl\\AtomicChat' },
+        },
+        { code: 'provision-distribution', text: 'Inside it, install Docker Engine and the NVIDIA Container Toolkit.' },
+      ],
+      docker_root_dir: 'C:\\Users\\ann\\AppData\\Local\\AtomicChat\\wsl\\AtomicChat',
+      free_disk_bytes: 200_000_000_000,
+      may_require_relogin: false,
+      may_require_reboot: true,
+    })
+
+  it('waits for a restart in reboot-required', () => {
+    const view = deriveSetupView({ operation: operation({ phase: 'reboot-required' }) })
+    expect(view).toMatchObject({ kind: 'operation', step: 'reboot' })
+  })
+
+  it('says a restart may follow, and that the space is the distribution’s, on the volume that holds it', () => {
+    const summary = planSummary(windowsPlan(), [], 'wsl-docker')
+    expect(summary.reboot).toBe(true)
+    expect(summary.relogin).toBe(false)
+    expect(summary.disk).toMatchObject({
+      location: 'distribution',
+      path: 'C:\\Users\\ann\\AppData\\Local\\AtomicChat\\wsl\\AtomicChat',
+      freeBytes: 200_000_000_000,
+      insufficient: false,
+    })
+    expect(summary.canStart).toBe(true)
+  })
+
+  it('lists enabling WSL, the import with its path and Docker inside it, and flags the step that needs a restart', () => {
+    const { changes } = planSummary(windowsPlan(), [], 'wsl-docker')
+    expect(changes.map((change) => change.warning)).toEqual([true, false, false])
+    expect(changes[1].text).toContain('AtomicChat\\wsl\\AtomicChat')
+  })
+
+  it('keeps Docker’s storage as the disk on Linux', () => {
+    expect(planSummary(plan({ docker_root_dir: '/var/lib/docker' })).disk.location).toBe('docker')
+    expect(planSummary(plan(), [], 'linux-docker').reboot).toBe(false)
   })
 })

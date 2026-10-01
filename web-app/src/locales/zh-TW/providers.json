@@ -66,5 +66,31 @@
     "neverUpdated": "尚未載入",
     "successDescription": "提供者目錄已更新。",
     "errorDescription": "無法重新整理目錄。正在使用快取或內建提供者。"
+  },
+  "tensorrt": {
+    "checkAgain": "重新檢查",
+    "notInstalledWindows": "尚未安裝 TensorRT-LLM。安裝時會視需要開啟 WSL，建立 Atomic Chat 專屬的 WSL 發行版（內含 Docker 與 NVIDIA Container Toolkit），並下載引擎映像。",
+    "plan": {
+      "reboot": "開啟 WSL 後，Windows 可能需要重新啟動。重新啟動後開啟 Atomic Chat，安裝會自動繼續。",
+      "wslDisk": "磁碟：Atomic Chat 的 WSL 發行版在 {{path}} 需要 {{required}}；可用 {{free}}。",
+      "wslDiskNoFree": "磁碟：Atomic Chat 的 WSL 發行版在 {{path}} 需要 {{required}}。",
+      "wslDiskNoPath": "磁碟：Atomic Chat 的 WSL 發行版需要 {{required}}；可用 {{free}}。",
+      "wslDiskUnknown": "磁碟：Atomic Chat 的 WSL 發行版需要 {{required}}。未回報位置與可用空間。"
+    },
+    "hostStep": {
+      "uac": {
+        "waiting": "正在等候你核准開啟 WSL 的 Windows 系統管理員提示（UAC）…",
+        "manual": "Windows 無法在此為 Atomic Chat 顯示系統管理員提示。請以系統管理員身分開啟終端機，執行此命令，如有要求請重新啟動電腦，然後按「重新檢查」：",
+        "retry": "再次要求核准"
+      }
+    },
+    "reboot": {
+      "title": "請重新啟動電腦",
+      "body": "WSL 已開啟，Windows 需要重新啟動才能完成。重新啟動後開啟 Atomic Chat，安裝會自動繼續，不會再次要求同意。"
+    },
+    "phaseWindows": {
+      "preparing-host": "正在開啟 WSL",
+      "preparing-environment": "正在設定 Atomic Chat 的 WSL 發行版並確認它能看到你的 GPU"
+    }
   }
 }

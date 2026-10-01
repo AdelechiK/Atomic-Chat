@@ -65,5 +65,31 @@
     "neverUpdated": "Ainda não carregado",
     "successDescription": "Catálogo de provedores atualizado.",
     "errorDescription": "Não foi possível atualizar o catálogo. Usando cache ou provedores integrados."
+  },
+  "tensorrt": {
+    "checkAgain": "Verificar novamente",
+    "notInstalledWindows": "O TensorRT-LLM não está instalado. A instalação ativa o WSL se necessário, cria a distribuição WSL própria do Atomic Chat com Docker e NVIDIA Container Toolkit dentro dela e baixa a imagem do mecanismo.",
+    "plan": {
+      "reboot": "O Windows pode precisar reiniciar depois que o WSL for ativado. Após reiniciar, abra o Atomic Chat: a instalação continua sozinha.",
+      "wslDisk": "Disco: {{required}} para a distribuição WSL do Atomic Chat em {{path}}; {{free}} livres ali.",
+      "wslDiskNoFree": "Disco: {{required}} para a distribuição WSL do Atomic Chat em {{path}}.",
+      "wslDiskNoPath": "Disco: {{required}} necessários para a distribuição WSL do Atomic Chat; {{free}} livres ali.",
+      "wslDiskUnknown": "Disco: {{required}} para a distribuição WSL do Atomic Chat. O local e o espaço livre não foram informados."
+    },
+    "hostStep": {
+      "uac": {
+        "waiting": "Aguardando você aprovar o aviso de administrador do Windows (UAC) que ativa o WSL…",
+        "manual": "O Windows não consegue mostrar aqui um aviso de administrador para o Atomic Chat. Abra um terminal como administrador, execute este comando, reinicie o computador se ele pedir e clique em Verificar novamente:",
+        "retry": "Pedir aprovação novamente"
+      }
+    },
+    "reboot": {
+      "title": "Reinicie o computador",
+      "body": "O WSL foi ativado e o Windows precisa reiniciar para concluir. Após reiniciar, abra o Atomic Chat: a instalação continua sozinha, sem pedir consentimento de novo."
+    },
+    "phaseWindows": {
+      "preparing-host": "Ativando o WSL",
+      "preparing-environment": "Configurando a distribuição WSL do Atomic Chat e verificando se ela enxerga sua GPU"
+    }
   }
 }

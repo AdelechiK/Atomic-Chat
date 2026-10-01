@@ -66,5 +66,31 @@
     "neverUpdated": "Pas encore chargé",
     "successDescription": "Catalogue des fournisseurs mis à jour.",
     "errorDescription": "Impossible d'actualiser le catalogue. Utilisation du cache ou des fournisseurs intégrés."
+  },
+  "tensorrt": {
+    "checkAgain": "Vérifier à nouveau",
+    "notInstalledWindows": "TensorRT-LLM n’est pas installé. L’installation active WSL si nécessaire, crée la distribution WSL propre à Atomic Chat avec Docker et NVIDIA Container Toolkit, puis télécharge l’image du moteur.",
+    "plan": {
+      "reboot": "Windows peut demander un redémarrage après l’activation de WSL. Après le redémarrage, ouvrez Atomic Chat : l’installation reprend d’elle-même.",
+      "wslDisk": "Disque : {{required}} pour la distribution WSL d’Atomic Chat dans {{path}} ; {{free}} libres à cet endroit.",
+      "wslDiskNoFree": "Disque : {{required}} pour la distribution WSL d’Atomic Chat dans {{path}}.",
+      "wslDiskNoPath": "Disque : {{required}} nécessaires pour la distribution WSL d’Atomic Chat ; {{free}} libres à cet endroit.",
+      "wslDiskUnknown": "Disque : {{required}} pour la distribution WSL d’Atomic Chat. L’emplacement et l’espace libre n’ont pas été indiqués."
+    },
+    "hostStep": {
+      "uac": {
+        "waiting": "En attente de votre accord à l’invite administrateur de Windows (UAC) qui active WSL…",
+        "manual": "Windows ne peut pas afficher ici d’invite administrateur pour Atomic Chat. Ouvrez un terminal en tant qu’administrateur, exécutez cette commande, redémarrez l’ordinateur s’il le demande, puis cliquez sur « Vérifier à nouveau » :",
+        "retry": "Redemander l’autorisation"
+      }
+    },
+    "reboot": {
+      "title": "Redémarrez l’ordinateur",
+      "body": "WSL est activé et Windows doit redémarrer pour terminer. Après le redémarrage, ouvrez Atomic Chat : l’installation reprend d’elle-même, sans nouvelle demande d’accord."
+    },
+    "phaseWindows": {
+      "preparing-host": "Activation de WSL",
+      "preparing-environment": "Configuration de la distribution WSL d’Atomic Chat et vérification qu’elle voit votre GPU"
+    }
   }
 }

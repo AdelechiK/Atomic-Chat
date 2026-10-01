@@ -17,6 +17,7 @@ import {
   deriveSetupView,
   planSummary,
   type BlockerView,
+  type OperationStep,
   type PlanSummary,
   type WarningView,
 } from '@/lib/tensorrt-llm/setup-view'
@@ -43,9 +44,10 @@ import {
 } from '@/stores/managed-environment-store'
 
 /**
- * The TensorRT-LLM part of the provider page (Linux): whether this machine can run the engine and
- * why not, the whole plan before consent, the OS authorization prompt, the sign-in the Docker group
- * needs, the pull with its bytes, and removing the engine (spec `tensorrt-llm-desktop`).
+ * The TensorRT-LLM part of the provider page (Linux and Windows): whether this machine can run the
+ * engine and why not, the whole plan before consent, the OS authorization prompt (`pkexec`, or UAC
+ * to turn on WSL), the sign-in the Docker group needs or the restart WSL needs, the pull with its
+ * bytes, and removing the engine (spec `tensorrt-llm-desktop`).
  *
  * Everything shown comes from the core — its plan and its operation, which outlives this panel —
  * so closing the page and opening it again finds the same setup where it is.
@@ -138,6 +140,8 @@ export function TensorrtLlmSetupPanel() {
   }, [planDescriptor])
 
   const environmentId = environment?.environment_id ?? 'default'
+  /** Atomic Chat's own WSL distribution runs Docker here (change `add-tensorrt-llm-windows`). */
+  const windows = environment?.executor === 'wsl-docker'
 
   const act = async (run: () => Promise<unknown>) => {
     setActionError(null)
@@ -229,8 +233,19 @@ export function TensorrtLlmSetupPanel() {
     grant(operation.operation_id, step.step_id)
   }, [operation?.operation_id, operation?.phase, operation?.pending_host_step, grant])
 
+  /**
+   * Where UAC cannot be raised the person turns WSL on in an administrator terminal; no receipt
+   * will come for this operation, so checking again gives it up and probes the machine anew.
+   */
+  const checkAgainAfterManualStep = (operationId: string) =>
+    act(async () => {
+      setManualCommand(null)
+      await cancelOperation(operationId)
+      await recheck()
+    })
+
   const view = deriveSetupView({ plan, operation, installation, failed })
-  const summary = plan ? planSummary(plan, notices) : undefined
+  const summary = plan ? planSummary(plan, notices, environment?.executor) : undefined
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-main-view-fg/10 p-4">
@@ -261,7 +276,7 @@ export function TensorrtLlmSetupPanel() {
       {view.kind === 'not-installed' && (
         <div className="flex items-center justify-between gap-3">
           <p className="min-w-0 text-sm text-main-view-fg/70">
-            {t('providers:tensorrt.notInstalled')}
+            {t(windows ? 'providers:tensorrt.notInstalledWindows' : 'providers:tensorrt.notInstalled')}
           </p>
           <Button size="sm" disabled={probing} onClick={() => setPlanOpen(true)}>
             {t('providers:tensorrt.install')}
@@ -273,6 +288,7 @@ export function TensorrtLlmSetupPanel() {
         <OperationStatus
           operation={view.operation}
           step={view.step}
+          windows={windows}
           manualCommand={manualCommand}
           onCancel={() => void act(() => cancelOperation(view.operation.operation_id))}
           granting={elevatingSteps.includes(
@@ -283,6 +299,7 @@ export function TensorrtLlmSetupPanel() {
             grant(view.operation.operation_id, view.operation.pending_host_step.step_id)
           }
           onReview={() => void recheck().then((next) => next && setPlanOpen(true))}
+          onCheckAgain={() => void checkAgainAfterManualStep(view.operation.operation_id)}
         />
       )}
 
@@ -424,23 +441,28 @@ function Blockers({ blockers }: { blockers: BlockerView[] }) {
 
 function DiskLine({ summary }: { summary: PlanSummary }) {
   const { t } = useTranslation()
-  const { path, requiredBytes, freeBytes } = summary.disk
+  const { location, path, requiredBytes, freeBytes } = summary.disk
   const required = formatBytes(requiredBytes ?? undefined)
+  // On Windows the space is the WSL distribution's, on the volume that holds its folder.
+  const key = (name: 'disk' | 'diskNoFree' | 'diskNoPath' | 'diskUnknown') =>
+    location === 'distribution'
+      ? `providers:tensorrt.plan.wsl${name[0].toUpperCase()}${name.slice(1)}`
+      : `providers:tensorrt.plan.${name}`
   if (path === null) {
     // The core measured nothing this time (the free-space read failed).
     return (
       <p className="text-sm break-words">
         {freeBytes !== null
-          ? t('providers:tensorrt.plan.diskNoPath', { required, free: formatBytes(freeBytes) })
-          : t('providers:tensorrt.plan.diskUnknown', { required })}
+          ? t(key('diskNoPath'), { required, free: formatBytes(freeBytes) })
+          : t(key('diskUnknown'), { required })}
       </p>
     )
   }
   return (
     <p className="text-sm break-words">
       {freeBytes !== null
-        ? t('providers:tensorrt.plan.disk', { path, required, free: formatBytes(freeBytes) })
-        : t('providers:tensorrt.plan.diskNoFree', { path, required })}
+        ? t(key('disk'), { path, required, free: formatBytes(freeBytes) })
+        : t(key('diskNoFree'), { path, required })}
     </p>
   )
 }
@@ -493,6 +515,7 @@ function PlanDetails({ summary }: { summary: PlanSummary }) {
         <p>{t('providers:tensorrt.plan.noSystemChanges')}</p>
       )}
       {summary.relogin && <p className="font-medium">{t('providers:tensorrt.plan.relogin')}</p>}
+      {summary.reboot && <p className="font-medium">{t('providers:tensorrt.plan.reboot')}</p>}
       {summary.downloadBytes !== null && (
         <p>
           {t('providers:tensorrt.plan.download', {
@@ -521,22 +544,35 @@ function PlanDetails({ summary }: { summary: PlanSummary }) {
 function OperationStatus({
   operation,
   step,
+  windows,
   manualCommand,
   granting,
   onCancel,
   onGrant,
   onReview,
+  onCheckAgain,
 }: {
   operation: EnvironmentOperation
-  step: 'consent' | 'host-step' | 'relogin' | 'working'
+  step: OperationStep
+  /** The environment is Atomic Chat's WSL distribution: some phases mean something else here. */
+  windows: boolean
   manualCommand: string | null
   /** The OS prompt for this step is open; asking again would start a second executor. */
   granting: boolean
   onCancel: () => void
   onGrant: () => void
   onReview: () => void
+  /** After turning WSL on by hand: give this operation up and look at the machine again. */
+  onCheckAgain: () => void
 }) {
   const { t } = useTranslation()
+  // `preparing-host` turns WSL on; `preparing-environment` imports and sets up the distribution.
+  const phaseKey =
+    windows && (operation.phase === 'preparing-host' || operation.phase === 'preparing-environment')
+      ? `providers:tensorrt.phaseWindows.${operation.phase}`
+      : `providers:tensorrt.phase.${operation.phase}`
+  /** The privileged step is UAC turning on WSL, not the system password. */
+  const uac = operation.pending_host_step?.action === 'windows.enable-wsl'
   const progress = operation.progress
   const bytes =
     progress?.unit === 'bytes' && progress.completed !== null && progress.total
@@ -557,8 +593,13 @@ function OperationStatus({
             {t('providers:tensorrt.relogin.stillWaiting')}
           </p>
         </div>
+      ) : step === 'reboot' ? (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-medium">{t('providers:tensorrt.reboot.title')}</p>
+          <p className="text-sm text-main-view-fg/70">{t('providers:tensorrt.reboot.body')}</p>
+        </div>
       ) : (
-        <p className="text-sm font-medium">{t(`providers:tensorrt.phase.${operation.phase}`)}</p>
+        <p className="text-sm font-medium">{t(phaseKey)}</p>
       )}
 
       {bytes && (
@@ -574,18 +615,23 @@ function OperationStatus({
         <div className="flex flex-col gap-2">
           <p className="text-sm text-main-view-fg/70">
             {manualCommand
-              ? t('providers:tensorrt.hostStep.manual')
-              : t('providers:tensorrt.hostStep.waiting')}
+              ? t(uac ? 'providers:tensorrt.hostStep.uac.manual' : 'providers:tensorrt.hostStep.manual')
+              : t(uac ? 'providers:tensorrt.hostStep.uac.waiting' : 'providers:tensorrt.hostStep.waiting')}
           </p>
           {manualCommand && (
             <pre className="select-all overflow-x-auto rounded bg-main-view-fg/5 p-2 text-xs">
               {manualCommand}
             </pre>
           )}
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" disabled={granting} onClick={onGrant}>
-              {t('providers:tensorrt.hostStep.retry')}
+              {t(uac ? 'providers:tensorrt.hostStep.uac.retry' : 'providers:tensorrt.hostStep.retry')}
             </Button>
+            {manualCommand && uac && (
+              <Button variant="outline" size="sm" onClick={onCheckAgain}>
+                {t('providers:tensorrt.checkAgain')}
+              </Button>
+            )}
           </div>
         </div>
       )}

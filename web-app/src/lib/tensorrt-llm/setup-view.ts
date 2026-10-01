@@ -7,6 +7,7 @@
 
 import type {
   EnvironmentOperation,
+  EnvironmentSnapshot,
   ManagedBlocker,
   ManagedPlanWarning,
   RequirementPlan,
@@ -17,10 +18,12 @@ import type {
 export type OperationStep =
   /** The core asks for consent again (the machine changed under the plan). */
   | 'consent'
-  /** The one privileged step waits for the OS authorization prompt. */
+  /** The one privileged step waits for the OS authorization prompt (`pkexec`, or UAC on Windows). */
   | 'host-step'
   /** Docker group membership takes effect at the next sign-in. */
   | 'relogin'
+  /** WSL was just turned on; Windows finishes it at the next restart. */
+  | 'reboot'
   /** Checking, pulling, verifying, activating, removing, cancelling: work the core does alone. */
   | 'working'
 
@@ -66,6 +69,8 @@ function stepOf(operation: EnvironmentOperation): OperationStep {
       return operation.pending_host_step ? 'host-step' : 'working'
     case 'relogin-required':
       return 'relogin'
+    case 'reboot-required':
+      return 'reboot'
     default:
       return 'working'
   }
@@ -96,8 +101,15 @@ export interface PlanSummary {
   /** The core's own words for each system change; warnings are the ones that bite later. */
   changes: Array<{ text: string; warning: boolean }>
   relogin: boolean
+  /** Windows may need a restart once WSL is turned on; the setup then goes on by itself. */
+  reboot: boolean
   downloadBytes: number | null
   disk: {
+    /**
+     * What `path` is: Docker's storage on Linux, the folder of Atomic Chat's WSL distribution on
+     * Windows (its space is the space on that volume).
+     */
+    location: 'docker' | 'distribution'
     path: string | null
     requiredBytes: number | null
     freeBytes: number | null
@@ -111,11 +123,21 @@ export interface PlanSummary {
   canStart: boolean
 }
 
-/** Group membership is root-equivalent; a Docker restart stops the person's containers. */
-const WARNING_CHANGES = new Set(['add-user-to-docker-group', 'restart-docker'])
+/**
+ * Group membership is root-equivalent; a Docker restart stops the person's containers; turning on
+ * WSL asks for administrator approval and may need a restart.
+ */
+const WARNING_CHANGES = new Set(['add-user-to-docker-group', 'restart-docker', 'enable-wsl'])
 
-/** `notices` are the NVIDIA notices of the plan's descriptor, when the core reported them. */
-export function planSummary(plan: RequirementPlan, notices: string[] = []): PlanSummary {
+/**
+ * `notices` are the NVIDIA notices of the plan's descriptor, when the core reported them;
+ * `executor` is the environment's, which says what the plan's disk path is.
+ */
+export function planSummary(
+  plan: RequirementPlan,
+  notices: string[] = [],
+  executor: EnvironmentSnapshot['executor'] = 'linux-docker'
+): PlanSummary {
   const disk = plan.blockers.find((b) => b.reason === 'insufficient-disk')
   const number = (value: string | undefined) =>
     value !== undefined && Number.isFinite(Number(value)) ? Number(value) : null
@@ -125,8 +147,10 @@ export function planSummary(plan: RequirementPlan, notices: string[] = []): Plan
       warning: WARNING_CHANGES.has(change.code),
     })),
     relogin: plan.may_require_relogin,
+    reboot: plan.may_require_reboot,
     downloadBytes: plan.download_bytes,
     disk: {
+      location: executor === 'wsl-docker' ? 'distribution' : 'docker',
       path: plan.docker_root_dir ?? null,
       requiredBytes: plan.required_disk_bytes ?? number(disk?.params?.required),
       freeBytes: plan.free_disk_bytes ?? number(disk?.params?.free),
