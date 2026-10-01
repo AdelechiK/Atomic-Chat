@@ -174,6 +174,8 @@ export interface InstallDeps {
   location: () => Promise<TensorrtLlmModelLocation>
   /** Size of a file (an absolute path), or null when it is not there. */
   existingSize: (savePath: string) => Promise<number | null>
+  /** Whether a download of this file was started and left a partial (`<file>.tmp`) behind. */
+  hasPartial: (savePath: string) => Promise<boolean>
   transfer: (items: TransferItem[], taskId: string, options: TransferOptions) => Promise<void>
   writeYaml: (savePath: string, data: unknown) => Promise<void>
   /** The app's download events (`events.emit`), which the download toasts follow. */
@@ -232,8 +234,11 @@ export async function installTensorrtModel(
     })
   }
   const downloaded = pending.reduce((total, item) => total + (item.size ?? 0), 0)
-  // The core's number, not the data folder's volume: on Windows the models live in the guest.
-  if (freeBytes !== null && freeBytes < downloaded) {
+  // The core's number, not the data folder's volume: on Windows the models live in the guest. A
+  // resumed download needs only what its partials lack, which only the downloader can count
+  // (`.parts` maps): it checks the same number then, so the app leaves that case to it.
+  const resuming = (await Promise.all(pending.map((item) => deps.hasPartial(item.save_path)))).some(Boolean)
+  if (freeBytes !== null && !resuming && freeBytes < downloaded) {
     throw new InsufficientModelSpaceError(root, downloaded, freeBytes)
   }
   try {
@@ -334,6 +339,13 @@ export function defaultInstallDeps(): InstallDeps {
         return stat && !stat.isDirectory ? Number(stat.size) : null
       } catch {
         return null
+      }
+    },
+    hasPartial: async (savePath) => {
+      try {
+        return (await fs.fileStat(`${savePath}.tmp`)) != null
+      } catch {
+        return false
       }
     },
     transfer: transferFiles,

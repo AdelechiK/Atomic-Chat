@@ -268,6 +268,32 @@ describe('models', () => {
     expect(fsMock.existsSync).not.toHaveBeenCalled()
   })
 
+  it('keeps listing the models it found when the core cannot answer for a moment', async () => {
+    // Review finding: a core restarting must not make every model vanish.
+    const root = '/data/tensorrt-llm/models'
+    let reachable = true
+    core(
+      {
+        'GET /models/tensorrt-llm/location': () => {
+          if (!reachable) throw { code: 'CORE_NOT_RUNNING', message: 'The Atomic Chat core is not running.' }
+          return { root, free_bytes: 1 }
+        },
+        'GET /models/tensorrt-llm/m/capabilities': () => ({ tools: false }),
+      },
+      { [`${root}/m/model.yml`]: { repository: 'org/m', files: [] } }
+    )
+    fsMock.existsSync.mockImplementation(async (path: string) => [root, `${root}/m/model.yml`].includes(path))
+    fsMock.readdirSync.mockImplementation(async (path: string) => (path === root ? [`${root}/m`] : []))
+    fsMock.fileStat.mockResolvedValue({ isDirectory: true })
+    const extension = new TensorrtLlmExtension()
+    expect((await extension.list()).map((m) => m.id)).toEqual(['m'])
+
+    reachable = false
+
+    expect((await extension.list()).map((m) => m.id)).toEqual(['m'])
+    expect((await extension.get('m'))?.id).toBe('m')
+  })
+
   it('answers tool support from the core, false when it cannot tell', async () => {
     core({
       'GET /models/tensorrt-llm/qwen3-8b/capabilities': () => ({ tools: true }),

@@ -654,6 +654,39 @@ describe('TensorrtLlmSetupPanel', () => {
       expect(await screen.findByText('providers:tensorrt.remove.bodyWindows')).toBeInTheDocument()
     })
 
+    it('says why a removal of the environment failed', async () => {
+      // Review finding: a failed removal must not just vanish.
+      seed(windowsEnvironment(), [
+        operation({
+          kind: 'remove',
+          target: { kind: 'environment' },
+          phase: 'failed',
+          revision: 5,
+          error: { code: 'MANAGED_PREREQUISITE_BLOCKED', message: 'wsl --unregister AtomicChat failed (exit 1).' },
+        }),
+      ])
+      render(<TensorrtLlmSetupPanel />)
+
+      expect(await screen.findByText('wsl --unregister AtomicChat failed (exit 1).')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'providers:tensorrt.removeEnvironment.button' })).toBeInTheDocument()
+    })
+
+    it('reviews a removal waiting for consent with the removal’s own dialog, not the install plan', async () => {
+      seed(windowsEnvironment({ active_operation_id: 'op-1' }), [
+        operation({ kind: 'remove', target: { kind: 'environment' }, phase: 'awaiting-consent', revision: 2, plan_digest: digest }),
+      ])
+      render(<TensorrtLlmSetupPanel />)
+      const first = await screen.findByRole('dialog')
+      fireEvent.click(within(first).getByRole('button', { name: 'providers:tensorrt.plan.cancel' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      fireEvent.click(screen.getByRole('button', { name: 'providers:tensorrt.consent.review' }))
+
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByText('providers:tensorrt.removeEnvironment.title')).toBeInTheDocument()
+      expect(within(dialog).queryByText('providers:tensorrt.plan.title')).not.toBeInTheDocument()
+    })
+
     it('is not offered before the distribution exists, nor on Linux', async () => {
       seed(environment({ executor: 'wsl-docker', distribution: null }))
       const { unmount } = render(<TensorrtLlmSetupPanel />)

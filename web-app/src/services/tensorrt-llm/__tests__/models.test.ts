@@ -82,6 +82,7 @@ function deps(overrides: Partial<InstallDeps> = {}) {
     check: vi.fn(async () => verdict(true)),
     location: vi.fn(async () => ({ root: LINUX_ROOT, free_bytes: 500_000_000_000 })),
     existingSize: vi.fn(async () => null),
+    hasPartial: vi.fn(async () => false),
     transfer: vi.fn(async (items) => {
       steps.push(`transfer:${items.map((i) => i.save_path.split('/').pop()).join(',')}`)
     }),
@@ -342,6 +343,18 @@ describe('installTensorrtModel', () => {
         'transfer:config.json,model-00002-of-00002.safetensors,tokenizer.json',
         `yaml:${LINUX_ROOT}/nvidia/Qwen3-8B-FP8/model.yml`,
       ])
+    })
+
+    it('leaves a resumed download to the downloader, which counts the bytes already on disk', async () => {
+      // Review finding: a half-downloaded shard needs only its rest; the app cannot tell how much.
+      const { d, steps } = deps({
+        location: vi.fn(async () => ({ root: LINUX_ROOT, free_bytes: 6_000_000_000 })),
+        hasPartial: vi.fn(async (path: string) => path.endsWith('model-00001-of-00002.safetensors')),
+      })
+
+      await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
+
+      expect(steps.at(-1)).toBe(`yaml:${LINUX_ROOT}/nvidia/Qwen3-8B-FP8/model.yml`)
     })
 
     it('lets the downloader decide when the core could not measure the space', async () => {

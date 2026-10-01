@@ -748,13 +748,6 @@ pub(super) struct DownloadCtx {
     pub tuning: TransferTuning,
 }
 
-/// Whether `path` is inside `folder` as the filesystem sees them, not as they were spelled. On
-/// atomic Fedora variants `/home` is a symlink to `/var/home`, so a target inside the data folder
-/// reached under the other name looked like an escape attempt and blocked the download.
-fn resolved_within(path: &Path, folder: &Path) -> bool {
-    canonicalize_existing_prefix(path).starts_with(canonicalize_existing_prefix(folder))
-}
-
 /// Downloads multiple files in parallel with individual progress tracking
 pub async fn _download_files_internal(
     app: tauri::AppHandle<impl Runtime>,
@@ -794,18 +787,23 @@ pub async fn _download_files_internal(
         .iter()
         .map(|item| normalize_path(&jan_data_folder.join(&item.save_path)))
         .collect();
-    let outside_data_folder = save_paths
+    // Compare the paths as the filesystem sees them, not as they were spelled. On atomic Fedora
+    // variants `/home` is a symlink to `/var/home`, so a target inside the data folder reached
+    // under the other name looked like an escape attempt and blocked the download.
+    let resolved_data_folder = canonicalize_existing_prefix(&jan_data_folder);
+    let in_data_folder: Vec<bool> = save_paths
         .iter()
-        .any(|path| !resolved_within(path, &jan_data_folder));
+        .map(|path| canonicalize_existing_prefix(path).starts_with(&resolved_data_folder))
+        .collect();
     // Asked only for a download that leaves the data folder, and asked now: the free space there
     // is the core's to measure (the volume list cannot see into the WSL guest).
-    let core_location = if outside_data_folder {
-        crate::core::filesystem::model_roots::fetch(&app).await
-    } else {
+    let core_location = if in_data_folder.iter().all(|inside| *inside) {
         None
+    } else {
+        crate::core::filesystem::model_roots::fetch(&app).await
     };
-    for (item, save_path) in items.iter().zip(&save_paths) {
-        let inside = resolved_within(save_path, &jan_data_folder)
+    for ((item, save_path), inside_data) in items.iter().zip(&save_paths).zip(&in_data_folder) {
+        let inside = *inside_data
             || core_location.as_ref().is_some_and(|location| {
                 crate::core::filesystem::model_roots::within(save_path, &location.root)
             });

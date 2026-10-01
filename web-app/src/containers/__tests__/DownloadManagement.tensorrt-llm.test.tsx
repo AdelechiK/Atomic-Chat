@@ -95,6 +95,7 @@ describe('DownloadManagement — a TensorRT-LLM model download (task 3.18)', () 
       }),
       location: async () => ({ root: '/data/tensorrt-llm/models', free_bytes: null }),
       existingSize: async () => null,
+      hasPartial: async () => false,
       transfer: downloader(outcome),
       writeYaml: async () => {},
       emit,

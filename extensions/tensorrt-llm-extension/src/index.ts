@@ -124,6 +124,8 @@ export default class TensorrtLlmExtension extends AIEngine {
   })
   private unlistenCoreSettingsChanged?: () => void
   private providerPath?: string
+  /** The models folder the core named last; `null` once it said there is none. */
+  private modelsRoot?: string | null
   /** Hidden until the core says otherwise: a provider that cannot run here must not flash up. */
   private hidden = true
   /** Whether `hidden` is the core's answer, or only the default nobody has confirmed yet. */
@@ -212,7 +214,9 @@ export default class TensorrtLlmExtension extends AIEngine {
   /**
    * The folder the core keeps this provider's models in (`GET /models/tensorrt-llm/location`, change
    * `add-tensorrt-llm-windows`), spelled as the app's own path calls spell it. `null` where the core
-   * names none: on Windows before Atomic Chat's distribution is imported.
+   * names none: on Windows before Atomic Chat's distribution is imported. A core that cannot answer
+   * right now (restarting, not attached yet) leaves the folder it named last: that says nothing
+   * about where the models are, and must not make them vanish.
    */
   private async modelsDir(): Promise<string | null> {
     try {
@@ -220,10 +224,16 @@ export default class TensorrtLlmExtension extends AIEngine {
         'GET',
         `/models/${ENGINE_ID}/location`
       )
-      return await joinPath([root])
+      this.modelsRoot = await joinPath([root])
+      return this.modelsRoot
     } catch (e) {
-      logger.info(`TensorRT-LLM models have no location yet: ${describeCoreError(e)}`)
-      return null
+      const code = isCoreError(e) ? e.code : undefined
+      if (code === 'MANAGED_ADAPTER_UNAVAILABLE' || code === 'PROVIDER_NOT_FOUND') {
+        this.modelsRoot = null
+      } else {
+        logger.warn(`TensorRT-LLM models root not reported now, using the last one: ${describeCoreError(e)}`)
+      }
+      return this.modelsRoot ?? null
     }
   }
 
@@ -261,7 +271,8 @@ export default class TensorrtLlmExtension extends AIEngine {
   }
 
   override async get(modelId: string): Promise<modelInfo | undefined> {
-    const modelsDir = await this.modelsDir()
+    // The folder `list()` found is reused: a lookup per model is not a core call each.
+    const modelsDir = this.modelsRoot !== undefined ? this.modelsRoot : await this.modelsDir()
     if (modelsDir === null) return undefined
     try {
       return await this.describe(modelId, modelsDir)

@@ -38,6 +38,7 @@ import type {
 } from '@/services/managed-environment/types'
 import {
   selectEnvironment,
+  selectFailedEnvironmentRemoval,
   selectFailedSetup,
   selectSetupOperation,
   selectTensorrtInstallation,
@@ -97,6 +98,7 @@ export function TensorrtLlmSetupPanel() {
   const installation = useManagedEnvironmentStore(selectTensorrtInstallation)
   const operation = useManagedEnvironmentStore(selectSetupOperation)
   const failed = useManagedEnvironmentStore(selectFailedSetup)
+  const failedEnvironmentRemoval = useManagedEnvironmentStore(selectFailedEnvironmentRemoval)
 
   const [plan, setPlan] = useState<RequirementPlan>()
   const [probing, setProbing] = useState(false)
@@ -352,7 +354,11 @@ export function TensorrtLlmSetupPanel() {
             view.operation.pending_host_step &&
             grant(view.operation.operation_id, view.operation.pending_host_step.step_id)
           }
-          onReview={() => void recheck().then((next) => next && setPlanOpen(true))}
+          onReview={() =>
+            view.operation.kind === 'remove' && view.operation.target.kind === 'environment'
+              ? setRemoveEnvironmentOpen(true)
+              : void recheck().then((next) => next && setPlanOpen(true))
+          }
           onCheckAgain={() => void checkAgainAfterManualStep(view.operation.operation_id)}
         />
       )}
@@ -409,6 +415,9 @@ export function TensorrtLlmSetupPanel() {
           </Button>
         </div>
       )}
+      {canRemoveEnvironment && failedEnvironmentRemoval?.error && (
+        <p className="text-sm text-destructive break-words">{failedEnvironmentRemoval.error.message}</p>
+      )}
 
       {actionError && <p className="text-sm text-destructive break-words">{actionError}</p>}
 
@@ -457,6 +466,7 @@ export function TensorrtLlmSetupPanel() {
                   setRemoveOpen(false)
                   if (
                     operation?.kind === 'remove' &&
+                    operation.target.kind === 'runtime' &&
                     operation.phase === 'awaiting-consent' &&
                     operation.plan_digest
                   ) {

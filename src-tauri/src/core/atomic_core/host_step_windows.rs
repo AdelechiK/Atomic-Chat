@@ -147,9 +147,9 @@ pub fn prepare(
     Ok(prepared)
 }
 
-/// Runs `program parameters` elevated and waits for it: its exit code, or the Win32 error when
-/// it never started (`ERROR_CANCELLED` when the person said no). Blocks; call it off the async
-/// runtime.
+/// Runs `program parameters` elevated and waits for it: its exit code (`u32::MAX` when it ran but
+/// the code could not be read), or the Win32 error when it never started (`ERROR_CANCELLED` when
+/// the person said no). Blocks; call it off the async runtime.
 pub fn run_as_administrator(program: &Path, parameters: &str) -> Result<u32, i32> {
     let verb = wide(OsStr::new("runas"));
     let file = wide(program.as_os_str());
@@ -175,7 +175,9 @@ pub fn run_as_administrator(program: &Path, parameters: &str) -> Result<u32, i32
         let read = GetExitCodeProcess(info.hProcess, &mut code);
         CloseHandle(info.hProcess);
         if read == 0 {
-            return Err(GetLastError() as i32);
+            // The executor did run: its result file is still the answer, never "UAC unavailable".
+            log::warn!("[host-step] could not read the executor's exit code: {}", GetLastError());
+            return Ok(u32::MAX);
         }
         Ok(code)
     }

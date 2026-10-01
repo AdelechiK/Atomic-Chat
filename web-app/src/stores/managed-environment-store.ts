@@ -164,3 +164,18 @@ export function selectFailedSetup(state: Held): EnvironmentOperation | undefined
     )
     .at(-1)
 }
+
+/**
+ * The last removal of the environment itself (Windows: Atomic Chat's WSL distribution) that ended
+ * in `failed`, so the provider page can say why the distribution is still there.
+ */
+export function selectFailedEnvironmentRemoval(state: Held): EnvironmentOperation | undefined {
+  return Object.values(state.operations)
+    .filter(
+      (operation) =>
+        operation.kind === 'remove' &&
+        operation.phase === 'failed' &&
+        operation.target.kind === 'environment'
+    )
+    .at(-1)
+}
