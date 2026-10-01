@@ -9,10 +9,14 @@
  * 2. Ask the core (`POST /models/tensorrt-llm/check`, no network on its side). Incompatible means
  *    nothing is downloaded, and the reason — with numbers, and the other cards it would fit on —
  *    goes back to the person.
- * 3. Download every file into `<data>/tensorrt-llm/models/<repository>/`, verified by size and LFS
- *    sha256, resuming partial files and skipping files already complete.
- * 4. Write `model.yml` last: a folder without one is a download in progress, not a model.
- * 5. End the download's events as a chat-model download ends them, so the "Validating Model"
+ * 3. Ask the core where models go and how much room there is (`GET /models/tensorrt-llm/location`,
+ *    change `add-tensorrt-llm-windows`, design D6): `<data>/tensorrt-llm/models` on Linux, Atomic
+ *    Chat's WSL distribution (`\\wsl.localhost\…`) on Windows. Without room for what is still to
+ *    download, nothing is downloaded.
+ * 4. Download every file into `<root>/<repository>/`, verified by size and LFS sha256, resuming
+ *    partial files and skipping files already complete.
+ * 5. Write `model.yml` last: a folder without one is a download in progress, not a model.
+ * 6. End the download's events as a chat-model download ends them, so the "Validating Model"
  *    toast the downloader opened is closed: verified and done, or the reason it failed.
  */
 
@@ -59,6 +63,28 @@ export class IncompatibleModelError extends Error {
   get fitsOtherGpus(): string[] {
     return this.compatibility.fits_other_gpus
   }
+}
+
+/** The core has less room for the model than is still to download; nothing was downloaded. */
+export class InsufficientModelSpaceError extends Error {
+  constructor(
+    readonly root: string,
+    readonly neededBytes: number,
+    readonly freeBytes: number
+  ) {
+    super(`Not enough free space for the model in ${root}.`)
+    this.name = 'InsufficientModelSpaceError'
+  }
+}
+
+/**
+ * `GET /models/tensorrt-llm/location`: the one root models are downloaded into, as this machine
+ * opens it, and the free space for new models there (on Windows the smaller of the guest's and the
+ * volume's that holds the distribution); `free_bytes` is null when the core could not measure it.
+ */
+export interface TensorrtLlmModelLocation {
+  root: string
+  free_bytes: number | null
 }
 
 export interface HfRevision {
@@ -144,7 +170,9 @@ export interface InstallDeps {
     files: CheckpointFile[]
     gpu_id?: string
   }) => Promise<ModelCompatibility>
-  /** Size of a file under the data folder, or null when it is not there. */
+  /** Where the core keeps the models, and the room there. */
+  location: () => Promise<TensorrtLlmModelLocation>
+  /** Size of a file (an absolute path), or null when it is not there. */
   existingSize: (savePath: string) => Promise<number | null>
   transfer: (items: TransferItem[], taskId: string, options: TransferOptions) => Promise<void>
   writeYaml: (savePath: string, data: unknown) => Promise<void>
@@ -160,9 +188,14 @@ export interface InstallRequest {
   onProgress?: (transferred: number, total: number) => void
 }
 
-/** The folder a repository's files go to; its path under `models/` is the model id. */
-export function modelDir(repository: string): string {
-  return `tensorrt-llm/models/${repository}`
+/**
+ * `relative` (a repository, a file path in it: `/`-separated) under `root`, spelled with the root's
+ * own separator — a Windows UNC root gets backslashes throughout.
+ */
+export function underRoot(root: string, ...relative: string[]): string {
+  const separator = root.includes('\\') && !root.includes('/') ? '\\' : '/'
+  const tail = relative.join('/').split('/').filter(Boolean).join(separator)
+  return `${root.replace(/[\\/]+$/, '')}${separator}${tail}`
 }
 
 /** Checks, downloads and records one model; rejects before any download when it cannot run here. */
@@ -182,10 +215,12 @@ export async function installTensorrtModel(
   })
   if (!compatibility.verdict.ok) throw new IncompatibleModelError(compatibility)
 
-  const dir = modelDir(repository)
+  // Only for a model that can run here; before Atomic Chat's distribution exists on Windows the
+  // core refuses (`MANAGED_ADAPTER_UNAVAILABLE`) and nothing is downloaded.
+  const { root, free_bytes: freeBytes } = await deps.location()
   const pending: TransferItem[] = []
   for (const file of meta.files) {
-    const savePath = `${dir}/${file.path}`
+    const savePath = underRoot(root, repository, file.path)
     // Complete files are not fetched again; a partial one is resumed by the downloader.
     if ((await deps.existingSize(savePath)) === file.size) continue
     pending.push({
@@ -197,6 +232,10 @@ export async function installTensorrtModel(
     })
   }
   const downloaded = pending.reduce((total, item) => total + (item.size ?? 0), 0)
+  // The core's number, not the data folder's volume: on Windows the models live in the guest.
+  if (freeBytes !== null && freeBytes < downloaded) {
+    throw new InsufficientModelSpaceError(root, downloaded, freeBytes)
+  }
   try {
     if (pending.length > 0) {
       await deps.transfer(pending, `tensorrt-llm-${repository.replace(/[^A-Za-z0-9_-]/g, '_')}`, {
@@ -207,7 +246,7 @@ export async function installTensorrtModel(
     }
 
     // Last: this file is what turns the folder into a model for the core and the extension.
-    await deps.writeYaml(`${dir}/model.yml`, {
+    await deps.writeYaml(underRoot(root, repository, 'model.yml'), {
       repository,
       revision: meta.revision,
       architectures: compatibility.architectures,
@@ -262,6 +301,11 @@ export function checkTensorrtModel(request: Parameters<InstallDeps['check']>[0])
   return coreCall('POST', '/models/tensorrt-llm/check', request)
 }
 
+/** Where the core keeps TensorRT-LLM models on this machine, and the room there. */
+export function tensorrtModelLocation(): Promise<TensorrtLlmModelLocation> {
+  return coreCall('GET', '/models/tensorrt-llm/location')
+}
+
 /**
  * The curated models and NVIDIA notices of a descriptor the core has cached, by the id an
  * installation pins or a plan names. The core answers from its cache without the network; an id
@@ -283,9 +327,10 @@ export function defaultInstallDeps(): InstallDeps {
   return {
     fetch,
     check: checkTensorrtModel,
+    location: tensorrtModelLocation,
     existingSize: async (savePath) => {
       try {
-        const stat = await fs.fileStat(`file:/${savePath}`)
+        const stat = await fs.fileStat(savePath)
         return stat && !stat.isDirectory ? Number(stat.size) : null
       } catch {
         return null

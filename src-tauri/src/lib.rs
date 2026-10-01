@@ -452,6 +452,8 @@ pub fn run() {
     };
 
     let app = app_builder
+        // The last TensorRT-LLM models root the core named (outside the data folder on Windows).
+        .manage(core::filesystem::model_roots::CoreModelRoot::default())
         .manage(AppState {
             app_token: Some(generate_app_token()),
             mcp_servers: Arc::new(Mutex::new(HashMap::new())),

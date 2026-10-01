@@ -226,6 +226,18 @@ export interface ModelCompatibility {
   fits_other_gpus: string[]
   kv_reserve_basis?: 'config' | 'weight_fraction'
   verdict: { ok: true } | { ok: false; error: ManagedError }
+  /**
+   * What the person should know about a model that can run, never a refusal (core ruling 2.8):
+   * `wsl-vm-memory` on Windows when the WSL VM has less memory than the weights. Absent from a core
+   * built before Windows and always on Linux.
+   */
+  warnings?: CompatibilityWarning[]
+}
+
+export interface CompatibilityWarning {
+  code: string
+  message: string
+  params?: Record<string, string>
 }
 
 /** One checkpoint the engine release was qualified against (the descriptor's `curated_models`). */

@@ -93,6 +93,7 @@ describe('DownloadManagement — a TensorRT-LLM model download (task 3.18)', () 
         fits_other_gpus: [],
         verdict: { ok: true },
       }),
+      location: async () => ({ root: '/data/tensorrt-llm/models', free_bytes: null }),
       existingSize: async () => null,
       transfer: downloader(outcome),
       writeYaml: async () => {},

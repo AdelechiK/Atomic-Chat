@@ -23,7 +23,11 @@ vi.mock('@/services/tensorrt-llm/models', async (importOriginal) => ({
 const refresh = vi.hoisted(() => vi.fn(async () => {}))
 
 import { TensorrtLlmModelPicker } from '../TensorrtLlmModelPicker'
-import { GatedModelError, IncompatibleModelError } from '@/services/tensorrt-llm/models'
+import {
+  GatedModelError,
+  IncompatibleModelError,
+  InsufficientModelSpaceError,
+} from '@/services/tensorrt-llm/models'
 import { useGeneralSetting } from '@/hooks/useGeneralSetting'
 import { useManagedEnvironmentStore } from '@/stores/managed-environment-store'
 import type { ModelCompatibility } from '@/services/managed-environment/types'
@@ -210,5 +214,41 @@ describe('TensorrtLlmModelPicker', () => {
 
     expect(await screen.findByText(/the card has 8\.9/)).toBeInTheDocument()
     expect(refresh).not.toHaveBeenCalled()
+  })
+
+  describe('on Windows (change add-tensorrt-llm-windows)', () => {
+    it('shows a warning of the check without withholding the download', async () => {
+      // spec "Памяти VM меньше, чем весов": a warning, never a refusal (design D11).
+      models.checkTensorrtModel.mockResolvedValue({
+        ...compatible,
+        warnings: [
+          {
+            code: 'wsl-vm-memory',
+            message: 'The WSL VM has 16 GB of memory and the weights take 20 GB: loading will be slow. Raise memory= in .wslconfig.',
+            params: { vm_memory_bytes: '16000000000', weight_bytes: '20000000000', wslconfig_memory: '' },
+          },
+        ],
+      })
+      render(<TensorrtLlmModelPicker onInstalled={refresh} />)
+      pasteAndCheck('nvidia/Qwen3-32B-FP8')
+
+      expect(await screen.findByText(/The WSL VM has 16 GB of memory/)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'providers:tensorrt.models.download' }))
+      await waitFor(() => expect(models.installTensorrtModel).toHaveBeenCalledTimes(1))
+    })
+
+    it('says where the model would go, what it needs and what is free when the core has no room', async () => {
+      const root = '\\\\wsl.localhost\\AtomicChat\\var\\lib\\atomic-chat\\scopes\\k1\\models\\tensorrt-llm'
+      models.installTensorrtModel.mockRejectedValue(new InsufficientModelSpaceError(root, 8 * 1024 ** 3, 6 * 1024 ** 3))
+      render(<TensorrtLlmModelPicker onInstalled={refresh} />)
+      pasteAndCheck('nvidia/Qwen3-8B-FP8')
+      fireEvent.click(await screen.findByRole('button', { name: 'providers:tensorrt.models.download' }))
+
+      const line = await screen.findByText(/providers:tensorrt.models.noSpace/)
+      expect(line).toHaveTextContent('"needed":"8.0 GB"')
+      expect(line).toHaveTextContent('"free":"6.0 GB"')
+      expect(line).toHaveTextContent('wsl.localhost')
+      expect(refresh).not.toHaveBeenCalled()
+    })
   })
 })

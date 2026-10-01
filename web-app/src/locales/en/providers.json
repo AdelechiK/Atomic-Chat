@@ -173,7 +173,8 @@
       "download": "Download",
       "downloading": "Downloading {{repository}}…",
       "otherCard": "It would fit on: {{cards}}. Choose that card in the settings below.",
-      "gated": "Hugging Face refused access. Open the model page, accept its terms (and set your Hugging Face token in Settings if needed), then try again: {{url}}"
+      "gated": "Hugging Face refused access. Open the model page, accept its terms (and set your Hugging Face token in Settings if needed), then try again: {{url}}",
+      "noSpace": "Not enough free space for this model in {{path}}: it needs {{needed}}, {{free}} is free. Free some space there and try again."
     },
     "settings": {
       "title": "TensorRT-LLM settings",

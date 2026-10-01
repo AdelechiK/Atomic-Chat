@@ -191,6 +191,8 @@ describe('models', () => {
       {
         'GET /models/tensorrt-llm/qwen3-8b/capabilities': () => ({ tools: true, reasoning: true }),
         'GET /models/tensorrt-llm/gemma/capabilities': () => ({ tools: false, reasoning: false }),
+        // On Linux the core still names the data folder's own models folder.
+        'GET /models/tensorrt-llm/location': () => ({ root: '/data/tensorrt-llm/models', free_bytes: 1 }),
       },
       {
         '/data/tensorrt-llm/models/qwen3-8b/model.yml': {
@@ -230,6 +232,40 @@ describe('models', () => {
       capabilities: ['tools'],
     })
     expect(models.find((m) => m.id === 'gemma')?.capabilities).toBeUndefined()
+  })
+
+  it('on Windows lists the models in the root the core names in its WSL distribution (change add-tensorrt-llm-windows)', async () => {
+    const root = '//wsl.localhost/AtomicChat/var/lib/atomic-chat/scopes/k1/models/tensorrt-llm'
+    core(
+      {
+        'GET /models/tensorrt-llm/location': () => ({ root, free_bytes: 1 }),
+        'GET /models/tensorrt-llm/Qwen/Qwen3-8B/capabilities': () => ({ tools: true }),
+      },
+      { [`${root}/Qwen/Qwen3-8B/model.yml`]: { repository: 'Qwen/Qwen3-8B', files: [{ path: 'a', size: 5 }] } }
+    )
+    fsMock.existsSync.mockImplementation(async (path: string) =>
+      [root, `${root}/Qwen/Qwen3-8B/model.yml`].includes(path)
+    )
+    fsMock.readdirSync.mockImplementation(async (path: string) =>
+      path === root ? [`${root}/Qwen`] : path === `${root}/Qwen` ? [`${root}/Qwen/Qwen3-8B`] : []
+    )
+    fsMock.fileStat.mockResolvedValue({ isDirectory: true })
+
+    const models = await new TensorrtLlmExtension().list()
+
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({ id: 'Qwen/Qwen3-8B', sizeBytes: 5, path: `${root}/Qwen/Qwen3-8B` })
+  })
+
+  it('lists nothing, and reads no folder, before Atomic Chat’s distribution exists', async () => {
+    core({
+      'GET /models/tensorrt-llm/location': () => {
+        throw { code: 'MANAGED_ADAPTER_UNAVAILABLE', message: 'The managed environment is not set up yet.' }
+      },
+    })
+
+    await expect(new TensorrtLlmExtension().list()).resolves.toEqual([])
+    expect(fsMock.existsSync).not.toHaveBeenCalled()
   })
 
   it('answers tool support from the core, false when it cannot tell', async () => {

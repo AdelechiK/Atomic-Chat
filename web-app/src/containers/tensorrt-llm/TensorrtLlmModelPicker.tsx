@@ -18,6 +18,7 @@ import {
   GatedModelError,
   IncompatibleModelError,
   installTensorrtModel,
+  InsufficientModelSpaceError,
   normalizeRepository,
   type HfRevision,
 } from '@/services/tensorrt-llm/models'
@@ -41,6 +42,8 @@ type Verdict =
   | { kind: 'ok'; meta: HfRevision; compatibility: ModelCompatibility }
   | { kind: 'incompatible'; compatibility: ModelCompatibility }
   | { kind: 'gated'; url: string }
+  /** The core has less room where models go than the download needs (on Windows: the guest). */
+  | { kind: 'no-space'; root: string; neededBytes: number; freeBytes: number }
   | { kind: 'error'; message: string }
 
 const errorText = (error: unknown) =>
@@ -131,6 +134,13 @@ export function TensorrtLlmModelPicker({ onInstalled }: { onInstalled: () => Pro
         setDownloadError({ kind: 'incompatible', compatibility: error.compatibility })
       } else if (error instanceof GatedModelError) {
         setDownloadError({ kind: 'gated', url: error.url })
+      } else if (error instanceof InsufficientModelSpaceError) {
+        setDownloadError({
+          kind: 'no-space',
+          root: error.root,
+          neededBytes: error.neededBytes,
+          freeBytes: error.freeBytes,
+        })
       } else {
         setDownloadError({ kind: 'error', message: errorText(error) })
       }
@@ -156,6 +166,7 @@ export function TensorrtLlmModelPicker({ onInstalled }: { onInstalled: () => Pro
                       {formatBytes(fit.compatibility.weight_bytes)}
                     </p>
                   )}
+                  {fit.kind === 'ok' && <Warnings compatibility={fit.compatibility} />}
                 </div>
                 <Button
                   size="sm"
@@ -231,18 +242,31 @@ function VerdictLine({
   switch (verdict.kind) {
     case 'ok':
       return (
-        <div className="flex items-center justify-between gap-3">
-          <p className="min-w-0 text-sm">
-            {t('providers:tensorrt.models.fits', {
-              size: formatBytes(verdict.compatibility.weight_bytes),
-            })}
-          </p>
-          {onDownload && (
-            <Button size="sm" onClick={onDownload}>
-              {t('providers:tensorrt.models.download')}
-            </Button>
-          )}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-3">
+            <p className="min-w-0 text-sm">
+              {t('providers:tensorrt.models.fits', {
+                size: formatBytes(verdict.compatibility.weight_bytes),
+              })}
+            </p>
+            {onDownload && (
+              <Button size="sm" onClick={onDownload}>
+                {t('providers:tensorrt.models.download')}
+              </Button>
+            )}
+          </div>
+          <Warnings compatibility={verdict.compatibility} />
         </div>
+      )
+    case 'no-space':
+      return (
+        <p className="break-words text-sm text-destructive">
+          {t('providers:tensorrt.models.noSpace', {
+            path: verdict.root,
+            needed: formatBytes(verdict.neededBytes),
+            free: formatBytes(verdict.freeBytes),
+          })}
+        </p>
       )
     case 'incompatible': {
       const others = verdict.compatibility.fits_other_gpus
@@ -266,4 +290,19 @@ function VerdictLine({
     case 'error':
       return <p className="break-words text-sm text-destructive">{verdict.message}</p>
   }
+}
+
+/** The check's warnings, in the core's words: shown, never in the way of the download. */
+function Warnings({ compatibility }: { compatibility: ModelCompatibility }) {
+  const warnings = compatibility.warnings ?? []
+  if (warnings.length === 0) return null
+  return (
+    <ul className="flex flex-col gap-1">
+      {warnings.map((warning) => (
+        <li key={warning.code} className="break-words text-xs text-amber-600">
+          {warning.message}
+        </li>
+      ))}
+    </ul>
+  )
 }

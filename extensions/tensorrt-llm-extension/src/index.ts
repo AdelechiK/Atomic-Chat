@@ -9,8 +9,9 @@
  *
  * The core owns the environment (Docker, the NVIDIA Container Toolkit, the engine image), every
  * load and unload, and each model's capabilities. This extension keeps what an engine extension
- * always keeps: the model list (`<data>/tensorrt-llm/models/<id>/model.yml`, written last by the
- * app's downloader), the settings, and whether the provider is shown at all.
+ * always keeps: the model list (`<root>/<id>/model.yml`, written last by the app's downloader, under
+ * the root the core names — `<data>/tensorrt-llm/models` on Linux, Atomic Chat's WSL distribution on
+ * Windows), the settings, and whether the provider is shown at all.
  *
  * Built into the Linux and Windows apps (`build:extensions:linux`, `build:extensions:win32`). On
  * Windows the core runs the container inside Atomic Chat's own WSL distribution (change
@@ -209,13 +210,31 @@ export default class TensorrtLlmExtension extends AIEngine {
   }
 
   /**
-   * Every folder under `models/` holding a `model.yml`, found the way the core finds them: a folder
-   * with one is a model and is not descended into, a folder without one (a download in progress)
-   * is not a model. The id is the folder's path under `models/`.
+   * The folder the core keeps this provider's models in (`GET /models/tensorrt-llm/location`, change
+   * `add-tensorrt-llm-windows`), spelled as the app's own path calls spell it. `null` where the core
+   * names none: on Windows before Atomic Chat's distribution is imported.
+   */
+  private async modelsDir(): Promise<string | null> {
+    try {
+      const { root } = await this.coreCall<{ root: string; free_bytes: number | null }>(
+        'GET',
+        `/models/${ENGINE_ID}/location`
+      )
+      return await joinPath([root])
+    } catch (e) {
+      logger.info(`TensorRT-LLM models have no location yet: ${describeCoreError(e)}`)
+      return null
+    }
+  }
+
+  /**
+   * Every folder under the models root holding a `model.yml`, found the way the core finds them: a
+   * folder with one is a model and is not descended into, a folder without one (a download in
+   * progress) is not a model. The id is the folder's path under the root.
    */
   override async list(): Promise<modelInfo[]> {
-    const modelsDir = await joinPath([await this.getProviderPath(), 'models'])
-    if (!(await fs.existsSync(modelsDir))) return []
+    const modelsDir = await this.modelsDir()
+    if (modelsDir === null || !(await fs.existsSync(modelsDir))) return []
 
     const ids: string[] = []
     const stack = [modelsDir]
@@ -242,7 +261,8 @@ export default class TensorrtLlmExtension extends AIEngine {
   }
 
   override async get(modelId: string): Promise<modelInfo | undefined> {
-    const modelsDir = await joinPath([await this.getProviderPath(), 'models'])
+    const modelsDir = await this.modelsDir()
+    if (modelsDir === null) return undefined
     try {
       return await this.describe(modelId, modelsDir)
     } catch {

@@ -3,10 +3,14 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   GatedModelError,
   IncompatibleModelError,
+  InsufficientModelSpaceError,
   fetchHfRevision,
   installTensorrtModel,
   type InstallDeps,
 } from '../models'
+
+/** The root the core names on Linux: the data folder's, as before (change add-tensorrt-llm-windows). */
+const LINUX_ROOT = '/home/ann/.local/share/Atomic Chat/data/tensorrt-llm/models'
 
 const SHA = 'c0ffee' + '0'.repeat(34)
 
@@ -76,6 +80,7 @@ function deps(overrides: Partial<InstallDeps> = {}) {
     },
     fetch: hub().fetch,
     check: vi.fn(async () => verdict(true)),
+    location: vi.fn(async () => ({ root: LINUX_ROOT, free_bytes: 500_000_000_000 })),
     existingSize: vi.fn(async () => null),
     transfer: vi.fn(async (items) => {
       steps.push(`transfer:${items.map((i) => i.save_path.split('/').pop()).join(',')}`)
@@ -150,11 +155,12 @@ describe('installTensorrtModel', () => {
       expect.objectContaining({ repository: 'nvidia/Qwen3-8B-FP8', revision: SHA })
     )
     const items = vi.mocked(d.transfer).mock.calls[0][0]
+    // Under the root the core names; on Linux that is still `<data>/tensorrt-llm/models`.
     expect(items.map((i) => i.save_path)).toEqual([
-      'tensorrt-llm/models/nvidia/Qwen3-8B-FP8/config.json',
-      'tensorrt-llm/models/nvidia/Qwen3-8B-FP8/model-00001-of-00002.safetensors',
-      'tensorrt-llm/models/nvidia/Qwen3-8B-FP8/model-00002-of-00002.safetensors',
-      'tensorrt-llm/models/nvidia/Qwen3-8B-FP8/tokenizer.json',
+      `${LINUX_ROOT}/nvidia/Qwen3-8B-FP8/config.json`,
+      `${LINUX_ROOT}/nvidia/Qwen3-8B-FP8/model-00001-of-00002.safetensors`,
+      `${LINUX_ROOT}/nvidia/Qwen3-8B-FP8/model-00002-of-00002.safetensors`,
+      `${LINUX_ROOT}/nvidia/Qwen3-8B-FP8/tokenizer.json`,
     ])
     expect(items[1]).toMatchObject({
       url: `https://huggingface.co/nvidia/Qwen3-8B-FP8/resolve/${SHA}/model-00001-of-00002.safetensors`,
@@ -169,7 +175,7 @@ describe('installTensorrtModel', () => {
 
     await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
 
-    expect(steps.at(-1)).toBe('yaml:tensorrt-llm/models/nvidia/Qwen3-8B-FP8/model.yml')
+    expect(steps.at(-1)).toBe(`yaml:${LINUX_ROOT}/nvidia/Qwen3-8B-FP8/model.yml`)
     expect(vi.mocked(d.writeYaml).mock.calls[0][1]).toMatchObject({
       repository: 'nvidia/Qwen3-8B-FP8',
       revision: SHA,
@@ -285,5 +291,77 @@ describe('installTensorrtModel', () => {
       'model-00001-of-00002.safetensors'
     )
     expect(options).toMatchObject({ resume: true })
+  })
+
+  describe('the root and the space the core names (change add-tensorrt-llm-windows)', () => {
+    const UNC_ROOT = '\\\\wsl.localhost\\AtomicChat\\var\\lib\\atomic-chat\\scopes\\k1\\models\\tensorrt-llm'
+
+    it('on Windows downloads into the distribution, not into the data folder', async () => {
+      // spec "Скачивание в дистрибутив на Windows".
+      const { d, steps } = deps({ location: vi.fn(async () => ({ root: UNC_ROOT, free_bytes: 300_000_000_000 })) })
+
+      await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
+
+      const items = vi.mocked(d.transfer).mock.calls[0][0]
+      expect(items[1].save_path).toBe(`${UNC_ROOT}\\nvidia\\Qwen3-8B-FP8\\model-00001-of-00002.safetensors`)
+      expect(vi.mocked(d.existingSize).mock.calls[0][0]).toBe(`${UNC_ROOT}\\nvidia\\Qwen3-8B-FP8\\config.json`)
+      expect(steps.at(-1)).toBe(`yaml:${UNC_ROOT}\\nvidia\\Qwen3-8B-FP8\\model.yml`)
+    })
+
+    it('asks for the location only once the core found the model compatible', async () => {
+      const { d } = deps({ check: vi.fn(async () => verdict(false)) })
+
+      const error = await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d).catch((e: unknown) => e)
+
+      expect(error).toBeInstanceOf(IncompatibleModelError)
+      expect(d.location).not.toHaveBeenCalled()
+    })
+
+    it('compares the free space with the weights still to download and downloads nothing without room', async () => {
+      // spec "Скачивание на Windows": the core's free space, not the data folder's volume.
+      const { d, steps } = deps({ location: vi.fn(async () => ({ root: UNC_ROOT, free_bytes: 6_000_000_000 })) })
+
+      const error = await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d).catch((e: unknown) => e)
+
+      expect(error).toBeInstanceOf(InsufficientModelSpaceError)
+      expect(error).toMatchObject({ root: UNC_ROOT, freeBytes: 6_000_000_000, neededBytes: 8_000_011_700 })
+      expect(steps).toEqual([])
+    })
+
+    it('counts only what is not on disk yet against the free space', async () => {
+      const { d, steps } = deps({
+        location: vi.fn(async () => ({ root: LINUX_ROOT, free_bytes: 4_000_000_000 })),
+        existingSize: vi.fn(async (path: string) =>
+          path.endsWith('model-00001-of-00002.safetensors') ? 5_000_000_000 : null
+        ),
+      })
+
+      await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
+
+      expect(steps).toEqual([
+        'transfer:config.json,model-00002-of-00002.safetensors,tokenizer.json',
+        `yaml:${LINUX_ROOT}/nvidia/Qwen3-8B-FP8/model.yml`,
+      ])
+    })
+
+    it('lets the downloader decide when the core could not measure the space', async () => {
+      const { d, steps } = deps({ location: vi.fn(async () => ({ root: LINUX_ROOT, free_bytes: null })) })
+
+      const installed = await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
+
+      expect(installed.modelId).toBe('nvidia/Qwen3-8B-FP8')
+      expect(steps.at(-1)).toBe(`yaml:${LINUX_ROOT}/nvidia/Qwen3-8B-FP8/model.yml`)
+    })
+
+    it('downloads nothing before Atomic Chat’s distribution exists', async () => {
+      // spec "Окружение ещё не установлено": the core answers MANAGED_ADAPTER_UNAVAILABLE.
+      const unavailable = Object.assign(new Error('The managed environment is not set up yet.'), {
+        code: 'MANAGED_ADAPTER_UNAVAILABLE',
+      })
+      const { d, steps } = deps({ location: vi.fn(async () => Promise.reject(unavailable)) })
+
+      await expect(installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)).rejects.toBe(unavailable)
+      expect(steps).toEqual([])
+    })
   })
 })
