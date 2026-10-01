@@ -80,7 +80,7 @@
   "categoryImagesHint": "Generate images from a prompt",
   "categoryVideoHint": "Generate short videos",
   "categoryDecision": "Decision",
-  "categoryDecisionHint": "Answer questions about a text",
+  "categoryDecisionHint": "Converts data to probabilities.",
   "searchDecisionPlaceholder": "Search decision models…",
   "available": "Available",
   "cpu": "CPU",

@@ -73,7 +73,7 @@
   "categoryImagesHint": "Генерация изображений по описанию",
   "categoryVideoHint": "Генерация коротких видео",
   "categoryDecision": "Decision",
-  "categoryDecisionHint": "Ответы на вопросы о тексте",
+  "categoryDecisionHint": "Превращает данные в вероятности.",
   "searchDecisionPlaceholder": "Поиск decision-моделей…",
   "available": "Доступные",
   "cpu": "CPU",

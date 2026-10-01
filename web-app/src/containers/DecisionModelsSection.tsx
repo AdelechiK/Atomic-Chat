@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { IconLoader2 } from '@tabler/icons-react'
+import { IconArrowRight, IconLoader2 } from '@tabler/icons-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -194,17 +194,22 @@ export function DecisionModelsSection() {
           />
         ))
       ) : (
-        <div className="-mt-2">
-          <h6 className="text-base font-medium">
-            {t('settings:decision.noneTitle')}
-          </h6>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            {t('settings:decision.noneDescription')}&nbsp;
-            <Link to={route.hub.index} search={{ category: 'decision' }}>
-              {t('common:hub')}
-            </Link>
-          </p>
-        </div>
+        <CardItem
+          title={
+            <h6 className="text-base font-medium">
+              {t('settings:decision.noneTitle')}
+            </h6>
+          }
+          description={t('settings:decision.noneDescription')}
+          actions={
+            <Button asChild variant="outline" size="sm">
+              <Link to={route.hub.index} search={{ category: 'decision' }}>
+                {t('common:hub')}
+                <IconArrowRight size={14} />
+              </Link>
+            </Button>
+          }
+        />
       )}
     </Card>
   )

@@ -9,6 +9,22 @@ vi.mock('@/hooks/useDecisionModel', () => ({
   useDecisionModel: () => state.current,
 }))
 
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    to,
+    className,
+    children,
+  }: {
+    to: string
+    className?: string
+    children: React.ReactNode
+  }) => (
+    <a href={to} className={className}>
+      {children}
+    </a>
+  ),
+}))
+
 vi.mock('@/i18n/react-i18next-compat', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
@@ -91,7 +107,9 @@ describe('DecisionModelCard', () => {
   it('says a served model is available in the API, and what a starting one is doing', () => {
     state.current = modelState({ running: true, state: 'ready' })
     const { rerender } = render(<DecisionModelStatus model={model} />)
-    expect(screen.getByText('settings:decision.availableInApi')).toBeVisible()
+    expect(
+      screen.getByRole('link', { name: 'settings:decision.availableInApi' })
+    ).toHaveAttribute('href', '/api/')
 
     state.current = modelState({ running: true, state: 'starting' })
     rerender(<DecisionModelStatus model={model} key="starting" />)

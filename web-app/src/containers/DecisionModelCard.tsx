@@ -1,4 +1,5 @@
 import { memo, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { IconLoader2, IconTrash, IconX } from '@tabler/icons-react'
 
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { route } from '@/constants/routes'
 import { useDecisionModel } from '@/hooks/useDecisionModel'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { cn } from '@/lib/utils'
@@ -34,9 +36,9 @@ const STATE_LABEL: Record<DecisionState, string> = {
 
 /**
  * What a running model is doing, at the end of its facts line: starting,
- * failed, or served through the Local API Server. Inline rather than on a
- * line of its own, so the row keeps its height when the model starts.
- * Nothing while it is stopped.
+ * failed, or served through the Local API Server (a link to the API page).
+ * Inline rather than on a line of its own, so the row keeps its height when
+ * the model starts. Nothing while it is stopped.
  */
 export function DecisionModelStatus({
   model,
@@ -67,7 +69,16 @@ export function DecisionModelStatus({
         {!served && !failed && (
           <IconLoader2 size={12} className="animate-spin" />
         )}
-        {served ? t('settings:decision.availableInApi') : t(STATE_LABEL[state])}
+        {served ? (
+          <Link
+            to={route.api.index}
+            className="underline-offset-2 hover:underline"
+          >
+            {t('settings:decision.availableInApi')}
+          </Link>
+        ) : (
+          t(STATE_LABEL[state])
+        )}
       </span>
     </span>
   )
