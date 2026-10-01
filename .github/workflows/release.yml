@@ -745,6 +745,14 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml --lib --features test-tauri core::agent::
           yarn workspace @janhq/web-app vitest --run src/lib/agent-path.test.ts src/lib/agent-file-links.test.ts src/stores/workspace-preview-store.test.ts
 
+      # The UAC executor of the TensorRT-LLM host step and its request folder ACL
+      # (`host_step_windows`) only compile and run on Windows.
+      - name: Gate TensorRT-LLM host step (Windows)
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          cargo test --manifest-path src-tauri/Cargo.toml --lib --features test-tauri core::atomic_core::host_step
+
       - name: Build app (unsigned)
         env:
           NODE_OPTIONS: "--max-old-space-size=4196"

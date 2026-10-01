@@ -1,40 +1,51 @@
-//! The one privileged step of a TensorRT-LLM setup on Linux: installing Docker Engine and the
-//! NVIDIA Container Toolkit (openspec change `add-tensorrt-llm-linux`, design D3).
+//! The one privileged step of a TensorRT-LLM setup: on Linux, installing Docker Engine and the
+//! NVIDIA Container Toolkit (openspec change `add-tensorrt-llm-linux`, design D3); on Windows,
+//! enabling WSL (change `add-tensorrt-llm-windows`, design D2/D15).
 //!
-//! The core never runs anything as root. It hands out a `pending_host_step` on the operation and
-//! reads a receipt back; the privileged work is done by its own recipe executor, the
-//! `host-step exec <request-file>` subcommand of the core binary, run as a separate process under
-//! `pkexec`. That process talks to nobody: it reads the request file and writes a result file next
-//! to it.
+//! The core never runs anything as root or as an administrator. It hands out a
+//! `pending_host_step` on the operation and reads a receipt back; the privileged work is done by
+//! its own recipe executor, the `host-step exec <request-file>` subcommand of the core binary, run
+//! as a separate process under `pkexec` (Linux) or through the UAC prompt (Windows). That process
+//! talks to nobody: it reads the request file and writes a result file next to it.
 //!
 //! Here the app does its half:
 //!
 //! - it reads the step from the core itself, by operation id: the webview names the operation and
 //!   never hands over a path, a command or a parameter;
-//! - it copies the core binary into a fresh `0700` folder under `$XDG_RUNTIME_DIR` and runs
-//!   `pkexec` on the copy. The AppImage is a FUSE mount without `allow_other`, which root cannot
-//!   read, so `pkexec` on the binary inside the bundle would fail;
-//! - it writes the request file (`0600`, never trusting the umask), waits for the executor, reads
-//!   the result file and sends the receipt;
+//! - on Linux it copies the core binary into a fresh `0700` folder under `$XDG_RUNTIME_DIR` and
+//!   runs `pkexec` on the copy. The AppImage is a FUSE mount without `allow_other`, which root
+//!   cannot read, so `pkexec` on the binary inside the bundle would fail;
+//! - on Windows it runs the bundled `atomic-chat-core.exe` itself (`ShellExecuteExW` with `runas`,
+//!   [`super::host_step_windows`]), from a fresh folder under `%LOCALAPPDATA%` that only the user,
+//!   `SYSTEM` and `Administrators` can touch — no copy: the install folder is already trusted, and
+//!   UAC shows the signed publisher;
+//! - it writes the request file (`0600` on Linux, never trusting the umask), waits for the
+//!   executor, reads the result file and sends the receipt;
 //! - with no `pkexec` or no polkit agent, it hands the person the exact `sudo` command and keeps
-//!   waiting for the result file instead.
+//!   waiting for the result file instead; where UAC cannot be raised, it hands over
+//!   `wsl --install --no-distribution` for an administrator terminal.
 //!
-//! The copy and its folder are removed once the executor has exited.
+//! The copy (Linux) and the request folder are removed once the executor has exited.
 
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use std::process::Stdio;
+#[cfg(unix)]
 use std::time::Duration;
 
 use serde_json::{json, Value};
 
 /// The copy's file name inside its folder.
+#[cfg(unix)]
 const CORE_COPY_NAME: &str = "atomic-chat-core";
 
 /// What `pkexec` prints when there is no polkit agent to ask the password with (minimal window
 /// managers, a bare session): it exits 127 right away, as it does for a refusal.
+#[cfg(unix)]
 const NO_AGENT_MARKER: &str = "No authentication agent";
 
 /// How often the result file is looked for while the person runs the `sudo` command.
+#[cfg(unix)]
 pub const MANUAL_POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 /// The app core's file name, and the CLI core's: the pair `yarn download:core` bundles and
@@ -138,7 +149,7 @@ impl HostStep {
     }
 
     /// The request file, in the shape the core's `parseHostStepRequest` accepts.
-    fn request(&self, data_folder: &Path, requested_at_ms: u128) -> Value {
+    pub(super) fn request(&self, data_folder: &Path, requested_at_ms: u128) -> Value {
         json!({
             "schema_version": 1,
             "step_id": self.step_id,
@@ -175,6 +186,9 @@ pub enum ReceiptOutcome {
     Completed,
     Declined,
     Failed,
+    /// The step took, and the machine needs a restart before it counts (Windows: WSL just
+    /// enabled). The core waits in `reboot-required` and goes on after the restart.
+    RebootRequired,
 }
 
 impl ReceiptOutcome {
@@ -183,6 +197,7 @@ impl ReceiptOutcome {
             Self::Completed => "completed",
             Self::Declined => "declined",
             Self::Failed => "failed",
+            Self::RebootRequired => "reboot-required",
         }
     }
 }
@@ -196,7 +211,8 @@ pub enum Elevation {
     /// the machine; the setup can be resumed.
     Declined,
     /// No `pkexec` or no polkit agent: the person runs this command in a terminal, and the result
-    /// file it writes is picked up by [`wait_for_result`].
+    /// file it writes is picked up by [`wait_for_result`]. On Windows, UAC could not be raised:
+    /// the command is for an administrator terminal and writes no result file.
     Manual { command: String },
 }
 
@@ -211,6 +227,7 @@ pub struct PreparedStep {
 
 impl PreparedStep {
     /// What a person runs by hand when no automatic elevation is available.
+    #[cfg(unix)]
     pub fn manual_command(&self) -> String {
         format!(
             "sudo {} host-step exec {}",
@@ -228,6 +245,7 @@ impl PreparedStep {
     }
 }
 
+#[cfg(unix)]
 fn shell_quote(path: &Path) -> String {
     let text = path.to_string_lossy();
     if text.chars().all(|c| c.is_ascii_alphanumeric() || "/._-".contains(c)) {
@@ -284,6 +302,7 @@ pub fn prepare(
 }
 
 /// Run the executor on the copy under `pkexec` and wait for it.
+#[cfg(unix)]
 pub async fn elevate(pkexec: &Path, prepared: &PreparedStep) -> Elevation {
     let output = tokio::process::Command::new(pkexec)
         .arg(&prepared.binary)
@@ -337,7 +356,8 @@ fn finished(prepared: &PreparedStep, code: Option<i32>, stderr: &str) -> Elevati
     }
 }
 
-/// `completed` or `failed` from the executor's result file; `None` while there is none.
+/// The outcome in the executor's result file — `completed`, `reboot-required`, anything else a
+/// failure; `None` while there is none.
 pub fn read_result(path: &Path) -> Option<(ReceiptOutcome, String)> {
     let text = std::fs::read_to_string(path).ok()?;
     let result: Value = serde_json::from_str(&text).ok()?;
@@ -348,6 +368,7 @@ pub fn read_result(path: &Path) -> Option<(ReceiptOutcome, String)> {
         .to_string();
     let outcome = match result.get("outcome").and_then(Value::as_str) {
         Some("completed") => ReceiptOutcome::Completed,
+        Some("reboot-required") => ReceiptOutcome::RebootRequired,
         _ => ReceiptOutcome::Failed,
     };
     // The step that failed, its exit code and its own stderr come first: the tail of the log alone
@@ -371,7 +392,42 @@ pub fn read_result(path: &Path) -> Option<(ReceiptOutcome, String)> {
     Some((outcome, log_tail))
 }
 
+/// `ERROR_CANCELLED`: the person closed the UAC prompt (or answered no).
+pub const ERROR_CANCELLED: i32 = 1223;
+
+/// What a person runs in an administrator terminal where UAC cannot be raised (design D15). The
+/// only step Windows elevates is `windows.enable-wsl`, and this is all its executor does.
+pub const ENABLE_WSL_MANUAL_COMMAND: &str = "wsl --install --no-distribution";
+
+/// How an elevated run on Windows ended, from what `ShellExecuteExW` answered: the executor's
+/// exit code once it ran, or the Win32 error when it never started. A cancelled prompt is a
+/// decline; any other refusal (UAC turned off by policy, no consent UI) means elevation is not
+/// available here, so the person gets the command for an administrator terminal and "Check
+/// again". An executor that ran is answered by its result file, as on Linux.
+pub fn elevation_after_runas(prepared: &PreparedStep, started: Result<u32, i32>) -> Elevation {
+    match started {
+        Err(ERROR_CANCELLED) => Elevation::Declined,
+        Err(_) => Elevation::Manual { command: ENABLE_WSL_MANUAL_COMMAND.to_string() },
+        Ok(code) => finished(prepared, Some(code as i32), ""),
+    }
+}
+
+/// The executor's command line after its path: `host-step exec "<request>"`. Windows paths never
+/// contain `"`, so quoting the whole path keeps a profile folder with a space one argument.
+pub fn runas_parameters(request: &Path) -> String {
+    format!("host-step exec \"{}\"", request.display())
+}
+
+/// The security descriptor of a Windows request folder: owned by the user, a protected DACL (so
+/// nothing is inherited from `%LOCALAPPDATA%`) granting full access to the user, `SYSTEM` and
+/// `Administrators`, inherited by the request and result files. The elevated executor refuses a
+/// folder anyone else may write (core `judgeWindowsAcl`).
+pub fn request_folder_sddl(user_sid: &str) -> String {
+    format!("O:{user_sid}D:P(A;OICI;FA;;;{user_sid})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)")
+}
+
 /// Wait for the result file the person's `sudo` run writes, up to `limit`.
+#[cfg(unix)]
 pub async fn wait_for_result(
     prepared: &PreparedStep,
     interval: Duration,
@@ -397,6 +453,152 @@ fn tail(text: &str) -> String {
         start += 1;
     }
     text[start..].to_string()
+}
+
+/// What every platform shares: reading a result, the receipt, and how a Windows elevation ended.
+#[cfg(test)]
+mod outcome_tests {
+    use super::*;
+    use serde_json::json;
+    use std::path::Path;
+
+    fn enable_wsl_step() -> HostStep {
+        HostStep::from_operation(&json!({
+            "operation_id": "op-w",
+            "pending_host_step": {
+                "step_id": "step-w",
+                "action": "windows.enable-wsl",
+                "recipe_id": "windows.enable-wsl",
+                "recipe_digest": "sha256:cc",
+                "parameters_digest": "sha256:dd",
+                "parameters": {},
+                "nonce": "n-w",
+                "expected_operation_revision": 7
+            }
+        }))
+        .expect("a pending step")
+    }
+
+    /// A request folder with the executor's result already in it, as after an elevated run.
+    fn finished_step(result: Option<&str>) -> (tempfile::TempDir, PreparedStep) {
+        let dir = tempfile::tempdir().unwrap();
+        let prepared = PreparedStep {
+            dir: dir.path().to_path_buf(),
+            binary: dir.path().join("atomic-chat-core.exe"),
+            request: dir.path().join("step-w.request.json"),
+            result: dir.path().join("step-w.result.json"),
+        };
+        if let Some(result) = result {
+            std::fs::write(&prepared.result, result).unwrap();
+        }
+        (dir, prepared)
+    }
+
+    #[test]
+    fn reads_the_enable_wsl_step_with_its_empty_parameters() {
+        let step = enable_wsl_step();
+        assert_eq!(step.action, "windows.enable-wsl");
+        assert_eq!(step.parameters, json!({}));
+    }
+
+    #[test]
+    fn a_result_that_asks_for_a_reboot_is_read_as_such() {
+        // Core task 2.4: `wsl --install --no-distribution` that needs a restart.
+        let (_dir, prepared) = finished_step(Some(r#"{"outcome":"reboot-required","log_tail":"restart"}"#));
+        assert_eq!(
+            read_result(&prepared.result),
+            Some((ReceiptOutcome::RebootRequired, "restart".into()))
+        );
+    }
+
+    #[test]
+    fn the_receipt_carries_a_reboot_required_outcome_as_the_core_spells_it() {
+        let receipt = enable_wsl_step().receipt(ReceiptOutcome::RebootRequired, "r-w");
+        assert_eq!(receipt["outcome"], "reboot-required");
+        assert_eq!(receipt["parameters_digest"], "sha256:dd");
+    }
+
+    #[test]
+    fn a_dismissed_uac_prompt_is_a_decline() {
+        let (_dir, prepared) = finished_step(None);
+        assert_eq!(elevation_after_runas(&prepared, Err(ERROR_CANCELLED)), Elevation::Declined);
+    }
+
+    #[test]
+    fn uac_that_cannot_be_raised_hands_over_the_command_for_an_administrator_terminal() {
+        // Design D15: elevation refused by policy, or no consent UI at all.
+        let (_dir, prepared) = finished_step(None);
+        for code in [5, 740, 1260] {
+            assert_eq!(
+                elevation_after_runas(&prepared, Err(code)),
+                Elevation::Manual { command: "wsl --install --no-distribution".into() }
+            );
+        }
+    }
+
+    #[test]
+    fn an_elevated_run_is_answered_by_its_result_file() {
+        let (_dir, prepared) = finished_step(Some(r#"{"outcome":"reboot-required","log_tail":""}"#));
+        assert_eq!(
+            elevation_after_runas(&prepared, Ok(0)),
+            Elevation::Finished { outcome: ReceiptOutcome::RebootRequired, log_tail: String::new() }
+        );
+        let (_dir, prepared) = finished_step(Some(r#"{"outcome":"completed","log_tail":"enabled"}"#));
+        assert_eq!(
+            elevation_after_runas(&prepared, Ok(0)),
+            Elevation::Finished { outcome: ReceiptOutcome::Completed, log_tail: "enabled".into() }
+        );
+    }
+
+    #[test]
+    fn an_elevated_run_without_a_result_is_a_failure_with_its_exit_code() {
+        // Exit 2: the executor did not trust the request folder.
+        let (_dir, prepared) = finished_step(None);
+        match elevation_after_runas(&prepared, Ok(2)) {
+            Elevation::Finished { outcome, log_tail } => {
+                assert_eq!(outcome, ReceiptOutcome::Failed);
+                assert!(log_tail.contains("exited with 2"), "{log_tail}");
+            }
+            other => panic!("expected a failure, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_request_path_is_one_quoted_argument_of_the_executor() {
+        // A user profile path with a space must stay one argument of `host-step exec`.
+        assert_eq!(
+            runas_parameters(Path::new(r"C:\Users\Ann Lee\AppData\Local\AtomicChat\host-steps\x\s.request.json")),
+            r#"host-step exec "C:\Users\Ann Lee\AppData\Local\AtomicChat\host-steps\x\s.request.json""#
+        );
+    }
+
+    #[test]
+    fn the_request_folder_admits_only_the_user_system_and_administrators() {
+        // Owned by the user; a protected DACL, so nothing is inherited from above; full access for
+        // the user, SYSTEM and Administrators, passed down to the request and result files. This is
+        // exactly what the core's executor accepts (core `judgeWindowsAcl`).
+        assert_eq!(
+            request_folder_sddl("S-1-5-21-1-2-3-1001"),
+            "O:S-1-5-21-1-2-3-1001D:P(A;OICI;FA;;;S-1-5-21-1-2-3-1001)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+        );
+    }
+
+    #[test]
+    fn the_windows_executor_is_the_cli_core_exe_beside_the_app_core_exe() {
+        let bin = tempfile::tempdir().unwrap();
+        let app_core = bin.path().join("atomic-chat-app-core.exe");
+        let cli_core = bin.path().join("atomic-chat-core.exe");
+        std::fs::write(&app_core, b"").unwrap();
+        std::fs::write(&cli_core, b"").unwrap();
+        let command = super::super::launch::CoreCommand {
+            program: app_core.to_string_lossy().into_owned(),
+            prefix: Vec::new(),
+            resources_dir: None,
+            cloudflared_bin: None,
+        };
+
+        assert_eq!(executor_binary(&command).unwrap(), cli_core);
+    }
 }
 
 #[cfg(all(test, unix))]

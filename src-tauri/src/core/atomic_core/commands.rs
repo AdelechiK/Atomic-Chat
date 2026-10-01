@@ -424,10 +424,12 @@ const MANUAL_HOST_STEP_WAIT: std::time::Duration = std::time::Duration::from_sec
 ///
 /// The webview names the operation and nothing else: the step — recipe, digests, parameters,
 /// nonce — is read from the core here, the request file is written here, and the webview never
-/// sees a path or an argument it could change. Answers `{outcome}`: `completed`, `failed` (with
-/// `log_tail`) or `declined` once the receipt is sent; `manual` with the exact `sudo` command when
-/// there is no `pkexec` or no polkit agent, in which case the receipt is sent once the result file
-/// appears.
+/// sees a path or an argument it could change. Answers `{outcome}`: `completed`,
+/// `reboot-required`, `failed` (with `log_tail`) or `declined` once the receipt is sent; `manual`
+/// with the exact command to run by hand otherwise — on Linux the `sudo` command when there is no
+/// `pkexec` or no polkit agent (the receipt is sent once the result file appears), on Windows
+/// `wsl --install --no-distribution` for an administrator terminal when UAC cannot be raised (no
+/// receipt: the person checks again once it ran).
 #[tauri::command]
 pub async fn atomic_core_run_host_step<R: Runtime>(
     app: AppHandle<R>,
@@ -442,26 +444,32 @@ async fn run_host_step<R: Runtime>(
     client: &AtomicCoreClient,
     operation_id: &str,
 ) -> Result<Value, CoreError> {
-    #[cfg(unix)]
-    if cfg!(target_os = "linux") {
-        return run_host_step_unix(app, client, operation_id).await;
+    #[cfg(windows)]
+    {
+        run_host_step_windows(app, client, operation_id).await
     }
-    let _ = (app, client, operation_id);
-    Err(CoreError::new(
-        "MANAGED_ADAPTER_UNAVAILABLE",
-        "Managed runtimes run on Linux only.",
-        None,
-    ))
+    #[cfg(not(windows))]
+    {
+        #[cfg(unix)]
+        if cfg!(target_os = "linux") {
+            return run_host_step_unix(app, client, operation_id).await;
+        }
+        let _ = (app, client, operation_id);
+        Err(CoreError::new(
+            "MANAGED_ADAPTER_UNAVAILABLE",
+            "Managed runtimes run on Linux and Windows only.",
+            None,
+        ))
+    }
 }
 
-/// Compiled on every unix so the macOS build type-checks what ships on Linux; called on Linux only.
-#[cfg(unix)]
-async fn run_host_step_unix<R: Runtime>(
-    app: &AppHandle<R>,
+/// The step the operation waits on, read from the core, and the claim that keeps a second run of
+/// it from starting while this one goes.
+async fn pending_host_step(
     client: &AtomicCoreClient,
     operation_id: &str,
-) -> Result<Value, CoreError> {
-    use super::host_step::{self, Elevation, HostStep, ReceiptOutcome};
+) -> Result<(super::host_step::HostStep, super::host_step::StepClaim), CoreError> {
+    use super::host_step::{self, HostStep};
 
     if operation_id.is_empty()
         || !operation_id.chars().all(|c| c.is_ascii_alphanumeric() || "._:-".contains(c))
@@ -481,6 +489,31 @@ async fn run_host_step_unix<R: Runtime>(
             None,
         )
     })?;
+    Ok((step, claim))
+}
+
+/// The CLI core beside the core this app runs: the bundled pair, or the local build that
+/// ATOMIC_CORE_CMD points at in development.
+fn host_step_executor<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, CoreError> {
+    let resource_dir = app.path().resource_dir().unwrap_or_default();
+    let command = super::launch::resolve_core_command(
+        &resource_dir,
+        std::env::var(super::launch::CORE_COMMAND_ENV).ok().as_deref(),
+    )?;
+    super::host_step::executor_binary(&command)
+        .map_err(|why| CoreError::new("MANAGED_HOST_STEP_INVALID", "Could not prepare the privileged step.", Some(why)))
+}
+
+/// Compiled on every unix so the macOS build type-checks what ships on Linux; called on Linux only.
+#[cfg(unix)]
+async fn run_host_step_unix<R: Runtime>(
+    app: &AppHandle<R>,
+    client: &AtomicCoreClient,
+    operation_id: &str,
+) -> Result<Value, CoreError> {
+    use super::host_step::{self, Elevation, ReceiptOutcome};
+
+    let (step, claim) = pending_host_step(client, operation_id).await?;
     let runtime_dir = std::env::var_os("XDG_RUNTIME_DIR")
         .map(std::path::PathBuf::from)
         .filter(|dir| dir.is_dir())
@@ -491,15 +524,7 @@ async fn run_host_step_unix<R: Runtime>(
                 None,
             )
         })?;
-    // The CLI core beside the core this app runs: the bundled pair, or the local build that
-    // ATOMIC_CORE_CMD points at in development.
-    let resource_dir = app.path().resource_dir().unwrap_or_default();
-    let command = super::launch::resolve_core_command(
-        &resource_dir,
-        std::env::var(super::launch::CORE_COMMAND_ENV).ok().as_deref(),
-    )?;
-    let core_binary = host_step::executor_binary(&command)
-        .map_err(|why| CoreError::new("MANAGED_HOST_STEP_INVALID", "Could not prepare the privileged step.", Some(why)))?;
+    let core_binary = host_step_executor(app)?;
     let supervisor = client.supervisor();
     let prepared = host_step::prepare(&runtime_dir, &core_binary, &step, supervisor.data_folder())
         .map_err(|e| {
@@ -546,7 +571,71 @@ async fn run_host_step_unix<R: Runtime>(
     Ok(json!({ "outcome": outcome.as_str(), "log_tail": log_tail }))
 }
 
-#[cfg(unix)]
+/// Windows (change `add-tensorrt-llm-windows`, design D15): the bundled `atomic-chat-core.exe`
+/// run in place through the UAC prompt, from a request folder under `%LOCALAPPDATA%` that only
+/// the user, `SYSTEM` and `Administrators` can touch.
+#[cfg(windows)]
+async fn run_host_step_windows<R: Runtime>(
+    app: &AppHandle<R>,
+    client: &AtomicCoreClient,
+    operation_id: &str,
+) -> Result<Value, CoreError> {
+    use super::host_step::{Elevation, ReceiptOutcome};
+    use super::host_step_windows;
+
+    let (step, claim) = pending_host_step(client, operation_id).await?;
+    let root = std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .filter(|dir| dir.is_dir())
+        .ok_or_else(|| {
+            CoreError::new(
+                "MANAGED_HOST_STEP_INVALID",
+                "This session has no %LOCALAPPDATA% to prepare the privileged step in.",
+                None,
+            )
+        })?
+        .join("AtomicChat")
+        .join("host-steps");
+    let core_binary = host_step_executor(app)?;
+    let supervisor = client.supervisor();
+    let prepared = host_step_windows::prepare(&root, &core_binary, &step, supervisor.data_folder())
+        .map_err(|e| {
+            CoreError::new(
+                "MANAGED_HOST_STEP_INVALID",
+                "Could not prepare the privileged step.",
+                Some(format!("{}: {e}", root.display())),
+            )
+        })?;
+
+    // The UAC prompt and the executor's run block their thread for as long as they take.
+    let (prepared, elevation) = tauri::async_runtime::spawn_blocking(move || {
+        let elevation = host_step_windows::elevate(&prepared);
+        (prepared, elevation)
+    })
+    .await
+    .map_err(|e| CoreError::new("MANAGED_HOST_STEP_INVALID", "The privileged step did not finish.", Some(e.to_string())))?;
+    prepared.remove();
+
+    let (outcome, log_tail) = match elevation {
+        Elevation::Finished { outcome, log_tail } => {
+            if outcome == ReceiptOutcome::Failed {
+                log::warn!("[host-step] {} failed: {log_tail}", step.step_id);
+            }
+            (outcome, log_tail)
+        }
+        Elevation::Declined => (ReceiptOutcome::Declined, String::new()),
+        Elevation::Manual { command } => {
+            // No result file will ever come: the person runs the command, then checks again.
+            log::warn!("[host-step] UAC could not be raised for {}; handing over `{command}`", step.step_id);
+            drop(claim);
+            return Ok(json!({ "outcome": "manual", "command": command }));
+        }
+    };
+    send_host_step_receipt(client, &step, outcome).await;
+    drop(claim);
+    Ok(json!({ "outcome": outcome.as_str(), "log_tail": log_tail }))
+}
+
 async fn send_host_step_receipt(
     client: &AtomicCoreClient,
     step: &super::host_step::HostStep,

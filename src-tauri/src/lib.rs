@@ -278,7 +278,8 @@ pub fn run() {
         core::atomic_core::commands::atomic_core_call,
         core::atomic_core::commands::atomic_core_status,
         core::atomic_core::commands::atomic_core_snapshot,
-        // The privileged step of a TensorRT-LLM setup (Linux; elsewhere it answers unavailable).
+        // The privileged step of a TensorRT-LLM setup (pkexec on Linux, UAC on Windows; elsewhere
+        // it answers unavailable).
         core::atomic_core::commands::atomic_core_run_host_step,
     ]);
 

@@ -24,8 +24,9 @@ pub mod api_requests;
 pub mod client;
 pub mod cloud;
 pub mod commands;
-#[cfg(unix)]
 pub mod host_step;
+#[cfg(windows)]
+pub mod host_step_windows;
 pub mod launch;
 #[cfg(test)]
 mod live_tests;
