@@ -1,5 +1,5 @@
 /**
- * The managed-runtime surface of `atomic-chat-core` 0.7.0 (control protocol 2) as the app reads it:
+ * The managed-runtime surface of `atomic-chat-core` 0.7.5 (control protocol 2) as the app reads it:
  * the container environment the core owns on Linux, the TensorRT-LLM installation inside it, the
  * durable operations that set it up and remove it, and the core's verdict on a checkpoint.
  *
