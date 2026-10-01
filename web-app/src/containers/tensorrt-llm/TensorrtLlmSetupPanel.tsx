@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
+import { useModelProvider } from '@/hooks/useModelProvider'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { formatBytes } from '@/lib/utils'
 import {
@@ -40,6 +41,7 @@ import {
   selectFailedSetup,
   selectSetupOperation,
   selectTensorrtInstallation,
+  TENSORRT_LLM_ENGINE_ID,
   useManagedEnvironmentStore,
 } from '@/stores/managed-environment-store'
 
@@ -54,7 +56,14 @@ import {
  */
 
 /** What the person agreed to, until the core asks for that consent. */
-type Approval = { kind: 'setup'; digest: Sha256Digest } | { kind: 'remove' }
+type Approval =
+  | { kind: 'setup'; digest: Sha256Digest }
+  | { kind: 'remove' }
+  /** Windows: Atomic Chat's WSL distribution, with every model in it. */
+  | { kind: 'remove-environment' }
+
+/** One empty list for every render without models: a fresh `[]` would re-render forever. */
+const NO_MODELS: Array<{ id: string }> = []
 
 /**
  * Privileged steps already put to the OS prompt, and the ones whose prompt is still open. Module
@@ -94,6 +103,7 @@ export function TensorrtLlmSetupPanel() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [planOpen, setPlanOpen] = useState(false)
   const [removeOpen, setRemoveOpen] = useState(false)
+  const [removeEnvironmentOpen, setRemoveEnvironmentOpen] = useState(false)
   const [keepModels, setKeepModels] = useState(true)
   const [manualCommand, setManualCommand] = useState<string | null>(null)
   const [notices, setNotices] = useState<string[]>([])
@@ -120,9 +130,12 @@ export function TensorrtLlmSetupPanel() {
     }
   }, [])
 
+  // Again whenever Atomic Chat's WSL distribution appears or goes (Windows): its removal turns the
+  // page back to the install, and the plan to one that imports it anew.
+  const distributionName = environment?.distribution?.name ?? null
   useEffect(() => {
     void recheck()
-  }, [recheck])
+  }, [recheck, distributionName])
 
   // The NVIDIA notices of the descriptor this plan installs; when the core cannot serve that
   // descriptor, the plan says the notices were not reported.
@@ -142,6 +155,12 @@ export function TensorrtLlmSetupPanel() {
   const environmentId = environment?.environment_id ?? 'default'
   /** Atomic Chat's own WSL distribution runs Docker here (change `add-tensorrt-llm-windows`). */
   const windows = environment?.executor === 'wsl-docker'
+  /** The models the provider lists — on Windows, the ones in the distribution. */
+  const models = useModelProvider(
+    (state) =>
+      state.providers.find((provider) => provider.provider === TENSORRT_LLM_ENGINE_ID)?.models ??
+      NO_MODELS
+  )
 
   const act = async (run: () => Promise<unknown>) => {
     setActionError(null)
@@ -180,12 +199,18 @@ export function TensorrtLlmSetupPanel() {
     approval.current = null
     // A removal this window did not start (or started before it was reopened): ask with the
     // removal's own dialog; confirming it approves what the core offers.
-    if (operation.kind === 'remove' && agreed?.kind !== 'remove') {
+    const removesEnvironment = operation.kind === 'remove' && operation.target.kind === 'environment'
+    if (removesEnvironment && agreed?.kind !== 'remove-environment') {
+      setRemoveEnvironmentOpen(true)
+      return
+    }
+    if (operation.kind === 'remove' && !removesEnvironment && agreed?.kind !== 'remove') {
       setRemoveOpen(true)
       return
     }
     const approves =
-      agreed?.kind === 'remove' ||
+      (removesEnvironment && agreed?.kind === 'remove-environment') ||
+      (!removesEnvironment && agreed?.kind === 'remove') ||
       (agreed?.kind === 'setup' && agreed.digest === operation.plan_digest)
     if (approves) {
       void act(() =>
@@ -246,6 +271,35 @@ export function TensorrtLlmSetupPanel() {
 
   const view = deriveSetupView({ plan, operation, installation, failed })
   const summary = plan ? planSummary(plan, notices, environment?.executor) : undefined
+  /**
+   * Windows only: the engine is gone and the distribution is still there. Removing it is the one
+   * way to give back the space its disk image took (design D12).
+   */
+  const distribution = windows ? (environment?.distribution ?? null) : null
+  const canRemoveEnvironment =
+    distribution !== null && !operation && installation?.status !== 'ready'
+
+  const removeEnvironment = () =>
+    act(async () => {
+      setRemoveEnvironmentOpen(false)
+      if (
+        operation?.kind === 'remove' &&
+        operation.target.kind === 'environment' &&
+        operation.phase === 'awaiting-consent' &&
+        operation.plan_digest
+      ) {
+        // The core is already asking about this removal.
+        answeredConsent.current = `${operation.operation_id}:${operation.revision}`
+        await resumeOperation(operation.operation_id, operation.revision, operation.plan_digest)
+        return
+      }
+      approval.current = { kind: 'remove-environment' }
+      await beginOperation(environmentId, {
+        request_id: crypto.randomUUID(),
+        kind: 'remove',
+        target: { kind: 'environment' },
+      })
+    })
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-main-view-fg/10 p-4">
@@ -331,7 +385,7 @@ export function TensorrtLlmSetupPanel() {
           <p className="text-sm font-medium">{t('providers:tensorrt.installed')}</p>
           <div className="flex items-center justify-between gap-3">
             <p className="min-w-0 text-sm text-main-view-fg/70">
-              {t('providers:tensorrt.remove.space', {
+              {t(windows ? 'providers:tensorrt.remove.spaceWindows' : 'providers:tensorrt.remove.space', {
                 size: formatBytes(plan?.required_disk_bytes ?? undefined),
               })}
             </p>
@@ -339,6 +393,20 @@ export function TensorrtLlmSetupPanel() {
               {t('providers:tensorrt.remove.button')}
             </Button>
           </div>
+        </div>
+      )}
+
+      {canRemoveEnvironment && distribution && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 text-sm text-main-view-fg/70 break-words">
+            {t('providers:tensorrt.removeEnvironment.hint', {
+              name: distribution.name,
+              size: formatBytes(distribution.size_bytes ?? undefined),
+            })}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setRemoveEnvironmentOpen(true)}>
+            {t('providers:tensorrt.removeEnvironment.button')}
+          </Button>
         </div>
       )}
 
@@ -366,7 +434,9 @@ export function TensorrtLlmSetupPanel() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('providers:tensorrt.remove.title')}</DialogTitle>
-            <DialogDescription>{t('providers:tensorrt.remove.body')}</DialogDescription>
+            <DialogDescription>
+              {t(windows ? 'providers:tensorrt.remove.bodyWindows' : 'providers:tensorrt.remove.body')}
+            </DialogDescription>
           </DialogHeader>
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -409,6 +479,44 @@ export function TensorrtLlmSetupPanel() {
               }
             >
               {t('providers:tensorrt.remove.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={removeEnvironmentOpen} onOpenChange={setRemoveEnvironmentOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('providers:tensorrt.removeEnvironment.title')}</DialogTitle>
+            <DialogDescription className="break-words">
+              {t('providers:tensorrt.removeEnvironment.body', {
+                name: environment?.distribution?.name ?? '',
+                path: environment?.distribution?.path ?? '',
+                size: formatBytes(environment?.distribution?.size_bytes ?? undefined),
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          {models.length > 0 ? (
+            <div className="flex min-w-0 flex-col gap-1 text-sm">
+              <p className="font-medium">{t('providers:tensorrt.removeEnvironment.models')}</p>
+              <ul className="flex list-disc flex-col gap-1 pl-5">
+                {models.map((model) => (
+                  <li key={model.id} className="break-words">
+                    {model.id}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-sm">{t('providers:tensorrt.removeEnvironment.noModels')}</p>
+          )}
+          <p className="text-sm text-main-view-fg/70">{t('providers:tensorrt.removeEnvironment.uninstall')}</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveEnvironmentOpen(false)}>
+              {t('providers:tensorrt.plan.cancel')}
+            </Button>
+            <Button variant="destructive" onClick={() => void removeEnvironment()}>
+              {t('providers:tensorrt.removeEnvironment.confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -566,11 +674,14 @@ function OperationStatus({
   onCheckAgain: () => void
 }) {
   const { t } = useTranslation()
-  // `preparing-host` turns WSL on; `preparing-environment` imports and sets up the distribution.
+  // `preparing-host` turns WSL on; `preparing-environment` imports and sets up the distribution;
+  // `removing` an environment unregisters the distribution, not the engine.
   const phaseKey =
-    windows && (operation.phase === 'preparing-host' || operation.phase === 'preparing-environment')
-      ? `providers:tensorrt.phaseWindows.${operation.phase}`
-      : `providers:tensorrt.phase.${operation.phase}`
+    operation.target.kind === 'environment' && operation.phase === 'removing'
+      ? 'providers:tensorrt.removeEnvironment.removing'
+      : windows && (operation.phase === 'preparing-host' || operation.phase === 'preparing-environment')
+        ? `providers:tensorrt.phaseWindows.${operation.phase}`
+        : `providers:tensorrt.phase.${operation.phase}`
   /** The privileged step is UAC turning on WSL, not the system password. */
   const uac = operation.pending_host_step?.action === 'windows.enable-wsl'
   const progress = operation.progress

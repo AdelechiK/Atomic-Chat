@@ -162,7 +162,9 @@
       "title": "Remove TensorRT-LLM?",
       "body": "The engine image, its caches and the installation are deleted. Docker, the NVIDIA Container Toolkit and the docker group stay on this computer.",
       "keepModels": "Keep the downloaded TensorRT-LLM models",
-      "confirm": "Remove"
+      "confirm": "Remove",
+      "spaceWindows": "The engine image takes about {{size}} inside Atomic Chat's WSL distribution. Uninstalling Atomic Chat removes neither the image nor the distribution; remove the engine and then the environment here first.",
+      "bodyWindows": "The engine image, its caches and the installation are deleted. Atomic Chat's WSL distribution, with Docker and the NVIDIA Container Toolkit in it, stays; you can remove it afterwards as the environment."
     },
     "models": {
       "title": "Models",
@@ -194,6 +196,17 @@
     "phaseWindows": {
       "preparing-host": "Turning on WSL",
       "preparing-environment": "Setting up Atomic Chat's WSL distribution and checking that it sees your GPU"
+    },
+    "removeEnvironment": {
+      "hint": "Atomic Chat's WSL distribution \"{{name}}\" takes {{size}}. Uninstalling Atomic Chat does not remove it.",
+      "button": "Remove environment",
+      "title": "Remove Atomic Chat's WSL distribution?",
+      "body": "The distribution \"{{name}}\" in {{path}} is unregistered and everything in it is deleted, freeing {{size}}. Your other WSL distributions are not touched.",
+      "models": "These TensorRT-LLM models are deleted with it:",
+      "noModels": "There are no TensorRT-LLM models in it.",
+      "uninstall": "Uninstalling Atomic Chat would not have removed it: this is the way to get the space back.",
+      "confirm": "Remove environment",
+      "removing": "Removing Atomic Chat's WSL distribution"
     }
   }
 }

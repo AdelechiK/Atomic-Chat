@@ -127,7 +127,9 @@ export function selectTensorrtInstallation(
 
 /**
  * The TensorRT-LLM setup or removal still in progress — what the provider page shows after the
- * window was closed and opened again — or `undefined` when none is.
+ * window was closed and opened again — or `undefined` when none is. On Windows that includes the
+ * removal of the environment itself, Atomic Chat's WSL distribution (change
+ * `add-tensorrt-llm-windows`), which the same page starts.
  */
 export function selectSetupOperation(
   state: Held
@@ -139,8 +141,9 @@ export function selectSetupOperation(
   return candidates.find(
     (operation) =>
       operation !== undefined &&
-      operation.target.kind === 'runtime' &&
-      operation.target.engine_id === TENSORRT_LLM_ENGINE_ID &&
+      ((operation.target.kind === 'runtime' &&
+        operation.target.engine_id === TENSORRT_LLM_ENGINE_ID) ||
+        (operation.target.kind === 'environment' && operation.kind === 'remove')) &&
       !FINISHED.has(operation.phase)
   )
 }

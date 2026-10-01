@@ -29,6 +29,7 @@ vi.mock('@/services/managed-environment/client', async (importOriginal) => ({
 
 import { resetHostStepPromptsForTests, TensorrtLlmSetupPanel } from '../TensorrtLlmSetupPanel'
 import { useManagedEnvironmentStore } from '@/stores/managed-environment-store'
+import { useModelProvider } from '@/hooks/useModelProvider'
 import type {
   EnvironmentOperation,
   EnvironmentSnapshot,
@@ -128,10 +129,15 @@ function seed(env: EnvironmentSnapshot, operations: EnvironmentOperation[] = [])
 /** The core's next word on the operation, as the relay delivers it. */
 function coreSays(op: EnvironmentOperation) {
   act(() => {
-    // The environment keeps its executor: Linux by default, the WSL one in the Windows cases.
-    const executor = Object.values(store().environments)[0]?.executor ?? 'linux-docker'
+    // The environment keeps its executor and distribution: Linux by default, WSL in the Windows cases.
+    const held = Object.values(store().environments)[0]
     store().applyEnvironment(
-      environment({ executor, revision: op.revision + 100, active_operation_id: op.operation_id })
+      environment({
+        executor: held?.executor ?? 'linux-docker',
+        ...(held?.distribution !== undefined ? { distribution: held.distribution } : {}),
+        revision: op.revision + 100,
+        active_operation_id: op.operation_id,
+      })
     )
     store().applyOperation(op)
   })
@@ -567,5 +573,98 @@ describe('TensorrtLlmSetupPanel', () => {
     // The person confirmed exactly this removal; the core's consent step is approved as it asks.
     coreSays(operation({ kind: 'remove', phase: 'awaiting-consent', revision: 2, plan_digest: digest }))
     await waitFor(() => expect(client.resumeOperation).toHaveBeenCalledWith('op-1', 2, digest))
+  })
+
+  describe('removing the environment on Windows (change add-tensorrt-llm-windows)', () => {
+    const distribution = {
+      name: 'AtomicChat',
+      path: 'C:\\Users\\ann\\AppData\\Local\\AtomicChat\\wsl\\AtomicChat',
+      size_bytes: 42 * 1024 ** 3,
+    }
+    const windowsEnvironment = (overrides: Partial<EnvironmentSnapshot> = {}) =>
+      environment({ executor: 'wsl-docker', distribution, ...overrides })
+
+    beforeEach(() => {
+      useModelProvider.setState({
+        providers: [
+          {
+            active: true,
+            provider: 'tensorrt-llm',
+            settings: [],
+            models: [{ id: 'nvidia/Qwen3-8B-FP8' }, { id: 'Qwen/Qwen3-4B' }],
+          },
+        ] as never,
+      })
+    })
+
+    it('offers it once the engine is gone, says the app’s uninstall leaves it, and removes it after a consent naming the models and the space', async () => {
+      // spec "Удаление окружения на Windows".
+      seed(windowsEnvironment())
+      render(<TensorrtLlmSetupPanel />)
+
+      expect(await screen.findByText(/providers:tensorrt.removeEnvironment.hint/)).toHaveTextContent('42.0 GB')
+      fireEvent.click(screen.getByRole('button', { name: 'providers:tensorrt.removeEnvironment.button' }))
+
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByText(/providers:tensorrt.removeEnvironment.body/)).toHaveTextContent('42.0 GB')
+      expect(within(dialog).getByText('nvidia/Qwen3-8B-FP8')).toBeInTheDocument()
+      expect(within(dialog).getByText('Qwen/Qwen3-4B')).toBeInTheDocument()
+      fireEvent.click(within(dialog).getByRole('button', { name: 'providers:tensorrt.removeEnvironment.confirm' }))
+
+      await waitFor(() => expect(client.beginOperation).toHaveBeenCalledTimes(1))
+      expect(client.beginOperation.mock.calls[0][1]).toMatchObject({
+        kind: 'remove',
+        target: { kind: 'environment' },
+      })
+
+      const removal = operation({
+        kind: 'remove',
+        target: { kind: 'environment' },
+        phase: 'awaiting-consent',
+        revision: 2,
+        plan_digest: digest,
+      })
+      coreSays(removal)
+      await waitFor(() => expect(client.resumeOperation).toHaveBeenCalledWith('op-1', 2, digest))
+      coreSays({ ...removal, phase: 'removing', revision: 3 })
+      expect(await screen.findByText('providers:tensorrt.removeEnvironment.removing')).toBeInTheDocument()
+      // Not the engine's removal dialog, and no second consent.
+      expect(screen.queryByText('providers:tensorrt.remove.title')).not.toBeInTheDocument()
+
+      // Gone: the page asks the machine again and offers the install, import included.
+      const probes = client.probe.mock.calls.length
+      act(() => {
+        store().applyEnvironment(
+          windowsEnvironment({ distribution: null, revision: 200, active_operation_id: null })
+        )
+        store().applyOperation({ ...removal, phase: 'removed', revision: 4 })
+      })
+      await waitFor(() => expect(client.probe.mock.calls.length).toBe(probes + 1))
+      expect(await screen.findByRole('button', { name: 'providers:tensorrt.install' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'providers:tensorrt.removeEnvironment.button' })).not.toBeInTheDocument()
+    })
+
+    it('is not offered while the engine is installed, and the engine’s removal says the distribution stays', async () => {
+      seed(windowsEnvironment({ installations: [installedEngine] }))
+      render(<TensorrtLlmSetupPanel />)
+
+      expect(await screen.findByText(/providers:tensorrt.remove.spaceWindows/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'providers:tensorrt.removeEnvironment.button' })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'providers:tensorrt.remove.button' }))
+      expect(await screen.findByText('providers:tensorrt.remove.bodyWindows')).toBeInTheDocument()
+    })
+
+    it('is not offered before the distribution exists, nor on Linux', async () => {
+      seed(environment({ executor: 'wsl-docker', distribution: null }))
+      const { unmount } = render(<TensorrtLlmSetupPanel />)
+      expect(await screen.findByRole('button', { name: 'providers:tensorrt.install' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'providers:tensorrt.removeEnvironment.button' })).not.toBeInTheDocument()
+      unmount()
+
+      seed(environment())
+      render(<TensorrtLlmSetupPanel />)
+      expect(await screen.findByRole('button', { name: 'providers:tensorrt.install' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'providers:tensorrt.removeEnvironment.button' })).not.toBeInTheDocument()
+    })
   })
 })
