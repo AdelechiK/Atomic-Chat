@@ -136,6 +136,43 @@ async fn spawn_stalling_download_server(
     (format!("http://{address}/model.gguf"), tokio::spawn(server))
 }
 
+/// Manual run 3.10, finding F-12: a Hugging Face file stopped after 16 KiB on a
+/// connection that stayed open, and the download waited at "100%" forever. An
+/// idle stream now counts as broken and is resumed with a ranged request.
+#[tokio::test]
+async fn a_stream_that_goes_silent_is_resumed_with_a_range_request() {
+    let (url, server) = spawn_stalling_download_server().await;
+    let save_path = test_download_path("model.gguf");
+    let item = DownloadItem {
+        url,
+        save_path: save_path.to_string_lossy().into_owned(),
+        proxy: None,
+        sha256: None,
+        size: Some(6),
+        model_id: Some("test/model".to_string()),
+    };
+    let app = mock_app();
+
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        download_single_file_with_token_for_test(
+            app.handle().clone(),
+            &item,
+            &save_path,
+            6,
+            true,
+            CancellationToken::new(),
+        ),
+    )
+    .await
+    .expect("a silent stream still hangs the download");
+    result.unwrap();
+    assert_eq!(tokio::fs::read(&save_path).await.unwrap(), b"abcdef");
+
+    server.abort();
+    let _ = tokio::fs::remove_dir_all(save_path.parent().unwrap()).await;
+}
+
 /// Field log, 2026-09-21: pause and resume in the same second on a slow link.
 /// The paused stream only noticed its cancellation at the next chunk, eight
 /// seconds on, so two invocations had one `.tmp` open; the file ended up the

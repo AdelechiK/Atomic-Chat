@@ -105,6 +105,24 @@ impl std::fmt::Display for DownloadRequestError {
     }
 }
 
+/// How long an open download stream may deliver nothing before it counts as
+/// broken and is retried with a `Range` request from the bytes already on disk.
+/// Long enough for a slow link or a CDN pause, short enough that a dead
+/// connection does not leave the download hanging (finding F-12).
+#[cfg(not(test))]
+const STREAM_IDLE_TIMEOUT_SECS: u64 = 45;
+
+fn stream_idle_timeout() -> Duration {
+    #[cfg(test)]
+    {
+        Duration::from_secs(1)
+    }
+    #[cfg(not(test))]
+    {
+        Duration::from_secs(STREAM_IDLE_TIMEOUT_SECS)
+    }
+}
+
 fn retry_delay(retry_count: u32) -> Duration {
     #[cfg(test)]
     {
@@ -1003,6 +1021,11 @@ async fn download_single_file(
     loop {
         // Raced with the token: on a slow link the next chunk is seconds away,
         // and until it arrived a cancelled download kept the file open.
+        // Also raced with an idle timer: a connection that stays open but stops
+        // sending never ends the stream, so without it the download waited
+        // forever at "100%" (manual run 3.10, finding F-12). Going idle is a
+        // stream error like any other and takes the ranged-retry path below.
+        let idle_timeout = stream_idle_timeout();
         let next = tokio::select! {
             biased;
             _ = cancel_token.cancelled() => {
@@ -1012,14 +1035,19 @@ async fn download_single_file(
                 log::info!("Download cancelled: {}", item.url);
                 return Err("Download cancelled".to_string());
             }
-            next = stream.next() => next,
+            next = stream.next() => Some(next),
+            _ = tokio::time::sleep(idle_timeout) => None,
         };
         let stream_error = match next {
-            None if expected_size > 0 && total_transferred < expected_size => Some(format!(
+            None => Some(format!(
+                "no data for {}s after {total_transferred} bytes",
+                idle_timeout.as_secs_f32()
+            )),
+            Some(None) if expected_size > 0 && total_transferred < expected_size => Some(format!(
                 "stream ended after {total_transferred} of {expected_size} bytes"
             )),
-            None => break,
-            Some(Ok(chunk)) => {
+            Some(None) => break,
+            Some(Some(Ok(chunk))) => {
                 if cancel_token.is_cancelled() {
                     if !keep_partial_on_cancel && !should_resume {
                         tokio::fs::remove_dir_all(&save_path.parent().unwrap())
@@ -1063,7 +1091,7 @@ async fn download_single_file(
                 }
                 None
             }
-            Some(Err(error)) => Some(error.to_string()),
+            Some(Some(Err(error))) => Some(error.to_string()),
         };
 
         if let Some(stream_error) = stream_error {
