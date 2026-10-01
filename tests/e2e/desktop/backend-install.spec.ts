@@ -16,7 +16,7 @@ import { buildBackendArchive, proxySeed, startBackendMirror, type BackendMirror 
 import { coreSessions, openProviderSettings, pageShows, pickModel, send, waitForChat } from '../harness/chat.js'
 import { answerNextDialog, FAKE_BACKEND, FAKE_PROVIDER, installFakeBackend, writeFakeModel } from '../harness/fixtures.js'
 import { CAN_RUN_FAKE_BACKEND } from '../harness/platform.js'
-import { endSession, startSession, withArtifacts, type Session } from '../harness/session.js'
+import { bundledBackends, endSession, startSession, withArtifacts, type Session } from '../harness/session.js'
 
 const MODEL_ID = 'e2e/fake-model'
 const OLD_TAG = 'b99990'
@@ -84,7 +84,12 @@ describe.skipIf(!CAN_RUN_FAKE_BACKEND)('installing a backend from a file', () =>
       await pageShows(session, `${NEW_TAG}-bin-${FAKE_BACKEND}`, 60_000)
       expect((await stat(join(backends, NEW_TAG, FAKE_BACKEND, 'build', 'bin', 'llama-server'))).mode & 0o111).not.toBe(0)
       await pageShows(session, NEW_BACKEND, 30_000)
-      expect((await readdir(backends)).sort()).toEqual([OLD_TAG, NEW_TAG])
+      // The app's bundled build is unpacked on first launch beside the profile's own packs;
+      // what the install added is the new tag next to the old one.
+      const bundledTags = bundledBackends()
+        .filter((entry) => entry.startsWith(`${FAKE_PROVIDER}:`))
+        .map((entry) => entry.split(':')[1]!.split('/')[0]!)
+      expect((await readdir(backends)).filter((tag) => !bundledTags.includes(tag)).sort()).toEqual([OLD_TAG, NEW_TAG])
 
       // A model that is already running stays on the backend it was started
       // with; the page does not say so. Selecting a backend decides the next

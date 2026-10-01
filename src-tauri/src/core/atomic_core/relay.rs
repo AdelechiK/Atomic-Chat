@@ -270,7 +270,11 @@ async fn follow_once<S: EventSink>(supervisor: &Arc<Supervisor>, sink: &S, curso
     let attached = match supervisor.ensure_attached(true).await {
         Ok(attached) => attached,
         Err(e) => {
-            log::info!("[atomic-core] could not attach or launch: {e}");
+            // The supervisor has logged a start failure already, its tail indented; repeating
+            // the details here would split that tail into entries of their own.
+            if e.code != "CORE_START_FAILED" {
+                log::info!("[atomic-core] could not attach or launch: {e}");
+            }
             return;
         }
     };

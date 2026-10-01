@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createCoreSettingsSync, stableSettingsFingerprint } from '../../../shared/atomicCoreSettingsSync'
 import type { PersistedSetting } from '../../../shared/atomicCoreSettingsSync'
 
-function harness(overrides: { status?: unknown; importStatus?: string; coreValues?: Record<string, unknown>; systemInfo?: boolean } = {}) {
+function harness(overrides: { status?: unknown; importStatus?: string; coreValues?: Record<string, unknown> } = {}) {
   const order: string[] = []
   let persisted: PersistedSetting[] = [
     { key: 'ctx_size', controllerProps: { value: 4096 } },
@@ -22,9 +22,6 @@ function harness(overrides: { status?: unknown; importStatus?: string; coreValue
     acknowledgeSettings: vi.fn(async (revision: number) => {
       order.push(`ack ${revision}`)
     }),
-    sendHardwareOverride: vi.fn(async (override: unknown) => {
-      order.push(`hardware ${JSON.stringify(override)}`)
-    }),
   }
   const sync = createCoreSettingsSync({
     core: core as never,
@@ -34,22 +31,18 @@ function harness(overrides: { status?: unknown; importStatus?: string; coreValue
       persisted = settings
     },
     setMirroring: (active) => mirroring.push(active),
-    ...(overrides.systemInfo === false
-      ? {}
-      : { systemInfo: async () => ({ gpus: [{ vendor: 'AMD' }], cpu: { extensions: ['avx2'] }, os_type: 'macos' }) }),
   })
   return { sync, core, order, mirroring, persisted: () => persisted }
 }
 
 describe('shared core settings sync', () => {
-  it('imports, mirrors under the guard, acknowledges after the write, then sends hardware', async () => {
+  it('imports, mirrors under the guard and acknowledges after the write; hardware is the core’s own', async () => {
     const h = harness()
     await h.sync.ensureReady()
     expect(h.order).toEqual([
       'import {"ctx_size":4096,"kv_bits":3.5}',
       'write mirroring=true',
       'ack 7',
-      'hardware {"gpus":[{"vendor":"AMD"}],"cpu_extensions":["avx2"],"os_type":"macos"}',
     ])
     expect(h.mirroring).toEqual([true, false])
     expect(h.persisted()[0]?.controllerProps.value).toBe(8192)
@@ -61,13 +54,12 @@ describe('shared core settings sync', () => {
       'import {"ctx_size":4096,"kv_bits":3.5}',
       'write mirroring=true',
       'ack 7',
-      'hardware {"gpus":[{"vendor":"AMD"}],"cpu_extensions":["avx2"],"os_type":"macos"}',
     ]
     await h.sync.ensureReady()
     await h.sync.ensureReady()
     expect(h.core.importSettings).toHaveBeenCalledTimes(1)
-    // The second call reuses the first preparation: no second mirror write, acknowledgement or
-    // hardware override reaches the core or the persisted settings.
+    // The second call reuses the first preparation: no second mirror write or acknowledgement
+    // reaches the core or the persisted settings.
     expect(h.order).toEqual(cycle)
     h.core.getStatus.mockResolvedValue({ attached: { instance_id: 'i', generation: 2 } })
     await h.sync.ensureReady()
@@ -85,11 +77,10 @@ describe('shared core settings sync', () => {
     expect(conflict.core.importSettings).toHaveBeenCalledTimes(2)
   })
 
-  it('skips the hardware step for a provider that selects no backend, and mirrors on demand', async () => {
-    const h = harness({ systemInfo: false })
+  it('mirrors on demand and acknowledges each mirror', async () => {
+    const h = harness()
     await h.sync.ensureReady()
     await h.sync.mirror()
-    expect(h.core.sendHardwareOverride).not.toHaveBeenCalled()
     expect(h.order.filter((line) => line.startsWith('ack'))).toHaveLength(2)
   })
 

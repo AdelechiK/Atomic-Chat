@@ -31,7 +31,8 @@ import {
 import { error, info, warn } from '@tauri-apps/plugin-log'
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
 import {
-  listSupportedBackends,
+  loadCatalog,
+  catalogRequestContext,
   isBackendInstalled,
   getBackendDir,
   getLocalInstalledBackends,
@@ -39,8 +40,6 @@ import {
   isTurboQuantRelease,
   isStableReleaseTag,
   compareBackendVersions,
-  fetchStableIndex,
-  invalidateStableIndexCache,
   assertDeletableBackendPack,
   mergeBackendOptions,
   getIndexedVariantSize,
@@ -62,7 +61,7 @@ import {
   type EmbedBatchResult,
 } from './util'
 import { basename } from '@tauri-apps/api/path'
-import { getSystemUsage, getSystemInfo } from './hardware'
+import { getSystemUsage, getPluginSystemInfo } from './hardware'
 import {
   readGgufMetadata,
   isModelSupported,
@@ -72,19 +71,18 @@ import {
   EmbeddingResponse,
   DeviceList,
   mapOldBackendToNew,
-  findLatestVersionForBackend,
-  prioritizeBackends,
   removeOldBackendVersions,
-  shouldMigrateBackend,
-  handleSettingUpdate,
   installBundledBackend,
-  checkBackendForUpdates as checkBackendForUpdatesFromRust,
-  getSupportedFeaturesFromRust,
-  normalizeFeatures,
 } from '../../../src-tauri/plugins/tauri-plugin-llamacpp/guest-js/index'
-import type { RuntimeDeviceInfo } from '../../../src-tauri/plugins/tauri-plugin-llamacpp/guest-js/types'
+import type {
+  RuntimeDeviceInfo,
+  SettingUpdateResult,
+} from '../../../src-tauri/plugins/tauri-plugin-llamacpp/guest-js/types'
 import { createCoreRuntime, describeCoreError } from '../../shared/atomicCoreRuntime'
 import type {
+  CoreBackendCatalog,
+  CoreBackendRecommendation,
+  CoreBackendRecommendationRequest,
   CoreOptimalState,
   CoreProxyConfig,
   Invoke,
@@ -200,21 +198,6 @@ function stripBom(s: string): string {
   return s.replace(/\uFEFF/g, '').trim()
 }
 
-function backendCategoryToLabel(category: string): string {
-  switch (category) {
-    case 'cuda-cu13.0':
-      return 'CUDA 13'
-    case 'cuda-cu12.0':
-      return 'CUDA 12'
-    case 'cuda-cu11.7':
-      return 'CUDA 11'
-    case 'vulkan':
-      return 'Vulkan'
-    default:
-      return category
-  }
-}
-
 /**
  * Broad accelerator family behind a backend id, for display only. The user
  * picks a release and a family; which microarchitecture the archive was built
@@ -262,17 +245,116 @@ function get_backend_category(backend: string): string {
 }
 
 /**
- * Discriminated outcome of `detectIdealBackendType` — mirrors the
- * `llamacpp-upstream` extension contract so the web-app can tell "CPU is
- * genuinely optimal for this hardware" apart from "couldn't resolve a GPU
- * backend because the turboquant manifest was unreachable". On the latter,
- * `recheckOptimalBackend` throws `BACKEND_DETECTION_FAILED` rather than
- * silently degrading the user to CPU.
+ * The newest `version/backend` the catalog carries for a normalized backend
+ * type, or null when the type is not offered right now. The core computes
+ * `latest_by_type`; this keeps the name the callers grew up with.
  */
-type IdealBackendResult =
-  | { kind: 'gpu'; backend: string }
-  | { kind: 'cpu-optimal' }
-  | { kind: 'detection-failed' }
+function latestVersionForBackend(
+  latestByType: Record<string, string>,
+  backendType: string
+): string | null {
+  return latestByType[backendType] ?? null
+}
+
+/**
+ * `latest_by_type` built locally from a version list — for the one case the
+ * core's catalog did not arrive and the list is the bundled build alone.
+ * Legacy folder ids collapse onto their migrated type, newest tag wins.
+ */
+async function buildLatestByType(
+  version_backends: { version: string; backend: string }[]
+): Promise<Record<string, string>> {
+  const latest: Record<string, string> = {}
+  for (const entry of version_backends) {
+    const type = await mapOldBackendToNew(stripBom(entry.backend))
+    const version = stripBom(entry.version)
+    const current = latest[type]?.split('/')[0]
+    if (!current || compareBackendVersions(version, current) > 0) {
+      latest[type] = `${version}/${entry.backend}`
+    }
+  }
+  return latest
+}
+
+/**
+ * The migrated type a stored legacy preference should move to, or null when
+ * the stored type already is the current spelling or the catalog does not
+ * carry the migrated type (moving onto a type nobody can install helps no one).
+ * The TS port of the plugin's `should_migrate_backend`.
+ */
+async function migrationTargetFor(
+  storedBackendType: string,
+  latestByType: Record<string, string>
+): Promise<string | null> {
+  const mapped = await mapOldBackendToNew(storedBackendType)
+  if (mapped === storedBackendType) return null
+  return latestByType[mapped] ? mapped : null
+}
+
+/**
+ * What a `version_backend` setting change means: the `version` and `backend`
+ * to install and whether the stored backend-type preference moves. The TS port
+ * of the plugin's `handle_setting_update`, so the decision lives with the only
+ * caller. Anything but `version_backend` is a no-op result.
+ */
+export async function parseVersionBackendSetting(
+  key: string,
+  value: string,
+  currentStoredBackend?: string
+): Promise<SettingUpdateResult> {
+  if (key !== 'version_backend') {
+    return {
+      backend_type_updated: false,
+      needs_backend_installation: false,
+    }
+  }
+
+  const cleanValue = stripBom(value ?? '')
+  const parts = cleanValue.split('/')
+  if (parts.length !== 2) {
+    throw new Error(`Invalid backend format: ${cleanValue}`)
+  }
+  const version = parts[0].trim()
+  const backend = parts[1].trim()
+  if (!version || !backend) {
+    throw new Error(`Invalid backend format: ${value}`)
+  }
+
+  const effectiveBackendType = await mapOldBackendToNew(backend)
+  const backendTypeUpdated =
+    currentStoredBackend === undefined ||
+    currentStoredBackend !== effectiveBackendType
+
+  return {
+    backend_type_updated: backendTypeUpdated,
+    effective_backend_type: effectiveBackendType,
+    needs_backend_installation: true,
+    version,
+    backend,
+  }
+}
+
+/**
+ * How long one advisor question to the core may take before this side gives
+ * up and treats it as a failed detection. The core resolves the release index
+ * (three network legs of up to 8 s each on a cold start) and probes the
+ * hardware inside this window.
+ */
+const RECOMMENDATION_TIMEOUT_MS = 30_000
+
+/**
+ * What `recheckOptimalBackend` hands the web-app (`AppEvent.onBetterBackendDetected`
+ * and the recommendation key): the same payload the core builds on a
+ * `recommend` outcome, with `provider` set by this extension.
+ */
+export interface BetterBackendPayload {
+  currentBackend: string
+  recommendedBackend: string
+  recommendedCategory: string
+  provider: string
+  version: string
+  backendId: string
+}
 
 export interface TurboquantOptimalBackendCache {
   schemaVersion: 1
@@ -369,7 +451,6 @@ export default class llamacpp_extension extends AIEngine {
     setMirroring: (active) => {
       this.isMirroringCoreSettings = active
     },
-    systemInfo: async () => (await getSystemInfo()) as never,
   })
   private unlistenCoreSettingsChanged?: () => void
   private unlistenCoreOptimalChanged?: () => void
@@ -478,6 +559,9 @@ export default class llamacpp_extension extends AIEngine {
 
     // Fit on by default; undo the migration that once forced it off.
     await this.migrateFitDefaultOn()
+
+    // Concurrent Mode is not offered in the settings UI any more.
+    await this.migrateConcurrentModeOff()
 
     this.timeout = this.config.timeout
     this.llamacpp_env = this.config.llamacpp_env
@@ -644,6 +728,30 @@ export default class llamacpp_extension extends AIEngine {
     localStorage.setItem(MIGRATION_KEY, '1')
   }
 
+  /**
+   * Concurrent Mode is not offered in the settings UI: it split the context
+   * across its slots with nothing on screen to say why. A profile that still
+   * has it on would keep it with no way back, so it is switched off on every
+   * start; the next core load imports the change.
+   */
+  private async migrateConcurrentModeOff(): Promise<void> {
+    if (!this.config.concurrent_mode) return
+
+    const settings = await this.getSettings()
+    await this.updateSettings(
+      settings.map((item) => {
+        if (item.key === 'concurrent_mode') {
+          item.controllerProps.value = false
+        }
+        return item
+      })
+    )
+    this.config.concurrent_mode = false
+    logger.info(
+      'Switched Concurrent Mode off: the settings UI no longer offers it'
+    )
+  }
+
   private async activatePendingBackend(): Promise<void> {
     const pending = localStorage.getItem(TURBOQUANT_PENDING_KEY)
     if (!pending) return
@@ -747,7 +855,9 @@ export default class llamacpp_extension extends AIEngine {
         try {
           const localInstalled = await getLocalInstalledBackends()
           if (localInstalled.length > 0) {
-            const recovered = await this.determineBestBackend(localInstalled)
+            // The core ranks the installed packs against the hardware it
+            // measured; the same answer `configureBackends` reads below.
+            const recovered = (await loadCatalog()).recommended_installed
             if (recovered && recovered.includes('/')) {
               this.config.version_backend = recovered
               const recoveredType = recovered.split('/')[1]
@@ -831,10 +941,18 @@ export default class llamacpp_extension extends AIEngine {
         backend: string
         order?: number
       }[] = []
+      // The core's catalog for this machine (ADR 2026-09-27): the builds it
+      // can run, the one it should run, the newest tag per type and the
+      // release notes. Null when the core did not answer — every reader below
+      // then falls back to the bundled build.
+      let catalog: CoreBackendCatalog | null = null
 
       try {
         logger.info('[configureBackends] Fetching supported backends...')
-        version_backends = await listSupportedBackends()
+        // `refresh`: the packs on disk may have changed since the last answer (a backend installed
+        // from a file never passes through the core), and this method decides from what is installed.
+        catalog = await loadCatalog({ refresh: true })
+        version_backends = [...catalog.available]
         logger.info(
           `[configureBackends] Got ${version_backends.length} backends: ${version_backends.map((b) => `${b.version}/${b.backend}`).join(', ')}`
         )
@@ -865,22 +983,31 @@ export default class llamacpp_extension extends AIEngine {
         }
       }
 
+      const latestByType =
+        catalog && version_backends.length > 0 && catalog.available.length > 0
+          ? catalog.latest_by_type
+          : await buildLatestByType(version_backends)
+
       // Get stored backend preference
       const storedBackendType = this.getStoredBackendType()
       let bestAvailableBackendString = ''
 
-      // Calculate the "best" backend first, as it's used for fallback and defaults
+      // Calculate the "best" backend first, as it's used for fallback and defaults.
+      // The core ranks the list against the hardware it measured; without the
+      // core the list is the bundled build alone, which is then the best there is.
       bestAvailableBackendString =
-        await this.determineBestBackend(version_backends)
+        catalog?.recommended ??
+        (version_backends[0]
+          ? `${version_backends[0].version}/${version_backends[0].backend}`
+          : '')
       logger.info(
         `[configureBackends] Best backend: ${bestAvailableBackendString}, storedType: ${storedBackendType || '(none)'}`
       )
 
       if (storedBackendType) {
-        // Delegate migration check to Rust
-        const migrationTarget = await shouldMigrateBackend(
+        const migrationTarget = await migrationTargetFor(
           storedBackendType,
-          version_backends
+          latestByType
         )
 
         if (migrationTarget) {
@@ -893,8 +1020,8 @@ export default class llamacpp_extension extends AIEngine {
         const effectiveStoredBackendType = migrationTarget || storedBackendType
 
         // Use the effective (migrated) type to find the latest version
-        const preferredBackendString = await findLatestVersionForBackend(
-          version_backends,
+        const preferredBackendString = latestVersionForBackend(
+          latestByType,
           effectiveStoredBackendType
         )
 
@@ -940,28 +1067,20 @@ export default class llamacpp_extension extends AIEngine {
         savedVB.includes('/') &&
         (await isBackendInstalled(savedVbBack.trim(), savedVbVer.trim()))
 
-      // Release notes for the dropdown labels. The index is already cached by
-      // the `listSupportedBackends` call above, so this is free; a failure is
-      // non-fatal and only degrades labels back to bare tags.
+      // Release notes for the dropdown labels, from the release index the
+      // core resolved into the catalog above; without it labels degrade to
+      // bare tags.
       const releaseNotes = new Map<
         string,
         { title?: string; highlights?: string[] }
       >()
-      let latestStableTag: string | null = null
-      try {
-        const catalog = await fetchStableIndex()
-        latestStableTag = catalog.latest
-        for (const release of catalog.releases) {
-          releaseNotes.set(release.tag, {
-            title: release.title,
-            highlights: release.highlights,
-          })
-        }
-      } catch (err) {
-        logger.warn(
-          'Failed to read release notes for the backend dropdown:',
-          err
-        )
+      const releases = catalog?.releases ?? []
+      const latestStableTag: string | null = releases[0]?.tag ?? null
+      for (const release of releases) {
+        releaseNotes.set(release.tag, {
+          title: release.title,
+          highlights: release.highlights,
+        })
       }
 
       let settings = structuredClone(SETTINGS)
@@ -1089,8 +1208,8 @@ export default class llamacpp_extension extends AIEngine {
             const normalizedBackend = await mapOldBackendToNew(savedBackend)
 
             // Always prefer the latest downloaded version for the saved backend type
-            const latestForType = await findLatestVersionForBackend(
-              version_backends,
+            const latestForType = latestVersionForBackend(
+              latestByType,
               normalizedBackend
             )
             initialUiDefault =
@@ -1296,7 +1415,7 @@ export default class llamacpp_extension extends AIEngine {
         storedBackendType,
         effectiveBackendString,
         bundledBackendString,
-        version_backends
+        latestByType
       )
     } finally {
       this.isConfiguringBackends = false
@@ -1321,7 +1440,7 @@ export default class llamacpp_extension extends AIEngine {
     storedBackendTypeAtStart: string | null,
     activeBackendString: string,
     bundledBackendString: string | null,
-    version_backends: { version: string; backend: string }[]
+    latestByType: Record<string, string>
   ): Promise<void> {
     // macOS publishes a single variant — there is nothing to optimise, and the
     // release-tag reconciler already keeps it current.
@@ -1348,10 +1467,8 @@ export default class llamacpp_extension extends AIEngine {
     let target: string | undefined
     if (storedBackendTypeAtStart) {
       target =
-        (await findLatestVersionForBackend(
-          version_backends,
-          storedBackendTypeAtStart
-        )) || undefined
+        latestVersionForBackend(latestByType, storedBackendTypeAtStart) ||
+        undefined
       if (!target) {
         logger.info(
           `adoptOptimalBackendOnFirstRun: '${storedBackendTypeAtStart}' is not in the catalog right now, staying on the bundled build`
@@ -1360,16 +1477,23 @@ export default class llamacpp_extension extends AIEngine {
       }
     } else {
       try {
-        const detection = await this.detectOptimalBackend()
-        if (detection.kind === 'cpu-optimal') {
+        // A silent refresh: the core detects, resolves the concrete build and
+        // stores the record; nothing is surfaced to the user here.
+        const result = await this.requestRecommendation({
+          mode: 'refresh',
+          current_backend: active,
+        })
+        if (result.outcome === 'cpu_optimal' || result.outcome === 'mac') {
           logger.info(
             'adoptOptimalBackendOnFirstRun: CPU is optimal for this hardware, keeping the bundled build'
           )
           return
         }
-        target = await this.resolveConcreteBackend(detection.backend)
+        target = result.record?.recommendedBackend
+          ? stripBom(result.record.recommendedBackend)
+          : undefined
       } catch (err) {
-        // BACKEND_DETECTION_FAILED, or the catalog never arrived. Pinning
+        // BACKEND_DETECTION_FAILED, or the core never answered. Pinning
         // anything here would silently record CPU as a deliberate preference
         // (ADR 2026-06-15) — stay on the bundled build and retry next launch.
         logger.warn(
@@ -1427,35 +1551,6 @@ export default class llamacpp_extension extends AIEngine {
       : head
   }
 
-  private async determineBestBackend(
-    version_backends: { version: string; backend: string }[]
-  ): Promise<string> {
-    if (version_backends.length === 0) return ''
-
-    // Check GPU memory availability via system info
-    let hasEnoughGpuMemory = false
-    try {
-      const sysInfo = await getSystemInfo()
-      for (const gpuInfo of sysInfo.gpus) {
-        if (gpuInfo.total_memory >= 6 * 1024) {
-          hasEnoughGpuMemory = true
-          break
-        }
-      }
-    } catch (error) {
-      logger.warn('Failed to get system info for GPU memory check:', error)
-      // Default to false if we can't determine GPU memory
-      hasEnoughGpuMemory = false
-    }
-
-    // Use Rust logic to prioritize backends
-    const result = await prioritizeBackends(
-      version_backends,
-      hasEnoughGpuMemory
-    )
-    return result.backend_string
-  }
-
   /**
    * Races a promise against a timeout, resolving to `fallback` if it doesn't
    * settle in time. Keeps backend detection / catalog lookups from hanging the
@@ -1490,141 +1585,6 @@ export default class llamacpp_extension extends AIEngine {
           }
         })
     })
-  }
-
-  /**
-   * Uses hardware detection (CUDA/Vulkan driver info) plus the manifest-filtered
-   * catalog (`listSupportedBackends`) to determine the ideal turboquant backend
-   * for this machine. Returns a discriminated `IdealBackendResult`:
-   *   - `gpu`             : a concrete, manifest-present clean id
-   *                         (e.g. windows-x64-cuda-13.3 / linux-x64-vulkan)
-   *   - `cpu-optimal`     : the host has no usable GPU tier
-   *   - `detection-failed`: GPU-capable host but no GPU backend resolvable from
-   *                         the catalog (turboquant manifest likely unreachable)
-   * macOS is never reached here (the single macos-arm64 build has nothing to
-   * optimize); callers gate on `IS_MAC`.
-   */
-  private async detectIdealBackendType(): Promise<IdealBackendResult> {
-    try {
-      const sysInfo = await getSystemInfo()
-      const rawFeatures = await getSupportedFeaturesFromRust(
-        sysInfo.os_type,
-        sysInfo.cpu.extensions,
-        sysInfo.gpus
-      )
-      const features = normalizeFeatures(rawFeatures)
-
-      let hasEnoughVram = false
-      for (const gpuInfo of sysInfo.gpus) {
-        if (gpuInfo.total_memory >= 6 * 1024) {
-          hasEnoughVram = true
-          break
-        }
-      }
-
-      // Integrated-only hosts (Intel UHD / AMD Vega iGPU backed by shared
-      // system RAM) report >=6 GiB of "VRAM" yet run the Vulkan backend far
-      // slower than plain CPU inference. Only offer Vulkan as the *optimal*
-      // pick when a discrete GPU is present; otherwise fall through to CPU.
-      // Vulkan stays manually installable in Settings -> Providers.
-      const hasDiscreteGpu = sysInfo.gpus.some(
-        (g) => g.vulkan_info?.device_type === 'DiscreteGpu' || !!g.nvidia_info
-      )
-      const integratedGpuOnly =
-        !hasDiscreteGpu &&
-        sysInfo.gpus.length > 0 &&
-        sysInfo.gpus.every(
-          (g) => g.vulkan_info?.device_type === 'IntegratedGpu'
-        )
-
-      const arch = sysInfo.cpu.arch
-      const archSuffix =
-        arch.includes('aarch64') || arch.includes('arm64') ? 'arm64' : 'x64'
-
-      if (sysInfo.os_type !== 'windows' && sysInfo.os_type !== 'linux') {
-        // macOS / unknown: single bundled build, nothing to optimize.
-        return { kind: 'cpu-optimal' }
-      }
-
-      // Pick from the manifest-filtered catalog so we never emit an id that is
-      // absent from the turboquant manifest. Each catalog entry also carries
-      // its own release tag (variants live in separate releases).
-      const catalog = await listSupportedBackends()
-      const pick = (pattern: RegExp): string | null => {
-        const hit = catalog.find((b) => pattern.test(stripBom(b.backend)))
-        return hit ? stripBom(hit.backend) : null
-      }
-      const anyGpuBackendAvailable = catalog.some((b) =>
-        /(cuda-\d|vulkan|rocm)/.test(stripBom(b.backend))
-      )
-
-      if (sysInfo.os_type === 'windows') {
-        // Clean turboquant Windows ids, matched by family regex so a future
-        // minor bump (cuda-13.x / cuda-12.x) still resolves. There is no
-        // turboquant Windows CUDA-11 build.
-        const cuda13 = pick(
-          new RegExp(`^windows-${archSuffix}-cuda-13(\\.\\d+)?$`)
-        )
-        const cuda12 = pick(
-          new RegExp(`^windows-${archSuffix}-cuda-12(\\.\\d+)?$`)
-        )
-        const vulkan = pick(new RegExp(`^windows-${archSuffix}-vulkan$`))
-
-        if (features.cuda13 && cuda13) return { kind: 'gpu', backend: cuda13 }
-        if (features.cuda12 && cuda12) return { kind: 'gpu', backend: cuda12 }
-        if (features.vulkan && hasEnoughVram && vulkan && !integratedGpuOnly)
-          return { kind: 'gpu', backend: vulkan }
-
-        const gpuCapable =
-          features.cuda13 ||
-          features.cuda12 ||
-          (features.vulkan && hasEnoughVram && !integratedGpuOnly)
-        if (gpuCapable && !anyGpuBackendAvailable) {
-          logger.warn(
-            'detectIdealBackendType: GPU-capable Windows host but no turboquant GPU backend in catalog — treating as detection failure (manifest likely unreachable)'
-          )
-          return { kind: 'detection-failed' }
-        }
-        return { kind: 'cpu-optimal' }
-      }
-
-      // Linux: the fork publishes discrete CPU / CUDA / ROCm / Vulkan builds,
-      // so this provider ranks CUDA 13.3 → CUDA 12.4 → ROCm → Vulkan → CPU.
-      // `llamacpp-upstream` stays Vulkan-only on the very same hardware — the
-      // optimal backend belongs to a provider and its release, not to the GPU.
-      if (archSuffix === 'x64') {
-        const cuda13 = pick(/^linux-x64-cuda-13(\.\d+)?$/)
-        const cuda12 = pick(/^linux-x64-cuda-12(\.\d+)?$/)
-        const rocm = pick(/^linux-x64-rocm$/)
-        const vulkan = pick(/^linux-x64-vulkan$/)
-
-        // ROCm shares Vulkan's guard: an APU-class RDNA part reports plenty of
-        // shared "VRAM" but loses to plain CPU inference.
-        const gpuWorthIt = hasEnoughVram && !integratedGpuOnly
-
-        if (features.cuda13 && cuda13) return { kind: 'gpu', backend: cuda13 }
-        if (features.cuda12 && cuda12) return { kind: 'gpu', backend: cuda12 }
-        if (features.rocm && gpuWorthIt && rocm)
-          return { kind: 'gpu', backend: rocm }
-        if (features.vulkan && gpuWorthIt && vulkan)
-          return { kind: 'gpu', backend: vulkan }
-
-        const gpuCapable =
-          features.cuda13 ||
-          features.cuda12 ||
-          ((features.rocm || features.vulkan) && gpuWorthIt)
-        if (gpuCapable && !anyGpuBackendAvailable) {
-          logger.warn(
-            'detectIdealBackendType: GPU-capable Linux host but no turboquant GPU backend in catalog — treating as detection failure (manifest likely unreachable)'
-          )
-          return { kind: 'detection-failed' }
-        }
-      }
-      return { kind: 'cpu-optimal' }
-    } catch (err) {
-      logger.warn('detectIdealBackendType failed:', err)
-      return { kind: 'detection-failed' }
-    }
   }
 
   async updateBackend(
@@ -1873,74 +1833,55 @@ export default class llamacpp_extension extends AIEngine {
     }
   }
 
-  private async detectOptimalBackend(): Promise<
-    Exclude<IdealBackendResult, { kind: 'detection-failed' }>
+  /**
+   * Ask the core which backend this machine should run (ADR 2026-09-27). The
+   * core probes the hardware, resolves the release index, picks the tier,
+   * matches it to a concrete catalog entry and stores the optimal record
+   * itself; this side only mirrors `{revision, optimal}` (epoch-guarded, like
+   * every other answer from the core) and never writes the record back.
+   *
+   * `detection_failed` — a GPU-capable host whose GPU tier could not be
+   * resolved, typically because the release index was unreachable — and a
+   * core that does not answer within `RECOMMENDATION_TIMEOUT_MS` both surface
+   * as the `BACKEND_DETECTION_FAILED` sentinel, so the web-app shows "couldn't
+   * reach the release stream" instead of a misleading "already optimal".
+   */
+  private async requestRecommendation(
+    request: Omit<CoreBackendRecommendationRequest, 'app_version' | 'proxy'>
+  ): Promise<
+    CoreBackendRecommendation<TurboquantOptimalBackendCache, BetterBackendPayload>
   > {
-    const detection = await this.withTimeout(
-      this.detectIdealBackendType(),
-      20_000,
-      { kind: 'detection-failed' } as IdealBackendResult
-    )
-    if (detection.kind === 'detection-failed') {
+    type Answer = CoreBackendRecommendation<
+      TurboquantOptimalBackendCache,
+      BetterBackendPayload
+    >
+    const epoch = this.optimalEpoch
+    const context = await catalogRequestContext()
+    // Not `withTimeout`: that swallows a rejection into the fallback, and a
+    // core that answers with an error is a failed call (`threw`), not a
+    // failed detection. Only silence is a failed detection.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const result = await Promise.race<Answer | null>([
+      this.core.recommendBackend<
+        TurboquantOptimalBackendCache,
+        BetterBackendPayload
+      >({ ...context, ...request }),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), RECOMMENDATION_TIMEOUT_MS)
+      }),
+    ]).finally(() => {
+      if (timer) clearTimeout(timer)
+    })
+    if (result === null || result.outcome === 'detection_failed') {
       throw new Error(BACKEND_DETECTION_FAILED)
     }
-    return detection
-  }
-
-  private async resolveConcreteBackend(
-    idealBackendId: string
-  ): Promise<string | undefined> {
-    try {
-      const catalog = await this.withTimeout(
-        listSupportedBackends(),
-        20_000,
-        [] as Awaited<ReturnType<typeof listSupportedBackends>>
-      )
-      const match = catalog.find(
-        (backend) => stripBom(backend.backend) === idealBackendId
-      )
-      if (match) {
-        return `${stripBom(match.version)}/${stripBom(match.backend)}`
-      }
-    } catch (err) {
-      logger.warn(
-        'resolveConcreteBackend: failed to resolve concrete tag from catalog:',
-        err
-      )
+    if (epoch === this.optimalEpoch) {
+      this.applyOptimalState({
+        revision: result.revision,
+        optimal: result.optimal ?? null,
+      })
     }
-    return undefined
-  }
-
-  private async persistOptimalBackendCache(
-    detection: Exclude<IdealBackendResult, { kind: 'detection-failed' }>,
-    currentBackend: string,
-    recommendedBackend?: string
-  ): Promise<TurboquantOptimalBackendCache> {
-    const record: TurboquantOptimalBackendCache =
-      detection.kind === 'cpu-optimal'
-        ? {
-            schemaVersion: 1,
-            detectedAt: Date.now(),
-            provider: 'llamacpp',
-            detectionKind: 'cpu-optimal',
-            currentBackend,
-            recommendedCategory: 'CPU',
-          }
-        : {
-            schemaVersion: 1,
-            detectedAt: Date.now(),
-            provider: 'llamacpp',
-            detectionKind: 'gpu',
-            currentBackend,
-            idealBackendId: detection.backend,
-            recommendedBackend,
-            recommendedCategory: backendCategoryToLabel(
-              get_backend_category(detection.backend)
-            ),
-          }
-
-    await this.storeOptimalRecord(record)
-    return record
+    return result
   }
 
   /**
@@ -1964,37 +1905,6 @@ export default class llamacpp_extension extends AIEngine {
       }
     } catch (error) {
       logger.warn('Failed to mirror the optimal-backend record locally:', error)
-    }
-  }
-
-  /**
-   * Store a detection in the core, which keeps it beside the data folder where the CLI sees it too.
-   * The core commit comes first and the local copy follows it, so the UI never shows a result the
-   * core refused. On a refusal (a CLI stored a newer record: revision conflict) the core's current
-   * record is taken instead and the error is rethrown — an obsolete detection is never retried.
-   */
-  private async storeOptimalRecord(
-    record: TurboquantOptimalBackendCache | null
-  ): Promise<void> {
-    const epoch = this.optimalEpoch
-    try {
-      const state =
-        await this.core.setOptimalCache<TurboquantOptimalBackendCache>(
-          record,
-          this.optimalRevision
-        )
-      if (epoch === this.optimalEpoch) this.applyOptimalState(state)
-    } catch (error) {
-      try {
-        const state =
-          await this.core.getOptimalCache<TurboquantOptimalBackendCache>()
-        if (epoch === this.optimalEpoch) this.applyOptimalState(state)
-      } catch (readError) {
-        logger.warn(
-          `[atomic-core] could not re-read the optimal-backend record: ${describeCoreError(readError)}`
-        )
-      }
-      throw new Error(describeCoreError(error))
     }
   }
 
@@ -2083,25 +1993,18 @@ export default class llamacpp_extension extends AIEngine {
    * Silently refresh the provider-scoped optimal-backend cache (stored in the
    * core, mirrored locally). Unlike `recheckOptimalBackend`, this does not write
    * a recommendation or emit a UI event. A failed detection leaves the last
-   * successful cache untouched.
+   * successful cache untouched. `hardwareHasNoGpu` is the caller's confirmed
+   * CPU-only fast path: the core records CPU without probing.
    */
   async refreshOptimalBackendCache(options?: {
     hardwareHasNoGpu?: boolean
-  }): Promise<TurboquantOptimalBackendCache> {
-    const detection: Exclude<IdealBackendResult, { kind: 'detection-failed' }> =
-      options?.hardwareHasNoGpu
-        ? { kind: 'cpu-optimal' }
-        : await this.detectOptimalBackend()
-    const currentBackend = stripBom(this.config.version_backend || '')
-    const recommendedBackend =
-      detection.kind === 'gpu'
-        ? await this.resolveConcreteBackend(detection.backend)
-        : undefined
-    return this.persistOptimalBackendCache(
-      detection,
-      currentBackend,
-      recommendedBackend
-    )
+  }): Promise<TurboquantOptimalBackendCache | null> {
+    const result = await this.requestRecommendation({
+      mode: 'refresh',
+      current_backend: stripBom(this.config.version_backend || ''),
+      ...(options?.hardwareHasNoGpu ? { assume_no_gpu: true } : {}),
+    })
+    return result.record ?? result.optimal ?? null
   }
 
   /**
@@ -2198,92 +2101,55 @@ export default class llamacpp_extension extends AIEngine {
     return this.lastRecheckOutcome
   }
 
-  async recheckOptimalBackend(): Promise<{
-    currentBackend: string
-    recommendedBackend: string
-    recommendedCategory: string
-    provider: string
-    version: string
-    backendId: string
-  } | null> {
+  async recheckOptimalBackend(): Promise<BetterBackendPayload | null> {
     if (IS_MAC) {
       this.lastRecheckOutcome = 'mac'
       return null
     }
     this.lastRecheckOutcome = null
     try {
-      logger.info('recheckOptimalBackend: detecting ideal backend type')
-      // An explicit user-driven check must see releases published since the
-      // index was last cached, so bypass the TTL here and only here.
-      invalidateStableIndexCache()
-      const detection = await this.detectOptimalBackend()
+      logger.info('recheckOptimalBackend: asking the core for the ideal backend')
       const currentBackend = stripBom(this.config.version_backend || '')
+      // `recheck` makes the core re-read the release index past its cache, so
+      // an explicit user-driven check sees releases published since.
+      const result = await this.requestRecommendation({
+        mode: 'recheck',
+        current_backend: currentBackend,
+      })
 
-      if (detection.kind === 'cpu-optimal') {
+      if (result.outcome !== 'recommend') {
+        // `mac` (single variant), `cpu_optimal` (no usable GPU tier),
+        // `already_optimal` (on the optimal family or build already) or
+        // `no_catalog_entry` (the catalog has nothing for the tier detection
+        // picked — a gap on our side, not a property of the machine). All
+        // four are "nothing to surface"; the outcome tells telemetry which.
         logger.info(
-          'recheckOptimalBackend: CPU is optimal — no better GPU backend for this hardware'
+          `recheckOptimalBackend: ${result.outcome} (${currentBackend})`
         )
-        await this.persistOptimalBackendCache(detection, currentBackend)
         localStorage.removeItem(TURBOQUANT_RECOMMENDATION_KEY)
-        this.lastRecheckOutcome = 'cpu_optimal'
+        this.lastRecheckOutcome = result.outcome
         return null
       }
 
-      const idealType = detection.backend
-      const idealCat = get_backend_category(idealType)
-      const currentType = currentBackend.split('/')[1] || ''
-      const currentCat = get_backend_category(currentType)
-      if (idealCat === currentCat) {
-        // Already on the optimal family — no recommendation to surface.
-        logger.info(
-          `recheckOptimalBackend: already on optimal category ${currentCat} (${currentBackend})`
-        )
-        await this.persistOptimalBackendCache(
-          detection,
-          currentBackend,
-          currentType === idealType ? currentBackend : undefined
-        )
-        localStorage.removeItem(TURBOQUANT_RECOMMENDATION_KEY)
-        this.lastRecheckOutcome = 'already_optimal'
-        return null
-      }
-
-      // Resolve the concrete `${tag}/${id}` from the manifest-filtered
-      // catalog. Never reuse the current backend's tag: the catalog entry is
-      // the only thing that knows which release actually carries this variant,
-      // and a legacy install can still be sitting on a per-variant tag.
-      const recommendedBackend = await this.resolveConcreteBackend(idealType)
-      await this.persistOptimalBackendCache(
-        detection,
-        currentBackend,
-        recommendedBackend
-      )
-
-      if (!recommendedBackend) {
+      const recommendation = result.recommendation
+      if (!recommendation?.recommendedBackend) {
         logger.warn(
-          `recheckOptimalBackend: could not resolve a concrete tag for ${idealType} — skipping recommendation`
+          'recheckOptimalBackend: the core recommended without naming a build — skipping recommendation'
         )
-        // The catalog has nothing for the type detection picked — a gap on our
-        // side, not a property of the machine.
+        localStorage.removeItem(TURBOQUANT_RECOMMENDATION_KEY)
         this.lastRecheckOutcome = 'no_catalog_entry'
-        localStorage.removeItem(TURBOQUANT_RECOMMENDATION_KEY)
         return null
       }
 
-      if (recommendedBackend === currentBackend) {
-        this.lastRecheckOutcome = 'already_optimal'
-        localStorage.removeItem(TURBOQUANT_RECOMMENDATION_KEY)
-        return null
-      }
-
+      const recommendedBackend = stripBom(recommendation.recommendedBackend)
       const [recommendedVersion, recommendedId] = recommendedBackend.split('/')
-      const payload = {
-        currentBackend,
+      const payload: BetterBackendPayload = {
+        currentBackend: recommendation.currentBackend ?? currentBackend,
         recommendedBackend,
-        recommendedCategory: backendCategoryToLabel(idealCat),
+        recommendedCategory: recommendation.recommendedCategory,
         provider: this.providerId,
-        version: recommendedVersion,
-        backendId: recommendedId,
+        version: recommendation.version ?? recommendedVersion,
+        backendId: recommendation.backendId ?? recommendedId,
       }
       logger.info(
         `recheckOptimalBackend: surfacing recommendation ${recommendedBackend} (${payload.recommendedCategory})`
@@ -2292,6 +2158,8 @@ export default class llamacpp_extension extends AIEngine {
         TURBOQUANT_RECOMMENDATION_KEY,
         JSON.stringify(payload)
       )
+      // The core also emits `atomic-core://backend:better-detected`; this
+      // extension deliberately does not relay it — one dialog, from here.
       if (events && typeof events.emit === 'function') {
         events.emit(AppEvent.onBetterBackendDetected, payload)
       }
@@ -2306,30 +2174,34 @@ export default class llamacpp_extension extends AIEngine {
     }
   }
 
+  /**
+   * Whether a newer release of the backend type in use exists, asked of the
+   * core. `sameFamily` is the core's verdict that the target keeps the backend
+   * family (legacy ids may land on their migrated form); the callers refuse a
+   * target that would cross families.
+   */
   async checkBackendForUpdates(options: { force?: boolean } = {}): Promise<{
     updateNeeded: boolean
     newVersion: string
     targetBackend?: string
+    sameFamily?: boolean
   }> {
     try {
-      const currentBackend = this.config.version_backend
+      const currentBackend = stripBom(this.config.version_backend || '')
       if (!currentBackend || !currentBackend.includes('/')) {
         return { updateNeeded: false, newVersion: '0' }
       }
 
-      const version_backends = await listSupportedBackends(options)
-      if (version_backends.length === 0) {
-        return { updateNeeded: false, newVersion: '0' }
-      }
-
-      const result = await checkBackendForUpdatesFromRust(
-        currentBackend,
-        version_backends
-      )
+      const result = await this.core.checkBackendUpdates({
+        ...(await catalogRequestContext()),
+        current: currentBackend,
+        ...(options.force ? { force: true } : {}),
+      })
       return {
         updateNeeded: result.update_needed,
         newVersion: result.new_version,
         targetBackend: result.target_backend ?? undefined,
+        sameFamily: result.same_family,
       }
     } catch (err) {
       logger.warn('checkBackendForUpdates failed:', err)
@@ -2371,7 +2243,7 @@ export default class llamacpp_extension extends AIEngine {
     const currentType = current.split('/')[1]?.trim()
     if (!current || current === 'none' || !currentType) return noUpdate
 
-    const { updateNeeded, targetBackend } = await this.withTimeout(
+    const { updateNeeded, targetBackend, sameFamily } = await this.withTimeout(
       this.checkBackendForUpdates({ force: true }),
       20_000,
       { updateNeeded: false, newVersion: '0' }
@@ -2388,8 +2260,7 @@ export default class llamacpp_extension extends AIEngine {
       )
       return noUpdate
     }
-    const migratedCurrentType = await mapOldBackendToNew(currentType)
-    if (targetType !== currentType && targetType !== migratedCurrentType) {
+    if (sameFamily !== true) {
       logger.warn(
         `checkForEngineUpdate: refusing to switch backend type ${currentType} -> ${targetType}`
       )
@@ -2466,7 +2337,7 @@ export default class llamacpp_extension extends AIEngine {
         return
       }
 
-      const { updateNeeded, targetBackend } =
+      const { updateNeeded, targetBackend, sameFamily } =
         await this.checkBackendForUpdates()
       const targetType = targetBackend?.split('/')[1]?.trim()
       if (!updateNeeded || !targetBackend || !targetType) return
@@ -2483,9 +2354,8 @@ export default class llamacpp_extension extends AIEngine {
 
       // Reconciliation bumps the release tag only; it must never move anyone
       // between backend families. Legacy ids may land on their migrated form,
-      // which is what Rust resolves them to.
-      const migratedCurrentType = await mapOldBackendToNew(currentType)
-      if (targetType !== currentType && targetType !== migratedCurrentType) {
+      // which is what the core's `same_family` allows for.
+      if (sameFamily !== true) {
         logger.warn(
           `reconcileBackendReleaseTag: refusing to switch backend type ${currentType} -> ${targetType}`
         )
@@ -2666,7 +2536,11 @@ export default class llamacpp_extension extends AIEngine {
       ;(async () => {
         try {
           const currentStored = this.getStoredBackendType() || undefined
-          const result = await handleSettingUpdate(key, valueStr, currentStored)
+          const result = await parseVersionBackendSetting(
+            key,
+            valueStr,
+            currentStored
+          )
 
           if (result.backend_type_updated && result.effective_backend_type) {
             this.setStoredBackendType(result.effective_backend_type)
@@ -3236,7 +3110,16 @@ export default class llamacpp_extension extends AIEngine {
           downloadItems,
           this.createDownloadTaskId(modelId),
           onProgress,
-          resumeDownload ?? false
+          resumeDownload ?? false,
+          // The downloader's stages (connecting, retrying, stalled) reach the
+          // row only through this; without it a dead connection read as a
+          // live download with a frozen ETA.
+          (stage: unknown) =>
+            events.emit(DownloadEvent.onFileDownloadUpdate, {
+              modelId,
+              downloadType: 'Model',
+              stage,
+            })
         )
 
         // If we reach here, download completed successfully (including validation)
@@ -3437,8 +3320,8 @@ export default class llamacpp_extension extends AIEngine {
    * model with it, with no way back but a multi-gigabyte re-download.
    *
    * Only the artifacts of *this* download are removed (the target file plus its
-   * `.tmp` / `.url` partials), and the directory itself goes only when nothing
-   * else is left in it.
+   * `.tmp` / `.url` / `.parts` partials), and the directory itself goes only
+   * when nothing else is left in it.
    *
    * @param modelId The model whose directory was being written into
    * @param items The download items this import queued
@@ -3451,9 +3334,10 @@ export default class llamacpp_extension extends AIEngine {
       const janDataFolderPath = await getJanDataFolderPath()
 
       for (const item of items) {
-        // `.tmp` is the in-flight file and `.url` the resume marker, named by
-        // the Rust downloader as `<save_path>.tmp` / `<save_path>.url`.
-        for (const suffix of ['', '.tmp', '.url']) {
+        // `.tmp` is the in-flight file, `.url` the resume marker and `.parts`
+        // the range map of a multi-connection download, named by the Rust
+        // downloader as `<save_path>.tmp` / `.url` / `.parts`.
+        for (const suffix of ['', '.tmp', '.url', '.parts']) {
           const path = await joinPath([
             janDataFolderPath,
             `${item.save_path}${suffix}`,
@@ -3596,7 +3480,7 @@ export default class llamacpp_extension extends AIEngine {
   ///
   /// The "better tier available" input is taken from the recommendation the
   /// existing detect flows already stored, never from a fresh hardware probe:
-  /// `detectIdealBackendType` spawns `--list-devices` per tier and has no place
+  /// the core's detection spawns `--list-devices` per tier and has no place
   /// on the load path. Fire and forget — this must never affect a load.
   private async reportBackendMismatch(
     sInfo: SessionInfo,
@@ -4529,9 +4413,10 @@ export default class llamacpp_extension extends AIEngine {
     try {
       const dList = await this.core.devices<DeviceList>()
       // On Linux with AMD GPUs, llama.cpp via Vulkan may report UMA (shared) memory as device-local.
-      // For clearer UX, override with dedicated VRAM from the hardware plugin when available.
+      // For clearer UX, override with dedicated VRAM from the hardware plugin when available. This
+      // pairs the plugin's GPU uuids with `getSystemUsage()`'s, so it reads the plugin, not the core.
       try {
-        const sysInfo = await getSystemInfo()
+        const sysInfo = await getPluginSystemInfo()
         if (sysInfo?.os_type === 'linux' && Array.isArray(sysInfo.gpus)) {
           const usage = await getSystemUsage()
           if (usage && Array.isArray(usage.gpus)) {

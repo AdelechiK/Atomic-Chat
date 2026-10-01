@@ -1,18 +1,7 @@
 import { memo, useCallback } from 'react'
-import {
-  IconAdjustmentsHorizontal,
-  IconCircleCheckFilled,
-  IconLoader2,
-  IconLock,
-  IconMovie,
-  IconPhoto,
-  IconSparkles,
-  IconX,
-} from '@tabler/icons-react'
+import { IconCircleCheckFilled, IconMovie, IconPhoto } from '@tabler/icons-react'
 
 import { Button } from '@/components/ui/button'
-import { ClapperboardIcon } from '@/components/animated-icon/clapperboard'
-import { ImageIcon } from '@/components/animated-icon/image'
 import {
   Dialog,
   DialogContent,
@@ -27,248 +16,24 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ImageModelSelector } from '@/containers/images/ImageModelSelector'
-import { VoiceSetupRow, VoiceSetupRowIcon } from '@/containers/VoiceSetupRow'
 import { useImageEngine } from '@/hooks/useImageEngine'
 import { useImageSetting } from '@/hooks/useImageSetting'
 import { useTranslation } from '@/i18n/react-i18next-compat'
-import { formatProgressPair } from '@/lib/downloadFormat'
-import { cn } from '@/lib/utils'
-import type { DiffusionModality } from '@/services/diffusion/types'
 import {
   selectHasInstalledModel,
   useImageGenerationStore,
-  type ImageSetupStep,
 } from '@/stores/image-generation-store'
 
-/** The first-run tour: what it does, then the engine. Models are not part of it. */
-const TOUR_STEPS = 2
-
-function StepDots({ step }: { step: number }) {
-  const { t } = useTranslation()
-  return (
-    <div className="flex items-center justify-center">
-      <div className="flex items-center gap-2" aria-hidden>
-        {Array.from({ length: TOUR_STEPS }).map((_, index) => (
-          <span
-            key={index}
-            className={cn(
-              'size-2 rounded-full transition-colors duration-200',
-              index === step ? 'bg-primary' : 'bg-muted-foreground/30'
-            )}
-          />
-        ))}
-      </div>
-      <span className="sr-only">
-        {t('images:setup.step', { current: step + 1, total: TOUR_STEPS })}
-      </span>
-    </div>
-  )
-}
-
-const INTRO_BULLETS = [
-  { icon: IconLock, key: 'setup.intro.bulletLocal' },
-  { icon: IconAdjustmentsHorizontal, key: 'setup.intro.bulletRecipes' },
-  { icon: IconSparkles, key: 'setup.intro.bulletApi' },
-] as const
-
-/** The locale namespace of the page that opened the wizard. */
-const namespaceOf = (modality: DiffusionModality) =>
-  modality === 'video' ? 'videos' : 'images'
-
-function IntroStep({ modality }: { modality: DiffusionModality }) {
-  const { t } = useTranslation()
-  const ns = namespaceOf(modality)
-  return (
-    <div className="space-y-2 rounded-xl border bg-secondary/40 p-3">
-      {INTRO_BULLETS.map(({ icon: Icon, key }) => (
-        <div key={key} className="flex items-center gap-3">
-          <VoiceSetupRowIcon size="sm">
-            <Icon size={16} />
-          </VoiceSetupRowIcon>
-          <span className="text-sm leading-snug text-muted-foreground">
-            {t(`${ns}:${key}`)}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 /**
- * Engine row: install state on the right, progress while the archive comes
- * down, and the reason when this host has no supported build.
- */
-export const ImageEngineBlock = memo(function ImageEngineBlock() {
-  const { t } = useTranslation()
-  const engine = useImageEngine()
-  const percent =
-    engine.progress.total > 0
-      ? Math.round((engine.progress.transferred / engine.progress.total) * 100)
-      : 0
-  const unsupported =
-    engine.hostBackendId === null && !engine.resolvingHostBackend
-
-  const action = engine.installing ? (
-    <div
-      className="relative flex h-8 w-28 items-center justify-center overflow-hidden rounded-full border bg-background text-xs font-semibold tabular-nums"
-      aria-live="polite"
-      data-testid="image-engine-progress"
-    >
-      <span
-        className="absolute inset-y-0 left-0 bg-primary/15 transition-[width] duration-200"
-        style={{ width: `${percent}%` }}
-      />
-      <span className="relative flex items-center gap-1.5">
-        <IconLoader2 size={14} className="animate-spin" aria-hidden />
-        {percent}%
-      </span>
-    </div>
-  ) : engine.installed ? (
-    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-      <IconCircleCheckFilled size={16} />
-      {t('images:setup.engine.installed')}
-    </span>
-  ) : engine.resolvingHostBackend ? (
-    <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-      <IconLoader2 size={14} className="animate-spin" aria-hidden />
-      {t('images:setup.engine.checking')}
-    </span>
-  ) : unsupported ? (
-    <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-      <IconX size={16} />
-      {t('images:setup.engine.unsupportedShort')}
-    </span>
-  ) : (
-    <Button
-      size="sm"
-      onClick={() => {
-        void engine.startInstall()
-      }}
-      data-testid="image-engine-install"
-    >
-      {t('images:setup.engine.install')}
-    </Button>
-  )
-
-  const description: React.ReactNode =
-    engine.install.state === 'installed'
-      ? t('images:setup.engine.readyDescription')
-      : engine.installing
-        ? t('images:setup.engine.installingDescription')
-      : engine.hostBackendId
-        ? t('images:setup.engine.rowDescription')
-        : undefined
-
-  return (
-    <VoiceSetupRow
-      media={
-        <VoiceSetupRowIcon>
-          <img
-            src="/images/model-provider/llamacpp.svg"
-            alt=""
-            aria-hidden
-            className="size-6 object-contain"
-          />
-        </VoiceSetupRowIcon>
-      }
-      title={t('images:setup.engine.rowTitle')}
-      description={
-        description ? (
-          <span className="block truncate whitespace-nowrap">
-            {description}
-          </span>
-        ) : undefined
-      }
-      action={action}
-      footer={
-        engine.progress.error ? (
-          <p className="text-xs text-destructive">
-            {t('images:setup.engine.failed')}
-            {engine.progress.error.message ? ` ${engine.progress.error.message}` : ''}
-          </p>
-        ) : unsupported ? (
-          <p className="text-xs leading-snug text-muted-foreground">
-            {engine.hostBackendReason ?? t('images:setup.engine.unsupported')}
-          </p>
-        ) : engine.installing && engine.progress.total > 0 ? (
-          <p className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-            {formatProgressPair(
-              engine.progress.transferred,
-              engine.progress.total
-            )}
-          </p>
-        ) : undefined
-      }
-    />
-  )
-})
-
-/**
- * The step copy. The engine step is the same for both pages (one engine);
- * the intro and the model step speak for the page that opened the wizard.
- */
-const stepsFor = (modality: DiffusionModality) => {
-  const ns = namespaceOf(modality)
-  return [
-    {
-      title: `${ns}:setup.intro.title`,
-      description: `${ns}:setup.intro.description`,
-    },
-    {
-      title: 'images:setup.engine.title',
-      description: 'images:setup.engine.description',
-    },
-    {
-      title: `${ns}:setup.model.title`,
-      description: `${ns}:setup.model.description`,
-    },
-  ] as const
-}
-
-function SetupHeaderIcon({
-  step,
-  modality,
-}: {
-  step: ImageSetupStep
-  modality: DiffusionModality
-}) {
-  if (step === 0) {
-    return modality === 'video' ? (
-      <ClapperboardIcon size={32} aria-hidden />
-    ) : (
-      <ImageIcon size={32} aria-hidden />
-    )
-  }
-  if (step === 1) {
-    return (
-      <img
-        src="/images/model-provider/llamacpp.svg"
-        alt=""
-        aria-hidden
-        className="size-8 object-contain"
-      />
-    )
-  }
-  return modality === 'video' ? (
-    <IconMovie size={28} aria-hidden />
-  ) : (
-    <IconPhoto size={28} aria-hidden />
-  )
-}
-
-/**
- * The first-run tour is two steps — what it does, install the engine — and
- * ends there: the studio opens behind it, and models are fetched from the
- * form's picker. Step 2, the model list, is a standalone view for the places
- * with no picker of their own (Media settings); the tour never leads to it.
+ * The model list for the places with no picker of their own (Media settings).
+ * First run never opens it: the setup card installs the engine in one click,
+ * and the studio's own picker fetches the model.
  *
- * Mounted once at the root like `VoiceSetupDialog`, because the setup card,
- * the error banner and the Media settings page all reopen it on a given step.
+ * Mounted once at the root like `VoiceSetupDialog`.
  */
 const ImageSetupDialog = memo(function ImageSetupDialog() {
   const { t } = useTranslation()
   const open = useImageGenerationStore((state) => state.setupOpen)
-  const step = useImageGenerationStore((state) => state.setupStep)
   const setupModality = useImageGenerationStore((state) => state.setupModality)
   const openSetup = useImageGenerationStore((state) => state.openSetup)
   const closeSetup = useImageGenerationStore((state) => state.closeSetup)
@@ -280,12 +45,6 @@ const ImageSetupDialog = memo(function ImageSetupDialog() {
   )
   const setSetupCompleted = useImageSetting((state) => state.setSetupCompleted)
   const { installed: engineInstalled } = useImageEngine()
-
-  const go = useCallback(
-    (next: number) =>
-      openSetup(Math.min(2, Math.max(0, next)) as ImageSetupStep, setupModality),
-    [openSetup, setupModality]
-  )
 
   const ready = engineInstalled && hasModel
 
@@ -299,13 +58,12 @@ const ImageSetupDialog = memo(function ImageSetupDialog() {
     closeSetup()
   }, [closeSetup, ready, setSetupCompleted])
 
-  // The model step says so once there is nothing left to get: a download that
-  // lands must change what the wizard says, not only one row in a long list.
-  const done = step === 2 && ready
-  const steps = stepsFor(setupModality)
-  const title = done ? 'images:setup.ready.title' : steps[step].title
-  const description = !done
-    ? steps[step].description
+  // It says so once there is nothing left to get: a download that lands must
+  // change what the dialog says, not only one row in a long list.
+  const ns = setupModality === 'video' ? 'videos' : 'images'
+  const title = ready ? 'images:setup.ready.title' : `${ns}:setup.model.title`
+  const description = !ready
+    ? `${ns}:setup.model.description`
     : modelRunning
       ? 'images:setup.ready.descriptionRunning'
       : 'images:setup.ready.description'
@@ -313,9 +71,7 @@ const ImageSetupDialog = memo(function ImageSetupDialog() {
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) =>
-        next ? openSetup(step, setupModality) : dismiss()
-      }
+      onOpenChange={(next) => (next ? openSetup(setupModality) : dismiss())}
     >
       <DialogContent className="sm:max-w-lg lg:max-w-lg xl:max-w-lg">
         <DialogHeader
@@ -323,14 +79,16 @@ const ImageSetupDialog = memo(function ImageSetupDialog() {
           className="items-center text-center sm:text-center"
         >
           <div className="mb-2 grid size-14 place-items-center rounded-2xl border bg-secondary/60 shadow-sm">
-            {done ? (
+            {ready ? (
               <IconCircleCheckFilled
                 size={28}
                 aria-hidden
                 className="text-emerald-600 dark:text-emerald-400"
               />
+            ) : setupModality === 'video' ? (
+              <IconMovie size={28} aria-hidden />
             ) : (
-              <SetupHeaderIcon step={step} modality={setupModality} />
+              <IconPhoto size={28} aria-hidden />
             )}
           </div>
           <DialogTitle data-testid="image-setup-title">{t(title)}</DialogTitle>
@@ -342,78 +100,40 @@ const ImageSetupDialog = memo(function ImageSetupDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        {/* The model step is a list that can grow with the catalog, so it gets
-            a taller box with its own scroll; the other two are fixed. It gives
-            height back on a short window: the dialog stops at 85vh, and a
-            fixed 360px pushed Done below that edge. */}
+        {/* A list that can grow with the catalog, so it gets its own scroll.
+            It gives height back on a short window: the dialog stops at 85vh,
+            and a fixed 360px pushed Done below that edge. */}
         <div
           data-testid="image-setup-slot"
-          className={cn(
-            'flex flex-col justify-start gap-2 overflow-y-auto py-1',
-            step === 2
-              ? 'h-[clamp(180px,calc(85vh_-_15rem),360px)]'
-              : 'h-[156px]'
-          )}
+          className="flex h-[clamp(180px,calc(85vh_-_15rem),360px)] flex-col justify-start gap-2 overflow-y-auto py-1"
         >
-          {step === 0 && <IntroStep modality={setupModality} />}
-          {step === 1 && (
-            <ImageEngineBlock />
-          )}
-          {step === 2 && (
-            <ImageModelSelector
-              variant="dialog"
-              modality={setupModality}
-              onDownloadStarted={closeSetup}
-            />
-          )}
+          <ImageModelSelector
+            variant="dialog"
+            modality={setupModality}
+            onDownloadStarted={closeSetup}
+          />
         </div>
 
-        <DialogFooter className="grid grid-cols-3 items-center sm:flex-row sm:justify-between">
-          <div className="flex justify-start">
-            {/* From the model list, Back only while the engine is still owed. */}
-            {(step === 1 || (step === 2 && !engineInstalled)) && (
-              <Button variant="ghost" size="sm" onClick={() => go(step - 1)}>
-                {t('images:setup.back')}
-              </Button>
+        <DialogFooter className="sm:justify-end">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  size="sm"
+                  disabled={!ready}
+                  data-testid="image-setup-done"
+                  onClick={finish}
+                >
+                  {t('images:setup.done')}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {!ready && (
+              <TooltipContent align="end">
+                <p>{t('images:setup.doneBlocked')}</p>
+              </TooltipContent>
             )}
-          </div>
-          {step < TOUR_STEPS ? <StepDots step={step} /> : <span />}
-          <div className="flex justify-end">
-            {step === 2 ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex">
-                    <Button
-                      size="sm"
-                      disabled={!ready}
-                      data-testid="image-setup-done"
-                      onClick={finish}
-                    >
-                      {t('images:setup.done')}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                {!ready && (
-                  <TooltipContent align="end">
-                    <p>{t('images:setup.doneBlocked')}</p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            ) : step === 1 ? (
-              <Button
-                size="sm"
-                disabled={!engineInstalled}
-                data-testid="image-setup-engine-done"
-                onClick={finish}
-              >
-                {t('images:setup.done')}
-              </Button>
-            ) : (
-              <Button size="sm" onClick={() => go(step + 1)}>
-                {t('images:setup.next')}
-              </Button>
-            )}
-          </div>
+          </Tooltip>
         </DialogFooter>
       </DialogContent>
     </Dialog>

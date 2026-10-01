@@ -32,6 +32,9 @@ const EXPECTED_DESKTOP_ONLY = new Set([
   'chatgpt_models',
   'chatgpt_status',
   'check_for_app_updates',
+  // Writes the logs through the crash-report scrubber, which lives in the
+  // desktop-only telemetry module; the mobile targets have no Logs window.
+  'export_logs',
   // The session resolver answers from the app's mirror of atomic-chat-core's session table, and
   // no core runs on the mobile targets.
   'list_local_sessions',

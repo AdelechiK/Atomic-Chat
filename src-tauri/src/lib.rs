@@ -146,6 +146,8 @@ pub fn run() {
         core::system::commands::open_file_explorer,
         core::system::commands::factory_reset,
         core::system::commands::read_logs,
+        core::logs::commands::read_unified_logs,
+        core::logs::commands::export_logs,
         core::system::commands::show_desktop_notification,
         core::system::commands::get_installer_type,
         core::system::commands::is_library_available,
@@ -323,6 +325,7 @@ pub fn run() {
         core::system::commands::open_file_explorer,
         core::system::commands::factory_reset,
         core::system::commands::read_logs,
+        core::logs::commands::read_unified_logs,
         core::system::commands::show_desktop_notification,
         core::system::commands::get_installer_type,
         core::system::commands::is_library_available,
@@ -499,7 +502,25 @@ pub fn run() {
             // pushed out by transport chatter.
             const LOG_MAX_FILE_SIZE: u128 = 10 * 1024 * 1024;
             const LOG_GENERATIONS: usize = 5;
-            let log_builder = tauri_plugin_log::Builder::default()
+            let log_builder = tauri_plugin_log::Builder::default();
+            // UTC set explicitly, not inherited from the plugin's default: the time format is
+            // shared with the core's `core.log`, and the Logs window merges the two files by it.
+            // The line format is set after `timezone_strategy`, which installs a format of its
+            // own with the level and target columns swapped. Mobile keeps the plugin's own.
+            #[cfg(desktop)]
+            let log_builder = log_builder
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseUtc)
+                .format(|out, message, record| {
+                    out.finish(format_args!(
+                        "{}{message}",
+                        core::logs::line_header(
+                            chrono::Utc::now(),
+                            record.target(),
+                            record.level()
+                        )
+                    ))
+                });
+            let log_builder = log_builder
                 .level(log::LevelFilter::Debug)
                 .level_for("reqwest", log::LevelFilter::Warn)
                 .level_for("hyper", log::LevelFilter::Warn)

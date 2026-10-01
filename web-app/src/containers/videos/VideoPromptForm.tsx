@@ -10,9 +10,9 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   IconChevronDown,
   IconChevronRight,
-  IconMovie,
-  IconRestore,
+  IconPhotoVideo,
   IconSettings,
+  IconSparkles,
 } from '@tabler/icons-react'
 import { useShallow } from 'zustand/shallow'
 
@@ -25,11 +25,6 @@ import {
 } from '@/components/ui/collapsible'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { route } from '@/constants/routes'
 import { ImageApiSettingsCard } from '@/containers/images/ImageApiSettingsCard'
 import { ImageField, ImageFieldHint } from '@/containers/images/ImageField'
@@ -38,6 +33,12 @@ import { ImageModelPicker } from '@/containers/images/ImageModelPicker'
 import { ImageParamSlider } from '@/containers/images/ImageParamSlider'
 import { AdvancedSelect } from '@/containers/images/ImagePromptForm'
 import { ImageSeedField } from '@/containers/images/ImageSeedField'
+import {
+  MediaModeSelect,
+  type MediaMode,
+} from '@/containers/images/MediaModeSelect'
+import { MediaSettingsHeading } from '@/containers/images/MediaSettingsHeading'
+import { MediaPageHeading } from '@/containers/images/MediaPageHeading'
 import { useImageEngine } from '@/hooks/useImageEngine'
 import {
   IMAGE_IDLE_UNLOAD_OPTIONS,
@@ -53,8 +54,11 @@ import { useVideoSetting } from '@/hooks/useVideoSetting'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { cn } from '@/lib/utils'
 import { durationOptions } from '@/lib/video/duration'
+import type { VideoWorkflowId } from '@/services/diffusion/types'
 import { useImageGenerationStore } from '@/stores/image-generation-store'
+import { ConfirmVideoExceedsMemory } from './ConfirmVideoExceedsMemory'
 import { VideoDurationSelect } from './VideoDurationSelect'
+import { VideoEstimateLine } from './VideoEstimateLine'
 import { VideoResolutionSelect } from './VideoResolutionSelect'
 
 /** Until a model reports its presets: LTX's landscape default. */
@@ -96,7 +100,7 @@ export const VideoPromptForm = memo(function VideoPromptForm({
       seedText: state.seedText,
       patch: state.patch,
       resetToDefaults: state.resetToDefaults,
-      clampTo: state.clampTo,
+      adoptModel: state.adoptModel,
     }))
   )
   const { advancedOpen, setAdvancedOpen } = useVideoSetting(
@@ -131,22 +135,24 @@ export const VideoPromptForm = memo(function VideoPromptForm({
     }))
   )
   const engine = useImageEngine()
-  const capabilities = useImageGenerationStore(
-    (state) => state.videoCapabilities
-  )
   const applyIdleSettings = useImageGenerationStore(
     (state) => state.applyIdleSettings
   )
   const generation = useVideoGeneration()
+  // The picked model's, known from the catalog before it starts: the
+  // controls it needs are there at once and do not appear on load.
+  const { capabilities, targetFamilyId } = generation
   const [internalModelsOpen, setInternalModelsOpen] = useState(false)
   const modelsOpen = controlledModelsOpen ?? internalModelsOpen
   const setModelsOpen = onModelsOpenChange ?? setInternalModelsOpen
 
-  // A model just loaded: fold the draft into what it accepts.
+  // A model was picked or loaded: the draft becomes its. Starting the
+  // picked model changes nothing the user set, only the model's report.
   useEffect(() => {
-    if (capabilities) form.clampTo(capabilities)
+    if (targetFamilyId && capabilities)
+      form.adoptModel(targetFamilyId, capabilities)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capabilities])
+  }, [targetFamilyId, capabilities])
 
   const presets = capabilities?.resolutionPresets ?? FALLBACK_PRESETS
   const lattice = capabilities
@@ -172,6 +178,25 @@ export const VideoPromptForm = memo(function VideoPromptForm({
     capabilities.supportsNegativePrompt
   const showDistilledGuidance = capabilities?.supportsGuidance ?? false
   const busy = generation.generating
+  const modes = useMemo(
+    (): MediaMode<VideoWorkflowId>[] => [
+      {
+        id: 'create',
+        icon: IconSparkles,
+        title: t('videos:form.title'),
+        hint: t('videos:form.hint'),
+      },
+      {
+        id: 'image-to-video',
+        icon: IconPhotoVideo,
+        title: t('videos:workflow.imageToVideo.title'),
+        hint: t('videos:workflow.imageToVideo.hint'),
+        disabled: true,
+        badge: t('videos:workflow.soon'),
+      },
+    ],
+    [t]
+  )
   const idleLabel = (minutes: number) =>
     minutes === 0
       ? t('settings:media.idleNever')
@@ -230,37 +255,23 @@ export const VideoPromptForm = memo(function VideoPromptForm({
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-6 pt-4 pb-4 [scrollbar-gutter:stable]"
         data-testid="video-form-scroller"
       >
-        <div className="mb-1 flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <h2
-              className="flex items-center gap-2 font-studio text-xl font-medium leading-none"
-              data-testid="video-form-title"
-            >
-              <IconMovie size={18} className="shrink-0" />
-              {t('videos:form.title')}
-            </h2>
-            <p className="text-xs leading-snug text-muted-foreground">
-              {t('videos:form.hint')}
-            </p>
-          </div>
-          {capabilities && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={busy}
-                  aria-label={t('videos:form.reset')}
-                  onClick={() => form.resetToDefaults(capabilities)}
-                >
-                  <IconRestore size={16} />
-                  <span className="sr-only">{t('videos:form.reset')}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('videos:form.resetHint')}</TooltipContent>
-            </Tooltip>
-          )}
+        {/* The same heading and Mode field as Images. */}
+        <div className="flex flex-col gap-4">
+          <MediaPageHeading
+            title={t('videos:page.title')}
+            subtitle={t('videos:page.subtitle')}
+            testIdPrefix="video"
+          />
+          {/* Only `create` is served; the core parses and refuses
+              `image-to-video` until it lands, so it is listed as coming and
+              cannot be picked. */}
+          <MediaModeSelect
+            modes={modes}
+            value="create"
+            onChange={() => {}}
+            label={t('videos:workflow.choose')}
+            testIdPrefix="video"
+          />
         </div>
 
         <div
@@ -287,10 +298,14 @@ export const VideoPromptForm = memo(function VideoPromptForm({
             generating={generation.generating}
             stopRequested={generation.stopRequested}
             disabledReason={generation.disabledReason}
+            modality="video"
             imageCount={1}
             onGenerate={() => void generation.generate()}
             onStop={() => void generation.stop()}
           />
+          <VideoEstimateLine estimate={generation.estimate} />
+          {/* Portalled out of the form: its buttons never submit it. */}
+          <ConfirmVideoExceedsMemory {...generation.confirmation} />
         </div>
 
         {showNegative && (
@@ -333,6 +348,18 @@ export const VideoPromptForm = memo(function VideoPromptForm({
             </CollapsibleContent>
           </Collapsible>
         )}
+
+        {/* Reset sits over what it puts back; the prompts stay. */}
+        <MediaSettingsHeading
+          label={t('common:settings')}
+          resetLabel={t('videos:form.reset')}
+          resetHint={t('videos:form.resetHint')}
+          onReset={
+            capabilities ? () => form.resetToDefaults(capabilities) : undefined
+          }
+          disabled={busy}
+          testIdPrefix="video"
+        />
 
         <VideoResolutionSelect
           width={form.width}

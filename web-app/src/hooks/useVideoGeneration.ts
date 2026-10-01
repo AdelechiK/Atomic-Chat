@@ -1,10 +1,17 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/shallow'
 
 import { parseSeedText } from '@/hooks/useImageForm'
+import { useMediaTarget } from '@/hooks/useMediaTarget'
+import { useVideoEstimate } from '@/hooks/useVideoEstimate'
 import { useVideoForm } from '@/hooks/useVideoForm'
-import { useVideoSetting } from '@/hooks/useVideoSetting'
-import type { VideoGenerateRequest, VideoJob } from '@/services/diffusion/types'
+import { previewVideoCapabilities } from '@/lib/diffusion/capabilities'
+import type {
+  VideoCapabilities,
+  VideoEstimate,
+  VideoGenerateRequest,
+  VideoJob,
+} from '@/services/diffusion/types'
 import { useImageGenerationStore } from '@/stores/image-generation-store'
 import { useVideoGenerationStore } from '@/stores/video-generation-store'
 
@@ -16,26 +23,56 @@ export type VideoGenerateDisabledReason =
   | 'emptyPrompt'
   | 'busy'
 
+/** What `ConfirmVideoExceedsMemory` renders from. */
+export type VideoExceedsConfirmation = {
+  open: boolean
+  /** Kept through the closing animation so the figures do not blank out. */
+  estimate: VideoEstimate | null
+  onCancel: () => void
+  onConfirm: () => void
+}
+
+type PendingLaunch = {
+  estimate: VideoEstimate
+  request: VideoGenerateRequest
+  seed: number | null
+}
+
 export type VideoGenerationHandle = {
   generating: boolean
   job: VideoJob | null
   stopRequested: boolean
   /** The resident model is this page's video model and its capabilities are known. */
   modelReady: boolean
+  /** The checkpoint Generate runs, started first when it is stopped. */
+  targetArtifactId: string | null
+  /** Its family, whose numbers the form holds. */
+  targetFamilyId: string | null
+  /** The core's report once the target is resident, the catalog's preview before. */
+  capabilities: VideoCapabilities | null
   canGenerate: boolean
   disabledReason: VideoGenerateDisabledReason | null
   /** The request the form would submit right now. */
   request: VideoGenerateRequest
   seed: number | null
+  /** The core's estimate of the draft; null while there is none. */
+  estimate: VideoEstimate | null
+  /** Asked before a draft whose estimate exceeds memory starts. */
+  confirmation: VideoExceedsConfirmation
   generate: () => Promise<void>
   stop: () => Promise<void>
 }
 
 /**
  * Bridges the persisted Video form and the video job store: builds the
- * request, decides whether Generate is allowed (and why not), and forwards
- * the two verbs. No state of its own. Busy means either page is generating:
- * the two share one engine session.
+ * request, decides whether Generate is allowed (and why not), keeps the
+ * core's estimate of the draft, and forwards the two verbs. Busy means
+ * either page is generating: the two share one engine session. A picked
+ * model that is not running does not block Generate: Generate starts it.
+ *
+ * A draft the core says exceeds memory is not started straight away: the
+ * `confirmation` asks first, Cancel is its default answer, and "Generate
+ * anyway" starts exactly the draft that was asked about.
  */
 export function useVideoGeneration(): VideoGenerationHandle {
   const form = useVideoForm(
@@ -51,18 +88,22 @@ export function useVideoGeneration(): VideoGenerationHandle {
       seedText: state.seedText,
     }))
   )
-  const selectedArtifactId = useVideoSetting(
-    (state) => state.selectedArtifactId
+  const target = useMediaTarget('video')
+  const {
+    status,
+    residentCapabilities,
+    loadingArtifactId,
+    imageGenerating,
+    loadModel,
+  } = useImageGenerationStore(
+    useShallow((state) => ({
+      status: state.status,
+      residentCapabilities: state.videoCapabilities,
+      loadingArtifactId: state.loadingArtifactId,
+      imageGenerating: state.generating,
+      loadModel: state.loadModel,
+    }))
   )
-  const { status, capabilities, loadingArtifactId, imageGenerating } =
-    useImageGenerationStore(
-      useShallow((state) => ({
-        status: state.status,
-        capabilities: state.videoCapabilities,
-        loadingArtifactId: state.loadingArtifactId,
-        imageGenerating: state.generating,
-      }))
-    )
   const { currentJob, stopRequested, generating, startGeneration, stop } =
     useVideoGenerationStore(
       useShallow((state) => ({
@@ -76,11 +117,25 @@ export function useVideoGeneration(): VideoGenerationHandle {
 
   const engineInstalled = status?.install.state === 'installed'
   const loaded = status?.model.loaded ?? null
+  const targetArtifactId = target.artifactId
+  const targetFamily = targetArtifactId ? target.artifact.family : null
   const modelReady =
+    targetArtifactId !== null &&
     status?.model.state === 'loaded' &&
     loaded?.modality === 'video' &&
-    capabilities !== null &&
-    (selectedArtifactId === null || loaded.modelId === selectedArtifactId)
+    loaded.modelId === targetArtifactId &&
+    residentCapabilities !== null
+  const previewCapabilities = useMemo(
+    () => (targetFamily ? previewVideoCapabilities(targetFamily) : null),
+    [targetFamily]
+  )
+  const capabilities = modelReady ? residentCapabilities : previewCapabilities
+  // The target is resident but its report is still being read (a start from
+  // elsewhere, the app launching): starting it again would be a reload.
+  const readingResident =
+    targetArtifactId !== null &&
+    status?.model.loaded?.modelId === targetArtifactId &&
+    residentCapabilities === null
 
   const seed = parseSeedText(form.seedText)
 
@@ -110,33 +165,84 @@ export function useVideoGeneration(): VideoGenerationHandle {
     }
   }, [form, capabilities])
 
+  const estimates = useVideoEstimate(
+    request,
+    modelReady ? (loaded?.modelId ?? null) : null
+  )
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pending, setPending] = useState<PendingLaunch | null>(null)
+
   const disabledReason: VideoGenerateDisabledReason | null =
     generating || imageGenerating
       ? 'busy'
       : !engineInstalled
         ? 'noEngine'
-        : loadingArtifactId
+        : loadingArtifactId || readingResident
           ? 'modelLoading'
-          : !modelReady
+          : targetArtifactId === null
             ? 'noModel'
             : request.prompt.length === 0
               ? 'emptyPrompt'
               : null
 
+  const { current } = estimates
   const generate = useCallback(async () => {
-    if (disabledReason) return
+    if (disabledReason || targetArtifactId === null) return
+    if (!modelReady) {
+      // Start the picked model first. A failed start leaves its error on
+      // the page and nothing is submitted.
+      await loadModel(targetArtifactId)
+      const after = useImageGenerationStore.getState()
+      if (
+        after.status?.model.loaded?.modelId !== targetArtifactId ||
+        after.videoCapabilities === null
+      )
+        return
+    }
+    const estimate = await current(targetArtifactId)
+    if (estimate?.memory.verdict === 'exceeds') {
+      setPending({ estimate, request, seed })
+      setConfirmOpen(true)
+      return
+    }
     await startGeneration({ request, seed })
-  }, [disabledReason, startGeneration, request, seed])
+  }, [
+    disabledReason,
+    targetArtifactId,
+    modelReady,
+    loadModel,
+    current,
+    startGeneration,
+    request,
+    seed,
+  ])
+
+  const onCancel = useCallback(() => setConfirmOpen(false), [])
+  const onConfirm = useCallback(() => {
+    setConfirmOpen(false)
+    if (pending)
+      void startGeneration({ request: pending.request, seed: pending.seed })
+  }, [pending, startGeneration])
 
   return {
     generating,
     job: currentJob,
     stopRequested,
     modelReady,
+    targetArtifactId,
+    targetFamilyId: target.familyId,
+    capabilities,
     canGenerate: disabledReason === null,
     disabledReason,
     request,
     seed,
+    estimate: estimates.estimate,
+    confirmation: {
+      open: confirmOpen,
+      estimate: pending?.estimate ?? null,
+      onCancel,
+      onConfirm,
+    },
     generate,
     stop,
   }

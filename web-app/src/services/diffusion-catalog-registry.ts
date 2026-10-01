@@ -707,10 +707,19 @@ export const fetchDiffusionCatalog = async (
     timeoutMs = FETCH_TIMEOUT_MS,
   } = options
 
+  // The bundled families go into whatever the production URL resolves to,
+  // the cache included: the profile is shared with builds of other branches,
+  // so the cache may come from one that does not know every family, and a
+  // failing network keeps serving it for as long as it lasts.
+  const withBundled = (catalog: DiffusionCatalog): DiffusionCatalog =>
+    url === DIFFUSION_CATALOG_URL
+      ? mergeBundledDiffusionFamilies(catalog)
+      : catalog
+
   const cached = getCachedDiffusionCatalog()
   if (!force && isDiffusionCatalogCacheFresh(cached) && cached) {
     return {
-      catalog: cached.catalog,
+      catalog: withBundled(cached.catalog),
       source: 'cache',
       fetchedAt: cached.fetchedAt,
     }
@@ -728,10 +737,7 @@ export const fetchDiffusionCatalog = async (
       fetchCatalog(fetchUrl, controller.signal),
       timeoutMs
     )
-    const catalog =
-      url === DIFFUSION_CATALOG_URL
-        ? mergeBundledDiffusionFamilies(fetchedCatalog)
-        : fetchedCatalog
+    const catalog = withBundled(fetchedCatalog)
     const fetchedAt = Date.now()
     writeCache(catalog, fetchedAt)
     console.info(
@@ -749,7 +755,7 @@ export const fetchDiffusionCatalog = async (
     console.warn('[diffusion-catalog-registry] Falling back:', message)
     if (cached) {
       return {
-        catalog: cached.catalog,
+        catalog: withBundled(cached.catalog),
         source: 'cache',
         fetchedAt: cached.fetchedAt,
         error: message,

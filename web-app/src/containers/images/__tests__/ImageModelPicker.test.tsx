@@ -205,6 +205,19 @@ describe('ImageModelPicker', () => {
     expect(indicator.querySelector('svg')).not.toBeNull()
   })
 
+  it('asks for a video model on the Video page when none is selected', () => {
+    state.status.model = { state: 'unloaded', loaded: null }
+    state.videoSelectedArtifactId = null
+    render(
+      <ImageModelPicker open={false} onOpenChange={vi.fn()} modality="video" />
+    )
+
+    const toggle = screen.getByTestId('image-models-toggle')
+    expect(toggle).toHaveTextContent('videos:model.select')
+    expect(toggle).not.toHaveTextContent('images:model.select')
+    expect(toggle).toHaveAttribute('aria-label', 'videos:model.select')
+  })
+
   it('shows selection required when the resident model cannot run the workflow', () => {
     state.workflow = 'edit'
     render(<ImageModelPicker open={false} onOpenChange={vi.fn()} />)

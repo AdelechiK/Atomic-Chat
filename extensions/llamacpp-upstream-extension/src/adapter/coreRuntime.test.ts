@@ -26,7 +26,11 @@ import {
   modelIdsMatch,
   removeBackend,
   setOptimalCache,
-  sendHardwareOverride,
+  checkBackendUpdates,
+  getBackendCatalog,
+  getHardwareInfo,
+  recommendBackend,
+  refreshHardware,
   unload,
 } from './coreRuntime'
 
@@ -228,20 +232,44 @@ describe('settings import', () => {
   })
 })
 
-describe('hardware override', () => {
-  it('stamps the source so the core can say where its numbers came from', async () => {
-    invoke.mockResolvedValue({ override: {} })
+describe('hardware facts', () => {
+  it('reads the machine from the core and can ask it to probe again', async () => {
+    invoke.mockResolvedValue({ info: { gpus: [] }, source: 'probe', probed_at: 1, warnings: [] })
 
-    await sendHardwareOverride({
-      gpus: [{ vendor: 'NVIDIA' }],
-      cpu_extensions: ['avx2'],
-    })
+    expect(await getHardwareInfo()).toMatchObject({ source: 'probe' })
+    expect(lastCall()[1]).toMatchObject({ method: 'GET', path: '/hardware/info' })
 
+    await refreshHardware()
+    expect(lastCall()[1]).toMatchObject({ method: 'POST', path: '/hardware/refresh' })
+  })
+})
+
+describe('backend advisor', () => {
+  it('asks the three questions as POSTs on this provider, proxy in the body', async () => {
+    invoke.mockResolvedValue({})
+    const proxy = { url: 'http://proxy:3128', username: 'u', password: 'secret' }
+
+    await getBackendCatalog({ force: true, app_version: '2.0.48', proxy })
     expect(lastCall()[1]).toMatchObject({
-      method: 'PUT',
-      path: '/hardware/override',
-      body: { source: 'tauri-plugin-hardware' },
+      method: 'POST',
+      path: '/backends/llamacpp-upstream/catalog',
+      body: { force: true, app_version: '2.0.48', proxy },
     })
+
+    await recommendBackend({ mode: 'recheck', current_backend: 'b1/win-cpu-x64' })
+    expect(lastCall()[1]).toMatchObject({
+      method: 'POST',
+      path: '/backends/llamacpp-upstream/recommendation',
+      body: { mode: 'recheck', current_backend: 'b1/win-cpu-x64' },
+    })
+
+    await checkBackendUpdates({ current: 'b1/win-cpu-x64' })
+    expect(lastCall()[1]).toMatchObject({
+      method: 'POST',
+      path: '/backends/llamacpp-upstream/updates',
+      body: { current: 'b1/win-cpu-x64' },
+    })
+    for (const [, args] of invoke.mock.calls) expect(String((args as { path: string }).path)).not.toContain('secret')
   })
 })
 

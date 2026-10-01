@@ -26,6 +26,17 @@ const status: DiffusionStatus = {
 
 type Call = { method: string; path: string; body: unknown }
 
+const ESTIMATE = {
+  memory: {
+    requiredBytes: 9e9,
+    budgetBytes: 14.6e9,
+    pool: 'unified',
+    verdict: 'fits',
+  },
+  seconds: { low: 160, high: 640 },
+  basis: 'heuristic',
+}
+
 describe('TauriDiffusionService commands', () => {
   let calls: Call[]
   let service: InstanceType<typeof TauriDiffusionService>
@@ -68,6 +79,10 @@ describe('TauriDiffusionService commands', () => {
           return { item: { id: 'vjob-1' } }
         case 'PUT /diffusion/video/gallery/vjob-1/poster':
           return { id: 'vjob-1', posterPath: '/data/videos/vjob-1.thumb.png' }
+        case 'POST /diffusion/video/estimate':
+          if ((call.body as { width: number }).width === 404)
+            throw { code: 'HTTP_404', message: 'Not found' }
+          return { estimate: ESTIMATE }
         default:
           return {}
       }
@@ -186,6 +201,23 @@ describe('TauriDiffusionService commands', () => {
         body: { png: 'data:image/png;base64,iVBORw0KGgo=' },
       },
     ])
+  })
+
+  it('asks the core for a video estimate, and reads any refusal as no estimate', async () => {
+    const request = {
+      prompt: 'a cat walking',
+      width: 768,
+      height: 512,
+      frames: 121,
+      steps: 8,
+      cfgScale: 1,
+    }
+    expect(await service.estimateVideo(request)).toEqual(ESTIMATE)
+    expect(calls).toEqual([
+      { method: 'POST', path: '/diffusion/video/estimate', body: request },
+    ])
+    // An older core has no such route: the relay rejects with its 404.
+    expect(await service.estimateVideo({ ...request, width: 404 })).toBeNull()
   })
 
   it('passes the load and generate requests through unchanged', async () => {

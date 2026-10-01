@@ -165,7 +165,15 @@ impl Supervisor {
         if let Some(attached) = guard.as_ref() {
             return Ok(Arc::clone(attached));
         }
-        let attached = Arc::new(self.attach_or_launch(allow_launch).await?);
+        let attached = match self.attach_or_launch(allow_launch).await {
+            Ok(attached) => Arc::new(attached),
+            Err(error) => {
+                if error.code == "CORE_START_FAILED" {
+                    log::warn!("{}", start_failure_record(&error));
+                }
+                return Err(error);
+            }
+        };
         self.ever_attached.store(true, Ordering::SeqCst);
         *guard = Some(Arc::clone(&attached));
         Ok(attached)
@@ -485,6 +493,25 @@ impl Supervisor {
     }
 }
 
+/// The `app.log` record of a core that would not start: code, message, then each line of the
+/// details — the tail of `core-start.log` among them — behind `  | `.
+///
+/// A core that dies before it opens `core.log` leaves its last words only in that tail, so they
+/// go into the app's log to reach the Logs window and an export. The core's stderr lines carry
+/// their own time headers; indented, they stay part of this record instead of reading as entries
+/// of their own. `warn`, not `error`: an error is a new Sentry event.
+pub fn start_failure_record(error: &CoreError) -> String {
+    let mut record = format!(
+        "[atomic-core] start failed: {}: {}",
+        error.code, error.message
+    );
+    for line in error.details.iter().flat_map(|details| details.lines()) {
+        record.push_str("\n  | ");
+        record.push_str(line);
+    }
+    record
+}
+
 /// The command the app would run to start a core, for diagnostics and for the
 /// settings UI. Errors are returned rather than logged so the reason a build
 /// has no core reaches the user.
@@ -771,5 +798,120 @@ mod tests {
             supervisor.current().await.is_some(),
             "the core answered, so the attachment is fine"
         );
+    }
+
+    /// What this process logs, for the tests that check a record reaches `app.log`. `log` takes
+    /// one logger per process, and no other test installs one.
+    struct Recorded(Mutex<Vec<(log::Level, String)>>);
+
+    impl log::Log for Recorded {
+        fn enabled(&self, _: &log::Metadata) -> bool {
+            true
+        }
+        fn log(&self, record: &log::Record) {
+            self.0
+                .lock()
+                .unwrap()
+                .push((record.level(), record.args().to_string()));
+        }
+        fn flush(&self) {}
+    }
+
+    fn recorded() -> &'static Recorded {
+        static RECORDED: std::sync::OnceLock<&'static Recorded> = std::sync::OnceLock::new();
+        RECORDED.get_or_init(|| {
+            let recorded: &'static Recorded = Box::leak(Box::new(Recorded(Mutex::new(Vec::new()))));
+            log::set_logger(recorded).expect("no other test installs a logger");
+            log::set_max_level(log::LevelFilter::Debug);
+            recorded
+        })
+    }
+
+    #[test]
+    fn a_start_failure_record_indents_every_line_of_its_details() {
+        let error = CoreError::new(
+            "CORE_START_FAILED",
+            "The Atomic Chat core exited before it was ready.",
+            Some(
+                "/bin/core exited with exit status: 1\n\
+                 [2026-09-28][12:00:00][core][ERROR] control port 1338 is taken"
+                    .into(),
+            ),
+        );
+
+        assert_eq!(
+            start_failure_record(&error),
+            "[atomic-core] start failed: CORE_START_FAILED: The Atomic Chat core exited before it was ready.\n  \
+             | /bin/core exited with exit status: 1\n  \
+             | [2026-09-28][12:00:00][core][ERROR] control port 1338 is taken"
+        );
+        assert_eq!(
+            start_failure_record(&CoreError::new("CORE_START_FAILED", "gave up", None)),
+            "[atomic-core] start failed: CORE_START_FAILED: gave up"
+        );
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn a_core_that_dies_at_start_leaves_one_warn_record_with_its_last_words() {
+        use crate::core::logs::collect::{collect, LogSource};
+        use std::os::unix::fs::PermissionsExt;
+
+        let recorded = recorded();
+        let dir = tempfile::tempdir().unwrap();
+        let resources = dir.path().join("resources-with-a-dying-core");
+        let binary = launch::bundled_core_path(&resources);
+        std::fs::create_dir_all(binary.parent().unwrap()).unwrap();
+        std::fs::write(
+            &binary,
+            "#!/bin/sh\n\
+             echo '[2026-09-28][12:00:00][core][INFO] atomic-chat-app-core 0.7.0 starting' >&2\n\
+             echo '[2026-09-28][12:00:01][core][ERROR] control port 13381 is taken' >&2\n\
+             exit 1\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let supervisor = Supervisor::new(dir.path().join("data"), resources, None)
+            .with_start_timeout(Duration::from_millis(500));
+
+        let error = supervisor.ensure_attached(true).await.unwrap_err();
+
+        assert_eq!(error.code, "CORE_START_FAILED");
+        let warning = recorded
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(_, text)| text.contains("control port 13381 is taken"))
+            .cloned()
+            .expect("the start failure was logged");
+        assert_eq!(warning.0, log::Level::Warn);
+        assert!(warning
+            .1
+            .starts_with("[atomic-core] start failed: CORE_START_FAILED: "));
+        assert!(warning
+            .1
+            .contains("\n  | [2026-09-28][12:00:01][core][ERROR] control port 13381 is taken"));
+
+        // Written to app.log the way the plugin writes it, it reads back as one App entry.
+        let data = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(data.path().join("logs")).unwrap();
+        let now = chrono::Utc::now();
+        std::fs::write(
+            data.path().join("logs").join("app.log"),
+            format!(
+                "{}{}\n",
+                crate::core::logs::line_header(now, "app_lib::core::atomic_core", warning.0),
+                warning.1
+            ),
+        )
+        .unwrap();
+        let entries = collect(data.path(), 1 << 20);
+        assert_eq!(entries.len(), 1, "{entries:?}");
+        assert_eq!(entries[0].source, LogSource::App);
+        assert_eq!(entries[0].level, "WARN");
+        assert!(entries[0]
+            .message
+            .contains("  | [2026-09-28][12:00:00][core][INFO] atomic-chat-app-core"));
     }
 }

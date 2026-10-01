@@ -125,7 +125,8 @@ export const VideoViewer = memo(function VideoViewer({
 
   const restore = () => {
     const { draft, modelId } = restoreVideoDraftFromRecipe(item.recipe)
-    applyDraft(draft)
+    // The numbers are the recipe model's: picking that model keeps them.
+    applyDraft(draft, item.recipe.model.family)
     captureVideoGalleryAction('restore_recipe')
     if (modelDiffers) {
       setSelectedArtifactId(modelId)

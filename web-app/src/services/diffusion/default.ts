@@ -30,6 +30,7 @@ import type {
   LoadDiffusionModelRequest,
   LoadedDiffusionModel,
   VideoCapabilities,
+  VideoEstimate,
   VideoGalleryPage,
   VideoGenerateRequest,
   VideoJob,
@@ -187,6 +188,12 @@ export class DefaultDiffusionService implements DiffusionService {
 
   async generateVideo(_request: VideoGenerateRequest): Promise<{ jobId: string }> {
     return unsupported()
+  }
+
+  async estimateVideo(
+    _request: VideoGenerateRequest
+  ): Promise<VideoEstimate | null> {
+    return null
   }
 
   async getVideoJob(_jobId: string): Promise<VideoJob | null> {

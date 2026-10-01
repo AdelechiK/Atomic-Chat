@@ -80,6 +80,9 @@ export function normalizeFeatures(features: any): BackendFeatures {
   }
 }
 
+/**
+ * @deprecated Decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); the Rust command is kept as the fixture source for the core's contract tests.
+ */
 export async function determineSupportedBackends(
   osType: string,
   arch: string,
@@ -92,6 +95,9 @@ export async function determineSupportedBackends(
   })
 }
 
+/**
+ * @deprecated Decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); the Rust command is kept as the fixture source for the core's contract tests.
+ */
 export async function listSupportedBackendsFromRust(
   remoteBackendVersions: BackendVersion[],
   localBackendVersions: BackendVersion[]
@@ -102,6 +108,9 @@ export async function listSupportedBackendsFromRust(
   })
 }
 
+/**
+ * @deprecated Decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); the Rust command is kept as the fixture source for the core's contract tests.
+ */
 export async function getSupportedFeaturesFromRust(
   osType: string,
   cpuExtensions: string[],
@@ -114,6 +123,9 @@ export async function getSupportedFeaturesFromRust(
   })
 }
 
+/**
+ * @deprecated Decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); the Rust command is kept as the fixture source for the core's contract tests.
+ */
 export async function findLatestVersionForBackend(
   versionBackends: BackendVersion[],
   backendType: string
@@ -124,6 +136,9 @@ export async function findLatestVersionForBackend(
   })
 }
 
+/**
+ * @deprecated Decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); the Rust command is kept as the fixture source for the core's contract tests.
+ */
 export async function prioritizeBackends(
   versionBackends: BackendVersion[],
   hasEnoughGpuMemory: boolean
@@ -134,6 +149,9 @@ export async function prioritizeBackends(
   })
 }
 
+/**
+ * @deprecated Decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); the Rust command is kept as the fixture source for the core's contract tests.
+ */
 export async function checkBackendForUpdates(
   currentBackendString: string,
   versionBackends: BackendVersion[]
@@ -156,6 +174,9 @@ export async function removeOldBackendVersions(
   })
 }
 
+/**
+ * @deprecated Decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); the Rust command is kept as the fixture source for the core's contract tests.
+ */
 export async function shouldMigrateBackend(
   storedBackendType: string,
   versionBackends: BackendVersion[]
@@ -166,6 +187,9 @@ export async function shouldMigrateBackend(
   })
 }
 
+/**
+ * @deprecated Decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); the Rust command is kept as the fixture source for the core's contract tests.
+ */
 export async function handleSettingUpdate(
   key: string,
   value: string,
@@ -190,6 +214,8 @@ export async function installBundledBackend(
  * negotiation against the Fastly CDN (raw.githubusercontent.com) stalls
  * indefinitely (h2-stall). Returns the raw JSON string. Throws on network
  * error or non-2xx response.
+ *
+ * @deprecated Decided by atomic-chat-core since 2026-09-27 (ADR 2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions); the Rust command is kept as the fixture source for the core's contract tests.
  */
 export async function fetchManifestHttp1(
   url: string,

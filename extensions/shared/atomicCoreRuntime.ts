@@ -157,6 +157,107 @@ export interface CoreOptimalState<T> {
   optimal: T | null
 }
 
+/** `GET /hardware/info`: the machine as the core measured it (ADR 2026-09-27). */
+export interface CoreHardwareInfo<TSystemInfo = unknown> {
+  info: TSystemInfo
+  source: 'probe' | 'override'
+  probed_at: number
+  warnings: string[]
+}
+
+export interface CoreBackendVersion {
+  version: string
+  backend: string
+  order?: number
+}
+
+export interface CoreBackendCatalogRelease {
+  tag: string
+  title?: string
+  highlights?: string[]
+  min_app_version?: string
+  variants: Array<{ id: string; asset?: string; size?: number }>
+}
+
+/**
+ * `POST /backends/:provider/catalog`: what fits this machine. `available` is the hardware-gated,
+ * merged and sorted list the extension used to compute itself; `latest_by_type` is the newest
+ * `version/backend` per normalized backend type; `releases` is the fork's parsed release index.
+ */
+export interface CoreBackendCatalog {
+  provider: string
+  os_type: string
+  arch_suffix: 'x64' | 'arm64'
+  hardware_source: string
+  features: Record<string, boolean>
+  supported_backends: string[]
+  remote: CoreBackendVersion[]
+  installed: CoreBackendVersion[]
+  available: CoreBackendVersion[]
+  recommended: string | null
+  recommended_installed: string | null
+  latest_by_type: Record<string, string>
+  static_variants: string[]
+  source: string
+  releases?: CoreBackendCatalogRelease[]
+}
+
+export interface CoreBackendCatalogRequest {
+  force?: boolean
+  app_version?: string | null
+  current_backend?: string
+  proxy?: CoreProxyConfig | null
+}
+
+export type CoreRecommendationOutcome =
+  | 'mac'
+  | 'detection_failed'
+  | 'cpu_optimal'
+  | 'already_optimal'
+  | 'no_catalog_entry'
+  | 'recommend'
+
+/** `POST /backends/:provider/recommendation`. The core has already stored `optimal` at `revision`. */
+export interface CoreBackendRecommendation<TRecord = unknown, TPayload = unknown> {
+  provider: string
+  mode: 'refresh' | 'recheck'
+  outcome: CoreRecommendationOutcome
+  detection: { kind: 'gpu'; backend: string } | { kind: 'cpu-optimal' } | { kind: 'detection-failed' } | null
+  record: TRecord | null
+  revision: number
+  optimal: TRecord | null
+  recommendation: TPayload | null
+  elapsed_ms: number
+}
+
+export interface CoreBackendRecommendationRequest {
+  mode: 'refresh' | 'recheck'
+  current_backend?: string
+  app_version?: string | null
+  proxy?: CoreProxyConfig | null
+  force?: boolean
+  assume_no_gpu?: boolean
+}
+
+/** `POST /backends/:provider/updates`. `offer` is the target when it is newer and the same family. */
+export interface CoreBackendUpdateCheck {
+  provider: string
+  current: string
+  current_kind: 'concrete' | 'sentinel' | 'missing'
+  update_needed: boolean
+  new_version: string
+  target_backend: string | null
+  same_family: boolean
+  offer: string | null
+}
+
+export interface CoreBackendUpdateCheckRequest {
+  current?: string
+  force?: boolean
+  app_version?: string | null
+  proxy?: CoreProxyConfig | null
+}
+
 export interface CoreModelCapabilities {
   modelId: string
   maxCtxTrain?: number
@@ -335,19 +436,42 @@ export function createCoreRuntime(provider: CoreProvider, invoke: Invoke) {
   }
 
   /**
-   * Give the core the hardware numbers only the app can measure — NVML driver versions, compute
-   * capabilities, Vulkan device ids — which backend selection is decided from. Sent before the
-   * first load.
+   * The machine as the core measured it. Since ADR 2026-09-27 the core probes hardware itself and is
+   * the only source backend selection reads; the app never injects an override any more.
    */
-  async function sendHardwareOverride(override: {
-    gpus: unknown[]
-    cpu_extensions?: string[]
-    os_type?: string
-  }): Promise<void> {
-    await call('PUT', '/hardware/override', {
-      ...override,
-      source: 'tauri-plugin-hardware',
-    })
+  async function getHardwareInfo<T = unknown>(): Promise<CoreHardwareInfo<T>> {
+    return call<CoreHardwareInfo<T>>('GET', '/hardware/info')
+  }
+
+  /** Probe again (after resume, or when the user asks); answers with the new description. */
+  async function refreshHardware<T = unknown>(): Promise<CoreHardwareInfo<T>> {
+    return call<CoreHardwareInfo<T>>('POST', '/hardware/refresh')
+  }
+
+  /**
+   * The three advisor questions (ADR 2026-09-27). POST bodies, because the proxy policy may carry
+   * credentials and never travels in a query string.
+   */
+  async function getBackendCatalog(
+    request: CoreBackendCatalogRequest = {}
+  ): Promise<CoreBackendCatalog> {
+    return call<CoreBackendCatalog>('POST', `/backends/${provider}/catalog`, request)
+  }
+
+  async function recommendBackend<TRecord = unknown, TPayload = unknown>(
+    request: CoreBackendRecommendationRequest
+  ): Promise<CoreBackendRecommendation<TRecord, TPayload>> {
+    return call<CoreBackendRecommendation<TRecord, TPayload>>(
+      'POST',
+      `/backends/${provider}/recommendation`,
+      request
+    )
+  }
+
+  async function checkBackendUpdates(
+    request: CoreBackendUpdateCheckRequest = {}
+  ): Promise<CoreBackendUpdateCheck> {
+    return call<CoreBackendUpdateCheck>('POST', `/backends/${provider}/updates`, request)
   }
 
   /** Backend packs the core has on disk. `current` marks which row is the one in use. */
@@ -494,7 +618,11 @@ export function createCoreRuntime(provider: CoreProvider, invoke: Invoke) {
     getSettings,
     acknowledgeSettings,
     settingsStatus,
-    sendHardwareOverride,
+    getHardwareInfo,
+    refreshHardware,
+    getBackendCatalog,
+    recommendBackend,
+    checkBackendUpdates,
     listInstalledBackends,
     installBackend,
     cancelBackendDownload,

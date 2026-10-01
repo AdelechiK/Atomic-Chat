@@ -12,7 +12,7 @@ describe('useVideoForm', () => {
   beforeEach(async () => {
     localStorage.clear()
     await useVideoForm.persist.rehydrate()
-    useVideoForm.setState({ ...DEFAULT_VIDEO_FORM })
+    useVideoForm.setState({ ...DEFAULT_VIDEO_FORM, recipeFamily: null })
   })
 
   it('persists the durable choices but never the prompts', () => {
@@ -39,6 +39,7 @@ describe('useVideoForm', () => {
       cfgScale: 1,
       guidance: null,
       seedText: '42',
+      recipeFamily: null,
     })
   })
 
@@ -117,6 +118,46 @@ describe('useVideoForm', () => {
       prompt: 'from a recipe',
       frames: 49,
       seedText: '123',
+    })
+  })
+
+  it('keeps what the user set when the same family starts, and resets for another', () => {
+    useVideoForm.setState({ recipeFamily: 'ltx-2' })
+    useVideoForm
+      .getState()
+      .patch({ prompt: 'kept', width: 512, height: 768, frames: 49, steps: 4 })
+    useVideoForm.getState().adoptModel('ltx-2', makeVideoCapabilities())
+    expect(useVideoForm.getState()).toMatchObject({
+      width: 512,
+      height: 768,
+      frames: 49,
+      steps: 4,
+    })
+
+    useVideoForm
+      .getState()
+      .adoptModel('wan2.2-ti2v-5b', makeWanCapabilities())
+    expect(useVideoForm.getState()).toMatchObject({
+      recipeFamily: 'wan2.2-ti2v-5b',
+      prompt: 'kept',
+      width: 1280,
+      height: 704,
+      steps: 30,
+      cfgScale: 5,
+    })
+  })
+
+  it('keeps a restored recipe when its own model is picked', () => {
+    useVideoForm.getState().applyDraft(
+      { ...DEFAULT_VIDEO_FORM, width: 512, height: 768, steps: 6 },
+      'ltx-2'
+    )
+    useVideoForm.getState().adoptModel('ltx-2', makeVideoCapabilities())
+    expect(useVideoForm.getState()).toMatchObject({
+      recipeFamily: 'ltx-2',
+      width: 512,
+      height: 768,
+      steps: 6,
     })
   })
 

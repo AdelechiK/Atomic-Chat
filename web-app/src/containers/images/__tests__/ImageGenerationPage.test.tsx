@@ -187,6 +187,23 @@ describe('ImageGenerationPage', () => {
     expect(useImageGenerationStore.getState().setupOpen).toBe(false)
   })
 
+  it('installs the engine straight from the install action, with no wizard', async () => {
+    const install = vi
+      .spyOn(useImageGenerationStore.getState(), 'installEngine')
+      .mockResolvedValue()
+    useImageGenerationStore.setState({
+      status: makeStatus({ install: { state: 'not-installed' } }),
+      lastError: { code: 'ENGINE_MISSING', message: 'x' },
+    })
+    await renderPage()
+    await userEvent.click(
+      screen.getByRole('button', { name: 'images:errors.actions.install' })
+    )
+    expect(install).toHaveBeenCalledOnce()
+    expect(useImageGenerationStore.getState().setupOpen).toBe(false)
+    install.mockRestore()
+  })
+
   it('keeps existing images in view next to the setup card', async () => {
     fake.gallery = [makeItem()]
     useImageGenerationStore.setState({

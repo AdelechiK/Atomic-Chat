@@ -17,12 +17,14 @@ import ChangeDataFolderLocation from '@/containers/dialogs/ChangeDataFolderLocat
 import LocalModelLocationsCard from '@/containers/LocalModelLocationsCard'
 import { FactoryResetDialog } from '@/containers/dialogs'
 import { useServiceHub } from '@/hooks/useServiceHub'
+import { useExportLogs } from '@/hooks/useExportLogs'
 import {
   IconBrandDiscord,
   IconBrandGithub,
   IconExternalLink,
   IconFolder,
   IconLogs,
+  IconDownload,
   IconCopy,
   IconCopyCheck,
 } from '@tabler/icons-react'
@@ -71,6 +73,7 @@ function General() {
     (state) => state.setGloballyEnabled
   )
   const serviceHub = useServiceHub()
+  const { exportLogs, exporting: exportingLogs } = useExportLogs()
   const { setProductAnalytic, productAnalytic } = useAnalytic()
 
   const openFileTitle = (): string => {
@@ -94,6 +97,7 @@ function General() {
   const [cliPath, setCliPath] = useState<string | null>(null)
   const [isCliLoading, setIsCliLoading] = useState(false)
   const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(null)
+  const [coreVersion, setCoreVersion] = useState<string | undefined>()
   const canManageAutostart = IS_TAURI && !isDev()
 
   useEffect(() => {
@@ -103,6 +107,19 @@ function General() {
     }
 
     fetchDataFolder()
+  }, [serviceHub])
+
+  useEffect(() => {
+    let cancelled = false
+    serviceHub
+      .app()
+      .getCoreVersion()
+      .then((version) => {
+        if (!cancelled) setCoreVersion(version)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [serviceHub])
 
   useEffect(() => {
@@ -164,7 +181,7 @@ function General() {
       await invoke('uninstall_jan_cli')
       setCliInstalled(false)
       setCliPath(null)
-      toast.success('Atomic Bot CLI uninstalled')
+      toast.success('Atomic Chat CLI uninstalled')
     } catch (e) {
       toast.error('Uninstall failed', { description: String(e) })
     } finally {
@@ -307,6 +324,16 @@ function General() {
                   </span>
                 }
               />
+              {coreVersion && (
+                <CardItem
+                  title={t('settings:general.coreVersion')}
+                  actions={
+                    <span className="text-foreground font-medium">
+                      v{coreVersion}
+                    </span>
+                  }
+                />
+              )}
               {!AUTO_UPDATER_DISABLED && (
                 <CardItem
                   title={t('settings:general.checkForUpdates')}
@@ -571,7 +598,7 @@ function General() {
                 description={t('settings:dataFolder.appLogsDesc')}
                 className="items-start flex-row gap-y-2"
                 actions={
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -602,6 +629,19 @@ function General() {
                     >
                       <IconLogs size={12} className="text-muted-foreground" />
                       <span>{t('settings:general.openLogs')}</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void exportLogs()}
+                      disabled={exportingLogs}
+                      title={t('settings:general.exportLogs')}
+                    >
+                      <IconDownload
+                        size={12}
+                        className="text-muted-foreground"
+                      />
+                      <span>{t('settings:general.exportLogs')}</span>
                     </Button>
                   </div>
                 }

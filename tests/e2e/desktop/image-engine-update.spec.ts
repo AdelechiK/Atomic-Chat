@@ -102,7 +102,7 @@ describe.skipIf(!CAN_RUN_FAKE_BACKEND)('updating the image engine', () => {
       await browser.waitUntil(async () => (await browser.$(RUNTIME).getAttribute('data-phase')) === 'idle', { timeout: 30_000 })
       await browser.$(RUNTIME).click()
       await browser.$(BANNER).waitForDisplayed({ timeout: 30_000 })
-      expect(await browser.$(BANNER).getText()).toContain('Image engine update required')
+      expect(await browser.$(BANNER).getText()).toContain('Media engine update required')
       expect((await diffusionStatus(dataFolder)).model.state).not.toBe('loaded')
       expect(liveFakeSdServers(dataFolder)).toEqual([])
       const update = browser.$(BANNER).$('button=Update engine and retry')

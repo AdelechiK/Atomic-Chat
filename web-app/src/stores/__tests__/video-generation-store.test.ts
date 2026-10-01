@@ -8,6 +8,7 @@ import {
 } from '@/lib/diffusion/__tests__/image-fixtures'
 import {
   makeVideoCapabilities,
+  makeVideoEstimate,
   makeVideoItem,
   makeVideoJob,
   makeVideoLoadedStatus,
@@ -24,7 +25,7 @@ vi.mock('@/lib/video/poster', async (importOriginal) => ({
 }))
 const notifications = vi.hoisted(() => ({ notify: vi.fn() }))
 vi.mock('@/lib/notifications', () => ({
-  notifyThreadCompleted: notifications.notify,
+  notifyWhenAway: notifications.notify,
 }))
 const captured = vi.hoisted(() => ({
   events: [] as Array<[string, Record<string, unknown>]>,
@@ -109,8 +110,6 @@ describe('video-generation-store', () => {
         )
         return { jobId: 'vjob-1' }
       })
-      const focus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
-
       const run = useVideoGenerationStore.getState().startGeneration({
         request: makeVideoRequest(),
         seed: 42,
@@ -160,6 +159,12 @@ describe('video-generation-store', () => {
             steps: 8,
             duration_ms: 65_000,
             error_code: null,
+            // A job without an estimate (an older core) reports none.
+            estimate_verdict: 'none',
+            estimate_low_s: null,
+            estimate_high_s: null,
+            estimate_basis: null,
+            slowdown_seen: false,
           },
         ],
       ])
@@ -170,7 +175,6 @@ describe('video-generation-store', () => {
         'Video ready',
         'Your clip is in the gallery.'
       )
-      focus.mockRestore()
     })
 
     it('shows the progress of the running job and marks it generating', async () => {
@@ -201,12 +205,59 @@ describe('video-generation-store', () => {
         progress: { phase: 'sampling', step: 2 },
       })
       expect(fake.generateVideo.mock.calls[0][0]).not.toHaveProperty('seed')
+      // An older core sends no slowdown flag; the progress is kept as it came.
+      expect(
+        useVideoGenerationStore.getState().currentJob?.progress
+      ).not.toHaveProperty('slowdown')
       fake.emit({
         type: 'video-job',
         job: makeVideoJob({ id: 'vjob-1', state: 'cancelled' }),
       })
       await run
       expect(useVideoGenerationStore.getState().lastError?.code).toBeUndefined()
+    })
+
+    it('reports the estimate the job started with and whether it slowed down', async () => {
+      const estimate = makeVideoEstimate('fits', {
+        seconds: { low: 300, high: 600 },
+      })
+      fake.generateVideo.mockImplementation(async (request) => {
+        setTimeout(
+          () =>
+            fake.emit({
+              type: 'video-job',
+              job: makeVideoJob({
+                id: 'vjob-1',
+                state: 'cancelled',
+                request,
+                estimate,
+                progress: {
+                  phase: 'sampling',
+                  step: 4,
+                  totalSteps: 8,
+                  fraction: 0.5,
+                  etaSeconds: 900,
+                  elapsedMs: 120_000,
+                  slowdown: true,
+                },
+              }),
+            }),
+          1
+        )
+        return { jobId: 'vjob-1' }
+      })
+      await useVideoGenerationStore.getState().startGeneration({
+        request: makeVideoRequest(),
+        seed: null,
+      })
+      expect(captured.events.at(-1)?.[1]).toMatchObject({
+        generate_status: 'cancelled',
+        estimate_verdict: 'fits',
+        estimate_low_s: 300,
+        estimate_high_s: 600,
+        estimate_basis: 'heuristic',
+        slowdown_seen: true,
+      })
     })
 
     it('refuses a request the loaded model cannot take before touching the core', async () => {

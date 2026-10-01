@@ -6,6 +6,7 @@ import type { DiffusionCatalogFamily } from '@/services/diffusion-catalog-regist
 
 import {
   ACTIVATION_BYTES_PER_MEGAPIXEL,
+  autoOffload,
   estimateDiffusionFit,
   estimateResidentBytes,
   fitForQuant,
@@ -260,5 +261,64 @@ describe('video families', () => {
         height: 512,
       })
     )
+  })
+})
+
+describe('autoOffload', () => {
+  const cpuOnly: HardwareProfile = {
+    tier: 'cpu_only',
+    memoryKind: 'system',
+    budgetMib: 32 * 1024,
+    systemRamMib: 32 * 1024,
+    vramMib: 0,
+    hardCeiling: false,
+  }
+  const fitOf = (transformerGib: number, profile: HardwareProfile | null) =>
+    estimateDiffusionFit(input(transformerGib, false), profile)
+  const pcAuto = (transformerGib: number, budgetMib: number) =>
+    autoOffload(fitOf(transformerGib, pc(budgetMib)), pc(budgetMib), {
+      macos: false,
+      familyId: 'z-image',
+    })
+
+  it("starts on a GPU of its own and falls back to the estimate's policy", () => {
+    // 12 GiB card: 6 GiB + TE 8 + VAE 0.3 + activations 1.5 → model offload.
+    expect(pcAuto(6, 12 * 1024)).toEqual({
+      offload: 'none',
+      offloadFallback: 'model',
+    })
+    // The same model on a 24 GiB card: the estimate keeps it resident, and a
+    // larger image than the default can still run out.
+    expect(pcAuto(6, 24 * 1024)).toEqual({
+      offload: 'none',
+      offloadFallback: 'group',
+    })
+  })
+
+  it("keeps the estimate's policy on unified memory, without a GPU, and before hardware is known", () => {
+    const onMac = mac(16 * 1024)
+    expect(
+      autoOffload(fitOf(6, onMac), onMac, { macos: true, familyId: 'z-image' })
+    ).toEqual({ offload: fitOf(6, onMac).policy })
+    expect(
+      autoOffload(fitOf(6, cpuOnly), cpuOnly, {
+        macos: false,
+        familyId: 'z-image',
+      })
+    ).toEqual({ offload: fitOf(6, cpuOnly).policy })
+    expect(
+      autoOffload(fitOf(6, null), null, { macos: false, familyId: 'z-image' })
+    ).toEqual({ offload: 'group' })
+  })
+
+  it("offloads Qwen-Image's VAE on Metal whatever the estimate says", () => {
+    const roomy = mac(128 * 1024)
+    expect(fitOf(1, roomy).policy).toBe('none')
+    expect(
+      autoOffload(fitOf(1, roomy), roomy, {
+        macos: true,
+        familyId: 'qwen-image',
+      })
+    ).toEqual({ offload: 'model' })
   })
 })

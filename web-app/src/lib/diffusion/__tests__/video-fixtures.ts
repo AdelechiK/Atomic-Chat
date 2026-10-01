@@ -10,6 +10,7 @@ import type {
   DiffusionStatus,
   GalleryVideoItem,
   VideoCapabilities,
+  VideoEstimate,
   VideoGenerateRequest,
   VideoJob,
   VideoRecipe,
@@ -362,6 +363,27 @@ export function makeVideoJob(overrides: Partial<VideoJob> = {}): VideoJob {
     finishedAtMs: 66_100,
     progress: null,
     outputs: [],
+    ...overrides,
+  }
+}
+
+/** The core's estimate: LTX on a 16 GB Mac is `exceeds`; pass a verdict to get the other two. */
+export function makeVideoEstimate(
+  verdict: VideoEstimate['memory']['verdict'] = 'fits',
+  overrides: Partial<VideoEstimate> = {}
+): VideoEstimate {
+  const GIB = 1024 ** 3
+  const required =
+    verdict === 'fits' ? 9 * GIB : verdict === 'tight' ? 13 * GIB : 27.3 * GIB
+  return {
+    memory: {
+      requiredBytes: required,
+      budgetBytes: 13.6 * GIB,
+      pool: 'unified',
+      verdict,
+    },
+    seconds: verdict === 'exceeds' ? null : { low: 240, high: 420 },
+    basis: 'heuristic',
     ...overrides,
   }
 }

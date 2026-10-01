@@ -130,6 +130,11 @@ export type LoadDiffusionModelRequest = {
   defaults: DiffusionFamilyDefaults
   ranges: DiffusionFamilyRanges
   offload: DiffusionOffloadPolicy
+  /**
+   * Where the core moves the model when it runs out of memory under `offload`:
+   * the load or the job that ran out is retried once with it. Omit to fail.
+   */
+  offloadFallback?: DiffusionOffloadPolicy
   /** Force a specific engine; omit for the plugin's own pick. */
   engine?: DiffusionEngineId
   /** Optional `--threads` for CPU backends. */
@@ -504,15 +509,41 @@ export type VideoGenerateRequest = {
   endImage?: ImageSource
 }
 
+/** Which memory a clip competes for: Apple's unified memory, a discrete GPU's, or system RAM. */
+export type VideoMemoryPool = 'unified' | 'vram' | 'system'
+
+/** `fits`: at most 80 % of the budget; `tight`: at most 100 %; `exceeds`: past it, into swap. */
+export type VideoMemoryVerdict = 'fits' | 'tight' | 'exceeds'
+
+/** `heuristic`: the core's model of the family and the machine; `history`: calibrated by this machine's clips. */
+export type VideoEstimateBasis = 'heuristic' | 'history'
+
+/** What a clip will cost on this machine with the loaded model, before it runs; the core's answer. */
+export type VideoEstimate = {
+  memory: {
+    requiredBytes: number
+    budgetBytes: number
+    /** The pool that decided the verdict. */
+    pool: VideoMemoryPool
+    verdict: VideoMemoryVerdict
+  }
+  /** Whole seconds, `0 < low <= high`; null when the verdict is `exceeds`. */
+  seconds: { low: number; high: number } | null
+  basis: VideoEstimateBasis
+}
+
 /** One clip per job, so no batch fields. */
 export type VideoJobProgress = {
   phase: VideoJobPhase
   step: number
   totalSteps: number
-  /** 0..1 overall estimate for the job. */
+  /** 0..1 overall estimate for the job; never decreases. */
   fraction: number
+  /** Seconds left for the whole job, decode included; null when unknown, past the decode forecast, and while saving. */
   etaSeconds: number | null
   elapsedMs: number
+  /** The steps slowed down sharply (likely swapping); absent from older cores, which reads as false. */
+  slowdown?: boolean
 }
 
 export type VideoJob = {
@@ -527,6 +558,8 @@ export type VideoJob = {
   /** Zero or one item. */
   outputs: GalleryVideoItem[]
   error?: DiffusionError
+  /** The core's estimate for this request, taken when the job started; absent on older cores. */
+  estimate?: VideoEstimate
 }
 
 /** Written as `<jobId>.json` beside the clip and returned with every gallery item. Enough to reproduce the clip. */
@@ -681,6 +714,12 @@ export interface DiffusionService {
   /** Refused (`MODEL_INCOMPATIBLE`) while an image model is loaded. */
   getVideoCapabilities(): Promise<VideoCapabilities>
   generateVideo(request: VideoGenerateRequest): Promise<{ jobId: string }>
+  /**
+   * What `request` would cost with the loaded model; starts nothing. Null
+   * when there is no estimate: an older core without the route, no model,
+   * an invalid request, any failure.
+   */
+  estimateVideo(request: VideoGenerateRequest): Promise<VideoEstimate | null>
   getVideoJob(jobId: string): Promise<VideoJob | null>
   cancelVideoJob(
     jobId: string

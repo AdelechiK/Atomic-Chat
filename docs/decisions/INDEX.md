@@ -9,7 +9,7 @@ decision is reversed, add a new one that says which record it supersedes.
 2. Add one line to the right section of this index.
 3. Do **not** paste the record body into `AGENTS.md`.
 
-360 records, 2026-05-19 → 2026-09-30.
+378 records, 2026-05-19 → 2026-09-30.
 
 ---
 
@@ -33,8 +33,16 @@ decision is reversed, add a new one that says which record it supersedes.
 
 ---
 
-## Local image & video generation (12)
+## Local image & video generation (20)
 
+- **2026-09-30** — [Shape the media form for the picked model, and let Generate start it](2026-09-30-shape-the-media-form-for-the-picked-model.md)
+- **2026-09-30** — [Keep image and video models on a discrete GPU](2026-09-30-keep-media-models-on-a-discrete-gpu.md)
+- **2026-09-30** — [Put Reset beside the media knobs, and warn about a swapping clip in the dialog only](2026-09-30-reset-beside-the-media-knobs-and-warn-about-swap-in-the-dialog-only.md) — narrows the 2026-09-28 estimate record: no red line for `exceeds`.
+- **2026-09-30** — [Name the Images and Video pages in their heading, and pick the mode under it](2026-09-30-name-the-media-page-in-its-heading-and-pick-the-mode-under-it.md)
+- **2026-09-29** — [Pick the image and video mode on the page, not in the sidebar](2026-09-29-pick-the-image-and-video-mode-on-the-page.md)
+- **2026-09-29** — [Install the media engine in one click, with no setup tour](2026-09-29-install-the-media-engine-in-one-click.md)
+- **2026-09-29** — [Keep the video progress inside the preview frame](2026-09-29-keep-the-video-progress-inside-the-preview-frame.md)
+- **2026-09-28** — [Show the core's video estimate, and confirm before a clip that swaps](2026-09-28-show-a-video-estimate-and-confirm-before-swapping.md)
 - **2026-09-22** — [Wire the chat side of the GPU arbitration at the model-load chokepoint](2026-09-22-wire-the-chat-side-of-the-gpu-arbitration.md) — `releaseGpuForChat` was defined by the 2026-09-10 record and called from nowhere.
 
 - **2026-09-21** — [Gate Qwen-Image-2.1 on the installed engine](2026-09-21-gate-qwen-image-2-1-on-installed-engine.md)
@@ -120,8 +128,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-07-16** — [Secure iteration 1b agent tools with run-scoped approvals](2026-07-16-secure-iteration-1b-agent-tools-with-run-scoped-approvals.md)
 - **2026-07-16** — [Bind the agent approval policy to its thread](2026-07-16-bind-the-agent-approval-policy-to-its-thread.md)
 
-## Speculative decoding — MTP / DFlash / EAGLE-3 / NextN (16)
+## Speculative decoding — MTP / DFlash / EAGLE-3 / NextN (17)
 
+- **2026-09-30** — [Accept embedded MTP on every upstream MTP architecture](2026-09-30-accept-embedded-mtp-on-every-upstream-mtp-architecture.md)
 - **2026-07-13** — [Offer every published Atomic Chat DFlash GGUF to `llamacpp-upstream`](2026-07-13-offer-every-published-atomic-chat-dflash-gguf-to-llamacpp.md)
 - **2026-07-13** — [Force greedy sampling for `llamacpp-upstream` DFlash requests](2026-07-13-force-greedy-sampling-for-llamacpp-upstream-dflash-requests.md)
 - **2026-07-13** — [Detect embedded Qwen MTP from canonical GGUF metadata](2026-07-13-detect-embedded-qwen-mtp-from-canonical-gguf-metadata.md)
@@ -150,8 +159,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-06-05** — [Port `gemma4_unified` (+ vision fixes) into the `mlx-vlm` fork so Gemma 4 12B loads under MLX (ATO-88, head 1)](2026-06-05-port-gemma4-unified-vision-fixes-into-the-mlx-vlm-fork-so-gemma.md)
 - **2026-06-02** — [Surface MLX KV-cache quantization (TurboQuant / uniform) as a provider setting](2026-06-02-surface-mlx-kv-cache-quantization-turboquant-uniform-as-a.md)
 
-## llama.cpp providers & backend selection (50)
+## llama.cpp providers & backend selection (51)
 
+- **2026-09-30** — [Stop offering Concurrent Mode](2026-09-30-stop-offering-concurrent-mode.md)
 - **2026-09-18** — [Honour "Ignore SSL certificates" for proxied plugin requests](2026-09-18-honour-ignore-ssl-for-proxied-plugin-requests.md)
 - **2026-09-18** — [Preserve the resolved backend during provider settings writes](2026-09-18-preserve-resolved-backend-during-settings-writes.md)
 
@@ -204,8 +214,10 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-05-22** — [Ship `janhq/llama.cpp` cudart DLLs with every Windows CUDA backend](2026-05-22-ship-janhq-llama-cpp-cudart-dlls-with-every-windows-cuda-backend.md)
 - **2026-05-19** — [Windows uses upstream `ggml-org/llama.cpp`, not the TurboQuant fork](2026-05-19-windows-uses-upstream-ggml-org-llama-cpp-not-the-turboquant-fork.md)
 
-## Models, Hub & downloads (31)
+## Models, Hub & downloads (33)
 
+- **2026-09-29** — [List image and video models in the Hub, from the curated catalog only](2026-09-29-list-image-and-video-models-in-the-hub.md)
+- **2026-09-29** — [Fetch large files over several connections, and give up on quiet ones](2026-09-29-fetch-large-files-over-several-connections-and-give-up-on-quiet-ones.md)
 - **2026-09-16** — [Check disk space before a download starts](2026-09-16-check-disk-space-before-a-download-starts.md)
 - **2026-09-16** — [Explain why images need a vision model, and offer the ones that run here](2026-09-16-explain-why-images-need-a-vision-model.md)
 - **2026-09-15** — [List the rest of Hugging Face under the picks, in its trending order, a page at a time](2026-09-15-list-the-rest-of-hugging-face-under-the-picks.md)
@@ -249,8 +261,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-07-15** — [Aggregate Local API Server request telemetry into three-minute summaries (ATO-297)](2026-07-15-aggregate-local-api-server-request-telemetry-into-three-minute.md)
 - **2026-06-09** — [Make the Local API Server "Invalid host header" rejection actionable + fix Trusted Hosts field copy (ATO-118, scope I+II)](2026-06-09-make-the-local-api-server-invalid-host-header-rejection.md)
 
-## Telemetry, crash reporting & error handling (10)
+## Telemetry, crash reporting & error handling (11)
 
+- **2026-09-30** — [Run hardware probes off the UI thread](2026-09-30-run-hardware-probes-off-the-ui-thread.md)
 - **2026-09-22** — [Tell the core "off" in a build that does not report](2026-09-22-tell-the-core-off-in-a-build-that-does-not-report.md)
 - **2026-09-21** — [Tell the core the error-reporting consent, and leave local engine errors to it](2026-09-21-tell-the-core-the-error-reporting-consent-and-leave-local-engine-errors-to-it.md)
 - **2026-09-14** — [Register the shared HTTP commands on mobile, and make a refused connection say so](2026-09-14-register-shared-http-commands-on-mobile-and-surface-network-failures.md)
@@ -262,8 +275,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-06-10** — [Throttle crashloop `model_load` failure spam client-side; confirm `model_load.status` / api 404-noise are already-fixed-pending-rollout, not code bugs (ATO-130: ATO-133 + ATO-131 + ATO-132)](2026-06-10-throttle-crashloop-model-load-failure-spam-client-side-confirm.md)
 - **2026-06-09** — [Add zero-PII Sentry crash/error tracking to both the React frontend and the Rust/Tauri desktop, gated behind `productAnalytic` (ATO-113)](2026-06-09-add-zero-pii-sentry-crash-error-tracking-to-both-the-react.md)
 
-## Packaging, installers, autostart & platform policy (15)
+## Packaging, installers, autostart & platform policy (19)
 
+- **2026-09-30** — [Stop a leftover app core before the Windows installer overwrites it](2026-09-30-stop-a-leftover-app-core-before-the-windows-installer-overwrites-it.md) — an update exits without `RunEvent::Exit`, so the core outlives the app.
 - **2026-09-23** — [Add a Video page that shares the image runtime](2026-09-23-add-a-video-page-that-shares-the-image-runtime.md)
 - **2026-09-23** — [Capture video posters in the webview](2026-09-23-capture-video-posters-in-the-webview.md)
 - **2026-09-23** — [Catalog video families with a video block](2026-09-23-catalog-video-families-with-a-video-block.md)
@@ -283,8 +297,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-05-22** — [Windows ships `atomic-chat-cli.exe` as a copy of `jan.exe`](2026-05-22-windows-ships-atomic-chat-cli-exe-as-a-copy-of-jan-exe.md)
 - **2026-05-22** — [Windows auto-updater uses NSIS as sole relauncher](2026-05-22-windows-auto-updater-uses-nsis-as-sole-relauncher.md)
 
-## UI / UX (82)
+## UI / UX (83)
 
+- **2026-09-29** — [Notify the desktop when a download or a generation finishes](2026-09-29-notify-the-desktop-when-a-download-or-generation-finishes.md)
 - **2026-09-25** — [Clear the composer selection after a failed model load](2026-09-25-clear-the-composer-selection-after-a-failed-load.md)
 - **2026-09-22** — [Keep the composer's approval label plain](2026-09-22-keep-the-composers-approval-label-plain.md)
 - **2026-09-19** — [Say when MCP tools are auto-approved](2026-09-19-say-when-mcp-tools-are-auto-approved.md)
@@ -369,8 +384,10 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-06-11** — [Add a unified "Sampling — {assistant}" popover (assistant switcher + sampling params in one place) (ATO-155)](2026-06-11-add-a-unified-sampling-assistant-popover-assistant-switcher.md)
 - **2026-06-10** — [Render inline image (`file`) parts in the chat thread bubble (ATO-120)](2026-06-10-render-inline-image-file-parts-in-the-chat-thread-bubble-ato-120.md)
 
-## Inference core extraction — atomic-chat-core (24)
+## Inference core extraction — atomic-chat-core (26)
 
+- **2026-09-28** — [The Logs window merges the app's and the core's logs from disk](2026-09-28-the-logs-window-merges-app-and-core-logs-from-disk.md)
+- **2026-09-27** — [The core is the only source of hardware facts and backend decisions](2026-09-27-the-core-is-the-only-source-of-hardware-facts-and-backend-decisions.md)
 - **2026-09-22** — [Desktop e2e brings its own image engine, tunnel and catalog, and expects what the app unpacks by itself](2026-09-22-desktop-e2e-brings-its-own-image-engine-tunnel-and-catalog.md)
 - **2026-09-21** — [A factory reset removes the core's folder and keeps every provider's backends](2026-09-21-a-factory-reset-removes-the-cores-folder-and-keeps-every-providers-backends.md)
 - **2026-09-19** — [Ask the core before concluding a session does not exist](2026-09-19-ask-the-core-before-concluding-a-session-does-not-exist.md)
@@ -402,8 +419,9 @@ decision is reversed, add a new one that says which record it supersedes.
 - **2026-09-30** — [TensorRT-LLM is a Linux-only extension that decides its own visibility](2026-09-30-tensorrt-llm-is-a-linux-only-extension-that-decides-its-own-visibility.md)
 - **2026-09-30** — [Run Agent turns on TensorRT-LLM through its session gateway](2026-09-30-run-agent-turns-on-tensorrt-llm-through-its-session-gateway.md)
 
-## Other (18)
+## Other (19)
 
+- **2026-09-30** — [Hide the Apple on-device provider](2026-09-30-hide-the-apple-on-device-provider.md)
 - **2026-09-22** — [Keep an unseen e2e window rendering](2026-09-22-keep-an-unseen-e2e-window-rendering.md)
 - **2026-09-21** — [Run desktop e2e scenarios side by side](2026-09-21-run-desktop-e2e-scenarios-side-by-side.md)
 - **2026-09-18** — [Drive the desktop UI through an embedded WebDriver on an isolated profile](2026-09-18-drive-the-desktop-ui-through-an-embedded-webdriver-on-an-isolated-profile.md)

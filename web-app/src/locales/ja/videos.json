@@ -1,28 +1,22 @@
 {
   "page": {
     "title": "Video",
+    "subtitle": "Create video clips from a prompt, locally",
     "loading": "Getting things ready…"
   },
+  "model": {
+    "select": "Select video model",
+    "noneInCatalog": "No video models are listed for this engine."
+  },
   "setup": {
-    "intro": {
-      "title": "Create videos locally",
-      "description": "Turn a prompt into a short clip without sending it anywhere.",
-      "bulletLocal": "Describe the scene and how it moves in your own words.",
-      "bulletRecipes": "Pick a size and a length, then refine or reuse any result.",
-      "bulletApi": "Your prompts and generated clips stay on this computer."
-    },
     "model": {
       "title": "Choose a video model",
       "description": "We picked the best version of each model for this computer."
     },
     "card": {
-      "title": "Create your first video",
-      "description": "A private video studio that runs on your computer. Two downloads are all it needs.",
+      "title": "Create videos with Local AI",
+      "description": "Turn text or a picture into video right on your computer. To start, install the media engine, then download a model.",
       "engine": "Install the media engine",
-      "engineDescription": "The local renderer that creates images and videos.",
-      "model": "Choose a video model",
-      "modelDescription": "Pick the model that generates your clips.",
-      "button": "Start setup",
       "downloadModel": "Download model"
     }
   },
@@ -54,11 +48,37 @@
     "advanced": "Advanced settings",
     "disabled": {
       "noEngine": "Install the media engine first.",
-      "noModel": "Download and load a video model first.",
+      "noModel": "Download a video model first.",
       "modelLoading": "The model is still loading.",
       "emptyPrompt": "Write a prompt first.",
       "busy": "A generation is already running."
     }
+  },
+  "workflow": {
+    "choose": "Mode",
+    "imageToVideo": {
+      "title": "Image to video",
+      "hint": "Animate a still image"
+    },
+    "soon": "Soon"
+  },
+  "estimate": {
+    "duration": "所要時間 {{range}}",
+    "tight": "メモリがぎりぎりです",
+    "exceeds": "約 {{required}} GB のメモリが必要です（使用可能 {{available}} GB）。",
+    "exceedsAdvice": "解像度や長さを下げるか、より小さいモデルを選んでください。",
+    "historyShort": "過去の実行から",
+    "history": "このコンピューターでの過去の生成から推定",
+    "units": {
+      "s": "秒",
+      "min": "分",
+      "h": "時間"
+    }
+  },
+  "confirmExceeds": {
+    "title": "このクリップはメモリに収まりません",
+    "body": "生成はスワップを使うため、コンピューターが遅くなり、数時間かかる場合があります。いつでも停止できます。",
+    "confirm": "それでも生成"
   },
   "progress": {
     "generatingVideo": "Generating video",
@@ -76,6 +96,12 @@
       "completed": "Done",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "remaining": "残り {{duration}}",
+    "slowdown": {
+      "title": "生成が大幅に遅くなりました",
+      "body": "メモリが不足している可能性があります。解像度を下げるか短いクリップにすると速くなります。",
+      "stop": "停止"
     }
   },
   "gallery": {
@@ -142,7 +168,7 @@
       "body": "{{frames}} frames at {{size}} ({{seconds}} s) did not fit in memory. A shorter duration or a smaller size usually fixes it."
     },
     "INTERNAL": {
-      "title": "The video engine failed",
+      "title": "The media engine failed",
       "body": "The engine stopped without a clip. The details are in the app log."
     }
   },

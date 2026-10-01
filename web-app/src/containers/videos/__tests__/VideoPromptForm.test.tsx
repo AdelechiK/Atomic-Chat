@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +10,7 @@ import {
 import {
   LTX_Q4_ID,
   makeVideoCapabilities,
+  makeVideoEstimate,
   makeVideoLoadedStatus,
   makeWanCapabilities,
 } from '@/lib/diffusion/__tests__/video-fixtures'
@@ -22,7 +23,13 @@ vi.mock('@/i18n/react-i18next-compat', () => ({
         ? `${values?.seconds}s · ${values?.frames} frames`
         : key === 'videos:form.fps'
           ? `${values?.fps} fps`
-          : key,
+          : key === 'videos:estimate.duration'
+            ? `Takes ${values?.range}`
+            : key === 'videos:estimate.exceeds'
+              ? `Needs ${values?.required} GB, ${values?.available} GB available`
+              : key.startsWith('videos:estimate.units.')
+                ? key.slice('videos:estimate.units.'.length)
+                : key,
   }),
 }))
 vi.mock('@tanstack/react-router', () => ({
@@ -31,7 +38,7 @@ vi.mock('@tanstack/react-router', () => ({
     <a href={to}>{children}</a>
   ),
 }))
-vi.mock('@/lib/notifications', () => ({ notifyThreadCompleted: vi.fn() }))
+vi.mock('@/lib/notifications', () => ({ notifyWhenAway: vi.fn() }))
 vi.mock('@/lib/telemetry-queue', () => ({ queuedCapture: vi.fn() }))
 vi.mock('@/lib/clipboard', () => ({ copyToClipboard: vi.fn(async () => true) }))
 vi.mock('@/containers/images/ImageModelSelector', () => ({
@@ -81,7 +88,7 @@ describe('VideoPromptForm', () => {
 
   it('keeps Generate disabled until there is a prompt, then submits the video request', async () => {
     render(<VideoPromptForm />)
-    expect(screen.getByTestId('video-form-title')).toHaveTextContent('videos:form.title')
+    expect(screen.getByTestId('video-workflow-title')).toHaveTextContent('videos:form.title')
     expect(screen.getByTestId('image-generate')).toBeDisabled()
 
     await act(async () => {
@@ -107,6 +114,27 @@ describe('VideoPromptForm', () => {
       })
     )
     expect(screen.getByTestId('image-stop')).toBeInTheDocument()
+  })
+
+  it('heads the column like Images, with the same mode pill; image-to-video is listed as coming', async () => {
+    render(<VideoPromptForm />)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('videos:page.title')
+    expect(screen.getByTestId('video-page-subtitle')).toHaveTextContent('videos:page.subtitle')
+    expect(screen.getByTestId('video-workflow-select')).toHaveAttribute('data-mode', 'create')
+
+    await act(async () => {
+      await userEvent.click(screen.getByTestId('video-workflow-select'))
+    })
+    expect(screen.getByTestId('video-workflow-option-create')).toHaveAttribute('data-selected', 'true')
+    const imageToVideo = screen.getByTestId('video-workflow-option-image-to-video')
+    expect(imageToVideo).toHaveAttribute('data-disabled')
+    expect(imageToVideo).toHaveTextContent('videos:workflow.imageToVideo.title')
+    expect(imageToVideo).toHaveTextContent('videos:workflow.soon')
+
+    await act(async () => {
+      await userEvent.click(imageToVideo)
+    })
+    expect(screen.getByTestId('video-workflow-select')).toHaveAttribute('data-mode', 'create')
   })
 
   it('submits on Ctrl+Enter', async () => {
@@ -170,20 +198,28 @@ describe('VideoPromptForm', () => {
     useVideoSetting.setState({ selectedArtifactId: 'wan2.2-ti2v-5b:q4_k_m' })
     render(<VideoPromptForm />)
     expect(screen.getByText('videos:form.negativePrompt')).toBeInTheDocument()
-    // The knob shows the draft's cfg; the defaults land through the store's reset on load.
-    expect(screen.getByRole('spinbutton', { name: 'videos:form.guidance' })).toHaveValue(1)
+    // Another family: the draft took Wan's own numbers, cfg 5 among them.
+    expect(screen.getByRole('spinbutton', { name: 'videos:form.guidance' })).toHaveValue(5)
     expect(
       screen.getByRole('spinbutton', { name: 'videos:form.distilledGuidance' })
     ).toBeInTheDocument()
-    // The load clamped the draft to Wan's own presets and lattice.
-    expect(useVideoForm.getState()).toMatchObject({ width: 1280, height: 704 })
+    expect(useVideoForm.getState()).toMatchObject({
+      recipeFamily: 'wan2.2-ti2v-5b',
+      width: 1280,
+      height: 704,
+    })
   })
 
   it('resets the knobs to the model defaults but keeps the prompt', async () => {
     useVideoForm.setState({ prompt: 'kept', frames: 25, steps: 3, seedText: '9' })
     render(<VideoPromptForm />)
+    // Reset sits in the settings heading, not in the page heading.
+    const heading = screen.getByTestId('video-settings-heading')
+    expect(heading).toHaveTextContent('common:settings')
     await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: 'videos:form.reset' }))
+      await userEvent.click(
+        within(heading).getByRole('button', { name: 'videos:form.reset' })
+      )
     })
     expect(useVideoForm.getState()).toMatchObject({
       prompt: 'kept',
@@ -228,5 +264,89 @@ describe('VideoPromptForm', () => {
     })
     expect(useImageSetting.getState().keepModelLoaded).toBe(true)
     expect(fake.configure).toHaveBeenCalled()
+  })
+
+  describe('the estimate', () => {
+    it('reads a range of time when the clip fits', async () => {
+      fake.estimateVideo.mockResolvedValue(makeVideoEstimate('fits'))
+      render(<VideoPromptForm />)
+      const line = await screen.findByTestId('video-estimate')
+      expect(line).toHaveAttribute('data-verdict', 'fits')
+      expect(line).toHaveTextContent('Takes ~4–7 min')
+      expect(line).not.toHaveTextContent('videos:estimate.tight')
+      expect(
+        screen.queryByTestId('video-estimate-history')
+      ).not.toBeInTheDocument()
+      // The form's numbers go to the core, never the prompt.
+      expect(fake.estimateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'estimate',
+          width: 768,
+          height: 512,
+          frames: 121,
+          steps: 8,
+        })
+      )
+    })
+
+    it('warns when memory is tight, and marks an estimate made from this machine’s clips', async () => {
+      fake.estimateVideo.mockResolvedValue(
+        makeVideoEstimate('tight', { basis: 'history' })
+      )
+      render(<VideoPromptForm />)
+      const line = await screen.findByTestId('video-estimate')
+      expect(line).toHaveAttribute('data-verdict', 'tight')
+      expect(line).toHaveTextContent('Takes ~4–7 min')
+      expect(line).toHaveTextContent('videos:estimate.tight')
+      expect(screen.getByTestId('video-estimate-history')).toHaveTextContent(
+        'videos:estimate.historyShort'
+      )
+    })
+
+    it('leaves an exceeding clip to the confirmation: no warning under Generate', async () => {
+      fake.estimateVideo.mockResolvedValue(makeVideoEstimate('exceeds'))
+      render(<VideoPromptForm />)
+      await vi.waitFor(() => expect(fake.estimateVideo).toHaveBeenCalled())
+      await act(async () => {})
+      expect(screen.queryByTestId('video-estimate')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Needs 27\.3 GB/)).not.toBeInTheDocument()
+    })
+
+    it('shows nothing when the core has no estimate, and Generate works as before', async () => {
+      fake.estimateVideo.mockResolvedValue(null)
+      useVideoForm.setState({ prompt: 'a cat' })
+      render(<VideoPromptForm />)
+      await vi.waitFor(() => expect(fake.estimateVideo).toHaveBeenCalled())
+      await act(async () => {})
+      expect(screen.queryByTestId('video-estimate')).not.toBeInTheDocument()
+      await act(async () => {
+        await userEvent.click(screen.getByTestId('image-generate'))
+      })
+      expect(fake.generateVideo).toHaveBeenCalledTimes(1)
+      expect(
+        screen.queryByTestId('video-exceeds-dialog')
+      ).not.toBeInTheDocument()
+    })
+
+    it('asks before generating a clip that exceeds memory', async () => {
+      fake.estimateVideo.mockResolvedValue(makeVideoEstimate('exceeds'))
+      useVideoForm.setState({ prompt: 'a cat' })
+      render(<VideoPromptForm />)
+      await vi.waitFor(() => expect(fake.estimateVideo).toHaveBeenCalled())
+      await act(async () => {})
+      await act(async () => {
+        await userEvent.click(screen.getByTestId('image-generate'))
+      })
+      const dialog = screen.getByTestId('video-exceeds-dialog')
+      expect(dialog).toHaveTextContent('Needs 27.3 GB, 13.6 GB available')
+      expect(dialog).toHaveTextContent('videos:estimate.exceedsAdvice')
+      expect(fake.generateVideo).not.toHaveBeenCalled()
+      await act(async () => {
+        await userEvent.click(screen.getByText('videos:confirmExceeds.confirm'))
+      })
+      expect(fake.generateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'a cat', frames: 121 })
+      )
+    })
   })
 })

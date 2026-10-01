@@ -41,7 +41,9 @@ import {
 } from '@/services/diffusion/transfer'
 import type {
   DiffusionEngineId,
+  DiffusionFamilyDefaults,
   DiffusionFamilyId,
+  DiffusionFamilyRanges,
   DiffusionModelFile,
   DiffusionModelFiles,
   DiffusionOffloadPolicy,
@@ -388,6 +390,64 @@ const absolutePathOf = (
   )?.path ?? entry.savePath
 
 /**
+ * A family's generation defaults in the plugin's shape. Pure. The load
+ * request carries them, and the Images and Video forms read them before the
+ * model is loaded (`lib/diffusion/capabilities.ts`).
+ */
+export function familyDefaults(
+  family: DiffusionCatalogFamily
+): DiffusionFamilyDefaults {
+  const { defaults } = family
+  return {
+    steps: defaults.steps,
+    cfgScale: defaults.cfg_scale,
+    ...(defaults.guidance !== undefined ? { guidance: defaults.guidance } : {}),
+    ...(defaults.sampling_method
+      ? { samplingMethod: defaults.sampling_method }
+      : {}),
+    ...(defaults.flow_shift !== undefined
+      ? { flowShift: defaults.flow_shift }
+      : {}),
+    width: defaults.width,
+    height: defaults.height,
+    ...(defaults.sigmas ? { sigmas: [...defaults.sigmas] } : {}),
+    ...(family.video
+      ? {
+          video: {
+            fps: family.video.fps,
+            frames: family.video.frames,
+            frameStep: family.video.frame_step,
+            frameOffset: family.video.frame_offset,
+            resolutionPresets: family.video.resolution_presets.map(
+              ([w, h]) => [w, h] as [number, number]
+            ),
+          },
+        }
+      : {}),
+  }
+}
+
+/** A family's ranges in the plugin's shape. Pure. */
+export function familyRanges(
+  family: DiffusionCatalogFamily
+): DiffusionFamilyRanges {
+  const { ranges } = family
+  return {
+    steps: [ranges.steps[0], ranges.steps[1]],
+    dims: [ranges.dims[0], ranges.dims[1]],
+    dimMultiple: ranges.dim_multiple,
+    ...(family.video
+      ? {
+          frames: [family.video.frame_range[0], family.video.frame_range[1]] as [
+            number,
+            number,
+          ],
+        }
+      : {}),
+  }
+}
+
+/**
  * The plugin's load request for an artifact. Pure. Side files map by their
  * catalog `field` onto the sd-cli flag slots; family defaults and ranges are
  * carried along so the plugin can validate requests without the catalog.
@@ -399,6 +459,7 @@ export function buildLoadRequest(
   modelsRoot: string,
   opts: {
     offload: DiffusionOffloadPolicy
+    offloadFallback?: DiffusionOffloadPolicy
     engine?: DiffusionEngineId
     threads?: number
     startupTimeoutSecs?: number
@@ -449,54 +510,16 @@ export function buildLoadRequest(
     }
   }
 
-  const { defaults, ranges } = family
   return {
     modelId: plan.artifactId,
     family: family.id,
     modality: family.modality,
     displayName: `${family.name} ${quant.label}`,
     files: modelFiles,
-    defaults: {
-      steps: defaults.steps,
-      cfgScale: defaults.cfg_scale,
-      ...(defaults.guidance !== undefined ? { guidance: defaults.guidance } : {}),
-      ...(defaults.sampling_method
-        ? { samplingMethod: defaults.sampling_method }
-        : {}),
-      ...(defaults.flow_shift !== undefined
-        ? { flowShift: defaults.flow_shift }
-        : {}),
-      width: defaults.width,
-      height: defaults.height,
-      ...(defaults.sigmas ? { sigmas: [...defaults.sigmas] } : {}),
-      ...(family.video
-        ? {
-            video: {
-              fps: family.video.fps,
-              frames: family.video.frames,
-              frameStep: family.video.frame_step,
-              frameOffset: family.video.frame_offset,
-              resolutionPresets: family.video.resolution_presets.map(
-                ([w, h]) => [w, h] as [number, number]
-              ),
-            },
-          }
-        : {}),
-    },
-    ranges: {
-      steps: [ranges.steps[0], ranges.steps[1]],
-      dims: [ranges.dims[0], ranges.dims[1]],
-      dimMultiple: ranges.dim_multiple,
-      ...(family.video
-        ? {
-            frames: [family.video.frame_range[0], family.video.frame_range[1]] as [
-              number,
-              number,
-            ],
-          }
-        : {}),
-    },
+    defaults: familyDefaults(family),
+    ranges: familyRanges(family),
     offload: opts.offload,
+    ...(opts.offloadFallback ? { offloadFallback: opts.offloadFallback } : {}),
     ...(opts.engine ? { engine: opts.engine } : {}),
     ...(opts.threads !== undefined ? { threads: opts.threads } : {}),
     ...(opts.startupTimeoutSecs !== undefined

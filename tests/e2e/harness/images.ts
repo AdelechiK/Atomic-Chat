@@ -351,27 +351,23 @@ export const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).dige
 
 // --- the page ----------------------------------------------------------------
 
-/** The sidebar's label for each workflow (`images:workflow.<id>.label`). */
-const WORKFLOW_LABEL: Record<string, string> = {
-  create: 'Create',
-  transform: 'Transform',
-  inpaint: 'Inpaint',
-  extend: 'Extend',
-  upscale: 'Upscale',
-  reference: 'Reference',
-  edit: 'Edit',
-}
-
-/** Opens Images → `workflow` from the sidebar and waits for the studio. */
+/**
+ * Opens Images from the sidebar, picks `workflow` in the form's mode heading
+ * (the sidebar has one Images row), and waits for the studio.
+ */
 export async function openImages(session: Session, workflow = 'create'): Promise<void> {
   const browser = session.app.browser
-  const submenu = browser.$('[data-testid="images-submenu"]')
-  if (!(await submenu.isDisplayed().catch(() => false))) {
-    await browser.$('[data-testid="images-disclosure"]').click()
-    await submenu.waitForDisplayed({ timeout: 15_000 })
-  }
-  await submenu.$(`a=${WORKFLOW_LABEL[workflow]}`).click()
+  await browser.$('[data-testid="images-link"]').click()
   await browser.$('[data-testid="image-generation-page"]').waitForDisplayed({ timeout: 30_000 })
+  if (workflow === 'create') return
+  const select = browser.$('[data-testid="image-workflow-select"]')
+  await select.waitForDisplayed({ timeout: 15_000 })
+  await select.click()
+  await browser.$(`[data-testid="image-workflow-option-${workflow}"]`).click()
+  await browser.waitUntil(async () => (await select.getAttribute('data-mode')) === workflow, {
+    timeout: 15_000,
+    timeoutMsg: `the page did not switch to ${workflow}`,
+  })
 }
 
 const RUNTIME_CONTROL = '[data-testid="image-model-runtime-indicator"], [data-testid="image-model-runtime-action"]'

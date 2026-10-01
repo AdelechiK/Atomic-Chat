@@ -535,7 +535,7 @@ async function ensureDiskSpace(
   const toGiB = (bytes: number) => (bytes / 1024 ** 3).toFixed(1)
   throw new DiffusionInstallError(
     'DISK_FULL',
-    `Not enough free disk space to install the image engine: ${toGiB(required)} GB needed, ${toGiB(free)} GB free.`
+    `Not enough free disk space to install the media engine: ${toGiB(required)} GB needed, ${toGiB(free)} GB free.`
   )
 }
 

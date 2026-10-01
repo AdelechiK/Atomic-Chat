@@ -72,14 +72,21 @@ test('the extension implements every method the backend updater calls', () => {
 
 const SHARED_ADAPTER = join(REPO_ROOT, 'extensions', 'shared')
 
-test('the core adapter exists and never opens an HTTP connection of its own', () => {
+// Both llama.cpp extensions bind the shared adapter to their provider; the TurboQuant one came with
+// stage 10c, when hardware facts and backend decisions moved into the core.
+const CORE_ADAPTERS = [
+  join(EXTENSION, 'adapter', 'coreRuntime.ts'),
+  join(REPO_ROOT, 'extensions', 'llamacpp-extension', 'src', 'adapter', 'coreRuntime.ts'),
+]
+
+test('the core adapters exist and never open an HTTP connection of their own', () => {
   // The control token lives in Rust. A URL here would mean the webview held a credential that can
   // load models and start processes.
-  const adapter = join(EXTENSION, 'adapter', 'coreRuntime.ts')
-  assert.ok(existsSync(adapter), 'the adapter is what the migrated methods route through')
+  for (const adapter of CORE_ADAPTERS)
+    assert.ok(existsSync(adapter), `${adapter} is what the migrated methods route through`)
 
   for (const path of [
-    adapter,
+    ...CORE_ADAPTERS,
     join(SHARED_ADAPTER, 'atomicCoreRuntime.ts'),
     join(SHARED_ADAPTER, 'atomicCoreSettingsSync.ts'),
   ]) {
@@ -157,6 +164,61 @@ test('no extension calls a plugin command that used to own a model process', () 
     }
   }
   assert.deepEqual(offenders, [], `removed plugin commands are still called:\n${offenders.join('\n')}`)
+})
+
+// Stage 10c: the core decides which llama.cpp backend fits, is recommended or needs an update, for
+// both providers. The Rust commands that used to decide stay in the plugins, marked deprecated, as the
+// fixture source for the core's contract tests — no extension may call them, or the decision is made
+// twice, from two different views of the hardware.
+const RETIRED_DECISION_COMMANDS = [
+  'get_supported_features', 'determine_supported_backends', 'list_supported_backends',
+  'find_latest_version_for_backend', 'prioritize_backends', 'check_backend_for_updates',
+  'should_migrate_backend', 'handle_setting_update', 'fetch_manifest_http1',
+]
+const RETIRED_DECISION_GUEST_FUNCTIONS = [
+  'getSupportedFeaturesFromRust', 'determineSupportedBackends', 'listSupportedBackendsFromRust',
+  'findLatestVersionForBackend', 'prioritizeBackends', 'checkBackendForUpdates',
+  'shouldMigrateBackend', 'handleSettingUpdate', 'fetchManifestHttp1',
+]
+
+const LLAMACPP_EXTENSIONS = ['llamacpp-extension', 'llamacpp-upstream-extension']
+
+test('no extension asks the plugins to decide on backends any more', () => {
+  const offenders = []
+  for (const extension of LLAMACPP_EXTENSIONS) {
+    for (const path of sourcesUnder(join(REPO_ROOT, 'extensions', extension, 'src'))) {
+      const source = readFileSync(path, 'utf8')
+      for (const [, command] of source.matchAll(/'plugin:[\w-]+\|(\w+)'/g))
+        if (RETIRED_DECISION_COMMANDS.includes(command)) offenders.push(`${path}: ${command}`)
+      for (const [, names] of source.matchAll(
+        /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*'@janhq\/tauri-plugin-[\w-]+-api'/g
+      ))
+        for (const name of names.split(',').map((n) => n.trim().split(/\s+as\s+/)[0]))
+          if (RETIRED_DECISION_GUEST_FUNCTIONS.includes(name)) offenders.push(`${path}: ${name}`)
+    }
+  }
+  assert.deepEqual(offenders, [], `retired decision commands are still called:\n${offenders.join('\n')}`)
+})
+
+// The core is the only source of hardware facts. The one plugin read left is the TurboQuant
+// extension's usage-row uuid matching for `getDevices()`; the app no longer injects an override.
+const HARDWARE_PLUGIN_READ_ALLOWED = join(REPO_ROOT, 'extensions', 'llamacpp-extension', 'src', 'hardware.ts')
+
+test('no extension injects hardware facts or reads them from the plugin', () => {
+  const offenders = []
+  for (const extension of LLAMACPP_EXTENSIONS) {
+    for (const path of sourcesUnder(join(REPO_ROOT, 'extensions', extension, 'src'))) {
+      const source = readFileSync(path, 'utf8')
+      if (source.includes('sendHardwareOverride')) offenders.push(`${path}: sendHardwareOverride`)
+      if (path !== HARDWARE_PLUGIN_READ_ALLOWED && source.includes('plugin:hardware|get_system_info'))
+        offenders.push(`${path}: plugin:hardware|get_system_info`)
+    }
+  }
+  for (const path of sourcesUnder(SHARED_ADAPTER)) {
+    const source = readFileSync(path, 'utf8')
+    if (source.includes('sendHardwareOverride')) offenders.push(`${path}: sendHardwareOverride`)
+  }
+  assert.deepEqual(offenders, [], `hardware facts still bypass the core:\n${offenders.join('\n')}`)
 })
 
 test('no extension asks who owns the runtime any more', () => {

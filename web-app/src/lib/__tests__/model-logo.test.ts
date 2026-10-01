@@ -177,6 +177,13 @@ describe('isMonochromeFamilyLogo', () => {
     expect(isMonochromeFamilyLogo('/svg/nousresearch.svg')).toBe(true)
     expect(isMonochromeFamilyLogo('/svg/zai.svg')).toBe(true)
     expect(isMonochromeFamilyLogo('/svg/minimax.svg')).toBe(true)
+    // A dark mark on transparency: a plain <img> loses it in dark mode.
+    expect(
+      isMonochromeFamilyLogo('/images/model-provider/prism-ml.webp')
+    ).toBe(true)
+    expect(isMonochromeFamilyLogo('/images/model-provider/ling.webp')).toBe(
+      false
+    )
     expect(isMonochromeFamilyLogo('/svg/qwen-color.svg')).toBe(false)
     expect(isMonochromeFamilyLogo('/svg/ai2-color.svg')).toBe(false)
   })

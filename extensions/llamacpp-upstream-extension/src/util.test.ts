@@ -610,6 +610,29 @@ describe('hasEmbeddedMtp', () => {
     ).toBe(true)
   })
 
+  it.each([
+    'qwen3next',
+    'glm4moe',
+    'glm-dsa',
+    'deepseek2',
+    'deepseek32',
+    'deepseek4',
+    'nemotron_h_moe',
+    'step35',
+    'mimo2',
+    'bailingmoe3',
+    'hy_v3',
+    'cohere2moe',
+  ])('detects embedded MTP in a %s GGUF (upstream MTP graph)', (arch) => {
+    expect(
+      hasEmbeddedMtp({
+        'general.architecture': arch,
+        [`${arch}.block_count`]: '48',
+        [`${arch}.nextn_predict_layers`]: '1',
+      })
+    ).toBe(true)
+  })
+
   it('does not require MTP in a filename or model id', () => {
     const filename = 'Qwen3.5-4B-Q4_K_M.gguf'
     expect(filename.toLowerCase()).not.toContain('mtp')
@@ -650,6 +673,11 @@ describe('hasEmbeddedMtp', () => {
       'general.architecture': 'gemma4',
       'gemma4.block_count': '49',
       'gemma4.nextn_predict_layers': '1',
+    },
+    {
+      'general.architecture': 'nemotron_h',
+      'nemotron_h.block_count': '42',
+      'nemotron_h.nextn_predict_layers': '1',
     },
   ])('rejects non-capable metadata %#', (metadata) => {
     expect(hasEmbeddedMtp(metadata)).toBe(false)

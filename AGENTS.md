@@ -82,6 +82,10 @@ Consequences you must respect:
   because ggml-org publishes no Linux CUDA/ROCm artifact. Never widen one
   provider's matrix from the other's hardware probe. Upstream ROCm exists on
   Windows only, gated on a generated AMD PCI-id table.
+- Hardware facts and backend recommendations come from the core (`GET /hardware/info`,
+  `POST /backends/:provider/{catalog,recommendation,updates}`). `tauri-plugin-hardware`
+  is System Monitor usage polling only; never probe hardware in the app to decide a
+  backend. The Rust decision commands are deprecated: the `backend-select` fixture source.
 - `llamacpp-upstream` artefacts come from the signed `atomic-chat-conf` mirror,
   with ggml-org as the fallback for an unmirrored tag. Resolve tag, asset, URL
   and `sha256` through `scripts/resolve-upstream-backend.mjs` — never hardcode a

@@ -1442,7 +1442,7 @@ function ProviderDetail() {
     ]
   )
 
-  /// Toggle the upstream-llama MTP flag (`--spec-type draft-mtp`). Qwen
+  /// Toggle the upstream-llama MTP flag (`--spec-type draft-mtp`). Embedded
   /// capability is read from canonical GGUF metadata; Gemma 4 uses a separate
   /// draft head downloaded by the extension.
   ///
@@ -1492,16 +1492,17 @@ function ProviderDetail() {
       try {
         if (nextEnabled) {
           /// Capability check. Two MTP shapes are supported:
-          ///  - Qwen built-in MTP: canonical GGUF metadata reports the embedded
-          ///    NextN layers (head inside the same GGUF).
+          ///  - Built-in MTP (Qwen3.5/3.6, Qwen3-Next, GLM, DeepSeek and every
+          ///    other upstream MTP architecture): canonical GGUF metadata
+          ///    reports the embedded NextN layers (head inside the same GGUF).
           ///  - Gemma 4 MTP (31B / 26B-A4B): needs a SEPARATE draft head GGUF
           ///    downloaded next to the model (PR #23398).
           /// If the loaded model id is neither, refuse the toggle and surface
           /// the popup — don't write the setting (the Switch stays off).
           if (activeModel) {
-            const isQwenMtp =
+            const isEmbeddedMtp =
               (await engine.checkEmbeddedMtpSupport?.(activeModel)) ?? false
-            if (!isQwenMtp) {
+            if (!isEmbeddedMtp) {
               const isGemmaMtp =
                 (await engine.checkGemmaMtpSupport?.(activeModel)) ?? false
               if (!isGemmaMtp) {
@@ -2007,22 +2008,13 @@ function ProviderDetail() {
                 }
               >
                 {provider?.settings.map((setting, settingIndex) => {
-                  // Concurrent Mode acts as a master toggle over `parallel`,
-                  // `cont_batching` and `expose_metrics`. When it's on, those
-                  // rows are visually dimmed to signal they're managed.
-                  const concurrentModeOn = !!(
-                    provider?.settings.find((s) => s.key === 'concurrent_mode')
-                      ?.controller_props as { value?: boolean } | undefined
-                  )?.value
-                  const isManagedByConcurrentMode =
-                    concurrentModeOn &&
-                    (setting.key === 'parallel' ||
-                      setting.key === 'cont_batching' ||
-                      setting.key === 'expose_metrics')
-                  // Concurrent Slots only makes sense when Concurrent Mode is
-                  // on; hide the row entirely otherwise to reduce clutter.
-                  const isHiddenByConcurrentMode =
-                    !concurrentModeOn && setting.key === 'concurrent_slots'
+                  // Concurrent Mode is not offered: its rows stay in the core's
+                  // schema, and both llama.cpp extensions switch a stored
+                  // `concurrent_mode: true` off on start
+                  // (migrateConcurrentModeOff).
+                  const isHiddenConcurrentMode =
+                    setting.key === 'concurrent_mode' ||
+                    setting.key === 'concurrent_slots'
                   // TensorRT-LLM picks its card from the GPUs the core found, in
                   // its own card below, rather than as a typed UUID.
                   const isHiddenForTensorrt =
@@ -2230,7 +2222,7 @@ function ProviderDetail() {
                           controllerProps={setting.controller_props}
                           className={cn(
                             setting.key === 'device' && 'hidden',
-                            isHiddenByConcurrentMode && 'hidden',
+                            isHiddenConcurrentMode && 'hidden',
                             isHiddenByDflash && 'hidden',
                             isHiddenForTensorrt && 'hidden'
                           )}
@@ -2273,29 +2265,6 @@ function ProviderDetail() {
                                   value: string | boolean | number
                                 }
                               ).value = newValue
-
-                              // Concurrent Mode implies Prometheus /metrics:
-                              // when the user turns the master toggle on,
-                              // reflect the implicit expose_metrics=true in
-                              // the UI so the Prometheus checkbox matches the
-                              // server-side behaviour enforced in args.rs.
-                              if (
-                                setting.key === 'concurrent_mode' &&
-                                newValue === true
-                              ) {
-                                const metricsIdx = newSettings.findIndex(
-                                  (s) => s.key === 'expose_metrics'
-                                )
-                                if (metricsIdx !== -1) {
-                                  (
-                                    newSettings[metricsIdx]
-                                      .controller_props as {
-                                      value: boolean
-                                    }
-                                  ).value = true
-                                  changedSettingKeys.add('expose_metrics')
-                                }
-                              }
 
                               // Create update object with updated settings
                               const updateObj: Partial<ModelProvider> = {
@@ -2437,11 +2406,9 @@ function ProviderDetail() {
                       title={setting.title}
                       className={cn(
                         setting.key === 'device' && 'hidden',
-                        isHiddenByConcurrentMode && 'hidden',
+                        isHiddenConcurrentMode && 'hidden',
                         isHiddenByDflash && 'hidden',
-                        isHiddenForTensorrt && 'hidden',
-                        isManagedByConcurrentMode &&
-                          'opacity-60 pointer-events-none'
+                        isHiddenForTensorrt && 'hidden'
                       )}
                       column={
                         setting.controller_type === 'input' &&
@@ -2472,14 +2439,6 @@ function ProviderDetail() {
                               ),
                             }}
                           />
-                          {setting.key === 'concurrent_slots' &&
-                            concurrentModeOn && (
-                              <div className="mt-1 text-sm text-muted-foreground">
-                                {t(
-                                  'providers:llamacpp.concurrentMode.perSlotContextWarning'
-                                )}
-                              </div>
-                            )}
                           {setting.key === 'version_backend' &&
                             setting.controller_props?.recommended && (
                               <div className="mt-1 text-sm text-muted-foreground">

@@ -7,9 +7,9 @@ import HeaderPage from '@/containers/HeaderPage'
 import { route } from '@/constants/routes'
 import { ImageEmptyState } from '@/containers/images/ImageEmptyState'
 import { ImageErrorBanner } from '@/containers/images/ImageErrorBanner'
-import { ImageGenerationPlaceholder } from '@/containers/images/ImageGenerationPlaceholder'
 import { ImageSetupCard } from '@/containers/images/ImageSetupCard'
 import { useImageEngine } from '@/hooks/useImageEngine'
+import { useMediaTarget } from '@/hooks/useMediaTarget'
 import { useServiceHub } from '@/hooks/useServiceHub'
 import { useVideoForm } from '@/hooks/useVideoForm'
 import { useVideoGallery } from '@/hooks/useVideoGallery'
@@ -26,6 +26,10 @@ import {
 import { useVideoGalleryStore } from '@/stores/video-gallery-store'
 import { useVideoGenerationStore } from '@/stores/video-generation-store'
 import { VideoGalleryGrid } from './VideoGalleryGrid'
+import {
+  VideoGenerationProgress,
+  VideoSlowdownWarning,
+} from './VideoGenerationProgress'
 import { VideoPromptForm } from './VideoPromptForm'
 import { VideoViewer } from './VideoViewer'
 
@@ -78,14 +82,16 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
     state.lastErrorModality === 'video' ? state.lastError : null
   )
   const clearModelError = useImageGenerationStore((state) => state.clearError)
-  const openSetup = useImageGenerationStore((state) => state.openSetup)
   const loadModel = useImageGenerationStore((state) => state.loadModel)
+  const installEngine = useImageGenerationStore((state) => state.installEngine)
   const generating = useVideoGenerationStore((state) => state.generating)
   const currentJob = useVideoGenerationStore((state) => state.currentJob)
   const generationStartedAtMs = useVideoGenerationStore(
     (state) => state.generationStartedAtMs
   )
   const jobError = useVideoGenerationStore((state) => state.lastError)
+  const stopRequested = useVideoGenerationStore((state) => state.stopRequested)
+  const stopGeneration = useVideoGenerationStore((state) => state.stop)
   const clearJobError = useVideoGenerationStore((state) => state.clearError)
   const requestPoster = useVideoGenerationStore((state) => state.requestPoster)
   const patchForm = useVideoForm((state) => state.patch)
@@ -97,10 +103,10 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
   )
   const [modelsOpen, setModelsOpen] = useState(false)
 
-  const modelLoaded =
-    status?.model.state === 'loaded' &&
-    status.model.loaded?.modality === 'video'
+  const modelPicked = useMediaTarget('video').artifactId !== null
   const showLivePreview = generating && viewerMode === 'live'
+  // An older core never says; absent reads as no slowdown.
+  const slowedDown = generating && currentJob?.progress?.slowdown === true
   const pendingSize = {
     width: currentJob?.request.width || draftWidth,
     height: currentJob?.request.height || draftHeight,
@@ -162,11 +168,11 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
           void useImageGenerationStore.getState().updateEngine()
           return
         case 'install':
-          openSetup(1, 'video')
+          void installEngine()
           return
         case 'download':
           if (engine.installed) setModelsOpen(true)
-          else openSetup(1, 'video')
+          else void installEngine()
           return
         case 'openSettings':
           void navigate({ to: route.settings.media })
@@ -195,8 +201,8 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
       capabilities,
       clearError,
       engine.installed,
+      installEngine,
       navigate,
-      openSetup,
       patchForm,
       serviceHub,
       status?.videoOutputDir,
@@ -275,12 +281,20 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
             />
           </div>
         )}
+        {slowedDown && (
+          <div className="shrink-0 px-6 pt-3">
+            <VideoSlowdownWarning
+              stopping={stopRequested}
+              onStop={() => void stopGeneration()}
+            />
+          </div>
+        )}
 
         {gallery.initialized && gallery.items.length === 0 && !generating ? (
           <div className="min-h-0 flex-1">
             <ImageEmptyState
               modality="video"
-              modelLoaded={modelLoaded}
+              modelPicked={modelPicked}
               onDownloadModel={
                 engine.installed && !hasModel ? openModels : undefined
               }
@@ -293,12 +307,10 @@ export const VideoGenerationPage = memo(function VideoGenerationPage({
               data-testid="video-viewer-section"
             >
               {showLivePreview ? (
-                <ImageGenerationPlaceholder
-                  variant="viewer"
-                  kind="video"
+                <VideoGenerationProgress
+                  job={currentJob}
                   width={pendingSize.width}
                   height={pendingSize.height}
-                  progress={currentJob?.progress ?? null}
                   startedAtMs={pendingStartedAtMs}
                 />
               ) : (

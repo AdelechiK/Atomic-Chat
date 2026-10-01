@@ -11,6 +11,7 @@ import SetupScreen from '@/containers/SetupScreen'
 import { route } from '@/constants/routes'
 import { hasPriorAppUse, isOnboardingPending } from '@/lib/onboarding'
 import { localStorageKey } from '@/constants/localStorage'
+import { useSetupCompleted } from '@/hooks/useSetupCompleted'
 import { useCallback, useEffect, useState } from 'react'
 import { useThreads } from '@/hooks/useThreads'
 import { useAgentMode } from '@/hooks/useAgentMode'
@@ -94,11 +95,18 @@ function Index() {
     window.dispatchEvent(new Event('app:setup-completed'))
   }, [forceOnboarding, hasPriorThread, providers])
 
+  // Every exit from SetupScreen persists the flag and fires the same-tab event,
+  // but not every exit changes this route's search: starting a download
+  // navigates to `/` with an empty one, so without the subscription nothing
+  // re-renders and the Welcome screen stays up over a download in progress.
+  const setupCompleted = useSetupCompleted()
+
   // Shared with the startup auto-start gate so the two can never disagree about
   // onboarding. Also covers the dev-only FORCE_ONBOARDING flag, which enters
   // onboarding despite installed models without blocking the way out.
   const onboardingPending =
     !setupSkippedThisSession &&
+    !setupCompleted &&
     (forceOnboarding || !hasPriorThread) &&
     isOnboardingPending(providers)
 

@@ -4,13 +4,12 @@ import { useHardware } from '@/hooks/useHardware'
 import { useImageForm } from '@/hooks/useImageForm'
 import { useImageSetting } from '@/hooks/useImageSetting'
 import { getServiceHub } from '@/hooks/useServiceHub'
-import { useVideoForm } from '@/hooks/useVideoForm'
 import { useVideoSetting } from '@/hooks/useVideoSetting'
 import { i18n } from '@/i18n/react-i18next-compat'
 import { acquireGpuForDiffusion } from '@/lib/diffusion/arbiter'
 import { configureDiffusion, getDiffusionPaths } from '@/lib/diffusion/config'
 import { toDiffusionError } from '@/lib/diffusion/errors'
-import { fitForQuant } from '@/lib/diffusion/fit'
+import { autoOffload, fitForQuant } from '@/lib/diffusion/fit'
 import {
   shouldContinueGenerating,
   shouldReportGenerateError,
@@ -29,7 +28,7 @@ import {
 } from '@/lib/diffusion/telemetry'
 import { validateImageRequest } from '@/lib/diffusion/validate'
 import { describeHardware, type HardwareProfile } from '@/lib/hardware-tier'
-import { notifyThreadCompleted } from '@/lib/notifications'
+import { notifyWhenAway } from '@/lib/notifications'
 import {
   supportsDiffusionFamily,
   MODERN_IMAGE_ENGINE_TAG,
@@ -59,9 +58,6 @@ import {
 } from '@/services/diffusion-catalog-registry'
 import { useImageGalleryStore } from '@/stores/image-gallery-store'
 import { raiseLocalApiServerForMediaModel } from '@/utils/localApiServerControl'
-
-/** 0 = what it is, 1 = install the engine, 2 = pick and download a model. */
-export type ImageSetupStep = 0 | 1 | 2
 
 export type EngineInstallProgress = {
   inFlight: boolean
@@ -138,9 +134,9 @@ type ImageGenerationState = {
   engineUpdate: EngineUpdateState
   pendingEngineArtifactId: string | null
 
+  /** The model-list dialog, for the places with no picker of their own. */
   setupOpen: boolean
-  setupStep: ImageSetupStep
-  /** Which page opened the wizard: its intro copy and its model list follow. */
+  /** Which page opened the dialog: its copy and its model list follow. */
   setupModality: DiffusionModality
 
   bind: () => Promise<void>
@@ -172,7 +168,7 @@ type ImageGenerationState = {
   stop: () => Promise<void>
   clearError: () => void
 
-  openSetup: (step?: ImageSetupStep, modality?: DiffusionModality) => void
+  openSetup: (modality?: DiffusionModality) => void
   closeSetup: () => void
   reset: () => void
 }
@@ -248,7 +244,6 @@ const initial = {
   engineUpdate: noUpdate,
   pendingEngineArtifactId: null,
   setupOpen: false,
-  setupStep: 0 as ImageSetupStep,
   setupModality: 'image' as DiffusionModality,
 }
 
@@ -391,8 +386,7 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
 
   const notifyIfUnfocused = (count: number) => {
     if (count <= 0) return
-    if (typeof document !== 'undefined' && document.hasFocus()) return
-    void notifyThreadCompleted(
+    notifyWhenAway(
       i18n.t('images:notifications.readyTitle'),
       i18n.t('images:notifications.readyBody', { count })
     )
@@ -732,7 +726,7 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
                   code: 'ENGINE_UPDATE_REQUIRED',
                   message:
                     get().engineInstall.error?.message ??
-                    'Update the image engine and retry.',
+                    'Update the media engine and retry.',
                 }
               : get().engineInstall.error,
           })
@@ -762,11 +756,11 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
       }
       set({ pendingEngineArtifactId: null })
       const quantId = parsed.quantId
-      const previousModelId = get().status?.model.loaded?.modelId ?? null
       const settings = useImageSetting.getState()
       const workflow = useImageForm.getState().workflow
       const teOnCpu = IS_MACOS
-      const fit = fitForQuant(family, quant, hardwareProfile(), { teOnCpu })
+      const profile = hardwareProfile()
+      const fit = fitForQuant(family, quant, profile, { teOnCpu })
       const requiredTextEncoders = family.text_encoders.filter(
         (file) =>
           file.field !== 'llm_vision' || workflowNeedsLlmVision(workflow)
@@ -809,7 +803,7 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
           })
           throw {
             code: 'ENGINE_UPDATE_REQUIRED',
-            message: `${family.name} requires ${MODERN_IMAGE_ENGINE_TAG} or newer. Update the image engine and retry.`,
+            message: `${family.name} requires ${MODERN_IMAGE_ENGINE_TAG} or newer. Update the media engine and retry.`,
           }
         }
         await acquireGpuForDiffusion({
@@ -822,18 +816,13 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
           modelFiles,
           paths.modelsRoot,
           {
-            offload:
-              settings.offloadOverride === 'auto'
-                ? IS_MACOS && family.id === 'qwen-image'
-                  ? // Qwen-Image's Wan VAE needs a large temporary decode
-                    // buffer on Metal. Keeping the VAE on the GPU can produce
-                    // a command-buffer page fault even when the static weights
-                    // fit; the fault corrupts the first image and poisons the
-                    // backend for every later request. Full model offload keeps
-                    // the VAE on CPU while Metal still runs the denoiser.
-                    'model'
-                  : fit.policy
-                : settings.offloadOverride,
+            // A forced policy is what the user asked for: no fallback.
+            ...(settings.offloadOverride === 'auto'
+              ? autoOffload(fit, profile, {
+                  macos: IS_MACOS,
+                  familyId: family.id,
+                })
+              : { offload: settings.offloadOverride }),
             engine:
               settings.engineOverride === 'auto'
                 ? undefined
@@ -842,25 +831,19 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
           }
         )
         await diffusion().loadModel(request)
+        // The forms are not touched here: each page makes its draft the
+        // model's when it picks it (`adoptModel`), so the numbers set before
+        // the start are the ones it generates with.
         if (family.modality === 'video') {
           // The Video page owns its selection and its form; the image ones
           // are left as they were, for when an image model is loaded again.
           const videoCapabilities = await diffusion().getVideoCapabilities()
           set({ videoCapabilities, capabilities: null })
           useVideoSetting.getState().setSelectedArtifactId(artifactId)
-          if (previousModelId !== artifactId) {
-            useVideoForm.getState().resetToDefaults(videoCapabilities)
-          }
         } else {
           const capabilities = await diffusion().getCapabilities()
           set({ capabilities, videoCapabilities: null })
           settings.setSelectedArtifactId(artifactId)
-          if (previousModelId !== artifactId) {
-            // A FLUX checkpoint at Qwen's old 30-step / high-guidance values
-            // can overflow or produce garbage. Switching model families also
-            // switches their numeric recipe, while keeping the user's prompt.
-            useImageForm.getState().resetToDefaults(capabilities.defaults)
-          }
         }
         await get().refreshStatus()
         // `/v1/images/generations` and `/v1/videos` live on the Local API
@@ -1013,8 +996,8 @@ export const useImageGenerationStore = create<ImageGenerationState>()((
 
     clearError: () => set({ lastError: null, lastErrorModality: null }),
 
-    openSetup: (step = 0, modality = 'image') =>
-      set({ setupOpen: true, setupStep: step, setupModality: modality }),
+    openSetup: (modality = 'image') =>
+      set({ setupOpen: true, setupModality: modality }),
     closeSetup: () => set({ setupOpen: false }),
 
     reset: () => {

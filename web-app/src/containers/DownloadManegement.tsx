@@ -1,4 +1,8 @@
-import { useDownloadStore, type DownloadStage } from '@/hooks/useDownloadStore'
+import {
+  useDownloadStore,
+  type DownloadProgressProps,
+  type DownloadStage,
+} from '@/hooks/useDownloadStore'
 import { useAppUpdater } from '@/hooks/useAppUpdater'
 import { useGeneralSetting } from '@/hooks/useGeneralSetting'
 import { useProxyConfig } from '@/hooks/useProxyConfig'
@@ -20,6 +24,7 @@ import {
   wasDownloadCancellationRequested,
 } from '@/lib/downloadCancellation'
 import {
+  averageBytesPerSecond,
   classifyDownloadFailure,
   downloadKind,
   finalizeDownloadOnce,
@@ -41,14 +46,12 @@ import {
 import { cancelTransfer } from '@/services/diffusion/transfer'
 import { useImageGenerationStore } from '@/stores/image-generation-store'
 import { useImageForm } from '@/hooks/useImageForm'
-
-type DiffusionDownloadKind = 'model' | 'engine'
-
-function diffusionDownloadKind(id: string): DiffusionDownloadKind | null {
-  if (id.startsWith('diffusion-model-')) return 'model'
-  if (id.startsWith('diffusion-backend-')) return 'engine'
-  return null
-}
+import { notifyWhenAway } from '@/lib/notifications'
+import {
+  describeDiffusionDownloadToast,
+  describeFinishedDownload,
+} from '@/lib/downloadNotification'
+import type { DiffusionCatalog } from '@/services/diffusion-catalog-registry'
 
 /**
  * ATO-109: emit the terminal `model_download` event. Deduplicated so the two
@@ -57,9 +60,22 @@ function diffusionDownloadKind(id: string): DiffusionDownloadKind | null {
 function captureDownloadTerminal(
   status: 'completed' | 'failed' | 'cancelled',
   id: string,
-  opts: { downloadType?: string; error?: string; totalBytes?: number } = {}
+  opts: {
+    downloadType?: string
+    error?: string
+    totalBytes?: number
+    /** The store's row, for handlers that remove it before reporting. */
+    transfer?: DownloadProgressProps
+  } = {}
 ): void {
   if (!finalizeDownloadOnce(id)) return
+
+  // The extensions' terminal events carry no byte counts, so the size used to
+  // come from `state.size` and was always missing: every terminal event of the
+  // 30 days to 2026-09-29 read `size_bucket: 'unknown'`. The store's row has
+  // the total, and what the run did on the way.
+  const transfer = opts.transfer ?? useDownloadStore.getState().downloads[id]
+  const totalBytes = opts.totalBytes || transfer?.total
 
   const kind = downloadKind(id, opts.downloadType)
   if (status === 'completed' && kind === 'model') {
@@ -75,8 +91,11 @@ function captureDownloadTerminal(
       download_kind: kind,
       model_id: normalizeModelId(id),
       quant: quantFromModelId(id),
-      size_bucket: sizeBucket(opts.totalBytes),
+      size_bucket: sizeBucket(totalBytes),
       duration_ms: takeDownloadDuration(id),
+      avg_bytes_per_second: averageBytesPerSecond(transfer),
+      stall_count: transfer?.stalls ?? 0,
+      retry_count: transfer?.retries ?? 0,
       failure_reason:
         status === 'completed'
           ? undefined
@@ -86,6 +105,30 @@ function captureDownloadTerminal(
   } catch (telemetryError) {
     console.debug('model_download terminal telemetry failed:', telemetryError)
   }
+}
+
+/**
+ * OS notification for a finished download, shown only while the user is away
+ * from the window (the toast covers a focused one). Must run before the row is
+ * removed: both success events may arrive for one download, and only the
+ * first still finds its row.
+ */
+function notifyDownloadFinished(
+  state: DownloadState,
+  catalog: DiffusionCatalog | null,
+  t: (key: string, options?: Record<string, unknown>) => string
+): void {
+  const { downloads, localDownloadingModels } = useDownloadStore.getState()
+  const hasRow =
+    state.modelId in downloads || localDownloadingModels.has(state.modelId)
+  if (!hasRow) return
+  const notification = describeFinishedDownload(
+    state.modelId,
+    (state as unknown as { downloadType?: string }).downloadType,
+    catalog,
+    t
+  )
+  if (notification) notifyWhenAway(notification.title, notification.body)
 }
 
 export function DownloadManagement() {
@@ -321,6 +364,8 @@ export function DownloadManagement() {
         downloadType?: string
       }
       const err = anyState?.error || ''
+      // Read before the row is removed below; the terminal event reports it.
+      const transfer = useDownloadStore.getState().downloads[state.modelId]
 
       // The Rust downloader opens the "verifying…" toast itself and never
       // closes it. A failure that lands after it (disk error while hashing, a
@@ -355,6 +400,7 @@ export function DownloadManagement() {
           downloadType: anyState?.downloadType,
           error: err,
           totalBytes: state.size?.total,
+          transfer,
         }
       )
 
@@ -502,10 +548,14 @@ export function DownloadManagement() {
     (event: { modelId: string; downloadType: string }) => {
       console.debug('onModelValidationStarted', event)
 
-      const diffusionKind = diffusionDownloadKind(event.modelId)
-      if (diffusionKind) {
+      const diffusion = describeDiffusionDownloadToast(
+        event.modelId,
+        imageCatalog,
+        t
+      )
+      if (diffusion) {
         const description =
-          diffusionKind === 'model' ? (
+          diffusion.kind === 'model' ? (
             <span className="block">
               <span className="block">
                 {t('images:download.checkingFiles')}
@@ -517,18 +567,11 @@ export function DownloadManagement() {
           ) : (
             t('images:download.checkingFiles')
           )
-        toast.loading(
-          t(
-            diffusionKind === 'model'
-              ? 'images:download.finishingModel'
-              : 'images:download.finishingEngine'
-          ),
-          {
-            id: `model-validation-started-${event.modelId}`,
-            description,
-            duration: Infinity,
-          }
-        )
+        toast.loading(diffusion.finishing, {
+          id: `model-validation-started-${event.modelId}`,
+          description,
+          duration: Infinity,
+        })
         return
       }
 
@@ -541,7 +584,7 @@ export function DownloadManagement() {
         duration: Infinity,
       })
     },
-    [t]
+    [t, imageCatalog]
   )
 
   const onModelValidationFailed = useCallback(
@@ -641,6 +684,7 @@ export function DownloadManagement() {
     async (state: DownloadState) => {
       console.debug('onFileDownloadSuccess', state)
 
+      notifyDownloadFinished(state, imageCatalog, t)
       captureDownloadTerminal('completed', state.modelId, {
         downloadType: (state as unknown as { downloadType?: string })
           ?.downloadType,
@@ -657,18 +701,16 @@ export function DownloadManagement() {
       removeDownload(state.modelId)
       removeLocalDownloadingModel(state.modelId)
       clearDownloadOrigin(state.modelId)
-      const diffusionKind = diffusionDownloadKind(state.modelId)
+      const diffusion = describeDiffusionDownloadToast(
+        state.modelId,
+        imageCatalog,
+        t
+      )
       toast.success(
-        diffusionKind
-          ? t(
-              diffusionKind === 'model'
-                ? 'images:download.modelReady'
-                : 'images:download.engineReady'
-            )
-          : t('common:toast.downloadComplete.title'),
+        diffusion ? diffusion.ready : t('common:toast.downloadComplete.title'),
         {
-        id: 'download-complete',
-          description: diffusionKind
+          id: 'download-complete',
+          description: diffusion
             ? undefined
             : t('common:toast.downloadComplete.description', {
                 item: state.modelId,
@@ -683,6 +725,7 @@ export function DownloadManagement() {
       clearPausedDownload,
       clearResumeParams,
       clearDownloadOrigin,
+      imageCatalog,
       t,
     ]
   )
@@ -691,6 +734,7 @@ export function DownloadManagement() {
     async (state: DownloadState) => {
       console.debug('onFileDownloadAndVerificationSuccess', state)
 
+      notifyDownloadFinished(state, imageCatalog, t)
       captureDownloadTerminal('completed', state.modelId, {
         downloadType: (state as unknown as { downloadType?: string })
           ?.downloadType,
@@ -707,25 +751,22 @@ export function DownloadManagement() {
       removeDownload(state.modelId)
       removeLocalDownloadingModel(state.modelId)
       clearDownloadOrigin(state.modelId)
-      const diffusionKind = diffusionDownloadKind(state.modelId)
+      const diffusion = describeDiffusionDownloadToast(
+        state.modelId,
+        imageCatalog,
+        t
+      )
       toast.success(
-        diffusionKind
-          ? t(
-              diffusionKind === 'model'
-                ? 'images:download.modelReady'
-                : 'images:download.engineReady'
-            )
+        diffusion
+          ? diffusion.ready
           : t('common:toast.downloadAndVerificationComplete.title'),
         {
-        id: 'download-complete',
-          description: diffusionKind
+          id: 'download-complete',
+          description: diffusion
             ? undefined
-            : t(
-                'common:toast.downloadAndVerificationComplete.description',
-                {
-                  item: state.modelId,
-                }
-              ),
+            : t('common:toast.downloadAndVerificationComplete.description', {
+                item: state.modelId,
+              }),
         }
       )
     },
@@ -736,6 +777,7 @@ export function DownloadManagement() {
       clearPausedDownload,
       clearResumeParams,
       clearDownloadOrigin,
+      imageCatalog,
       t,
     ]
   )

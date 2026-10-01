@@ -23,26 +23,46 @@ export {
 // `createCoreRuntime` from the bundle, which then throws on load and leaves the app on a black
 // screen. `tests/extension-bundles.test.mjs` catches it coming back.
 import type {
+  CoreBackendCatalog,
+  CoreBackendCatalogRelease,
+  CoreBackendCatalogRequest,
   CoreBackendPack,
+  CoreBackendRecommendation,
+  CoreBackendRecommendationRequest,
+  CoreBackendUpdateCheck,
+  CoreBackendUpdateCheckRequest,
+  CoreBackendVersion,
   CoreCtxIncrease,
   CoreError,
+  CoreHardwareInfo,
   CoreLoadOptions,
   CoreModelCapabilities,
   CoreOptimalState,
   CoreProxyConfig,
+  CoreRecommendationOutcome,
   CoreSessionSummary,
   CoreSettingsSnapshot,
   CoreSettingsStatus,
   CoreStatus,
 } from '../../../shared/atomicCoreRuntime'
 export type {
+  CoreBackendCatalog,
+  CoreBackendCatalogRelease,
+  CoreBackendCatalogRequest,
   CoreBackendPack,
+  CoreBackendRecommendation,
+  CoreBackendRecommendationRequest,
+  CoreBackendUpdateCheck,
+  CoreBackendUpdateCheckRequest,
+  CoreBackendVersion,
   CoreCtxIncrease,
   CoreError,
+  CoreHardwareInfo,
   CoreLoadOptions,
   CoreModelCapabilities,
   CoreOptimalState,
   CoreProxyConfig,
+  CoreRecommendationOutcome,
   CoreSessionSummary,
   CoreSettingsSnapshot,
   CoreSettingsStatus,
@@ -68,7 +88,11 @@ export const importSettings = core.importSettings
 export const getSettings = core.getSettings
 export const acknowledgeSettings = core.acknowledgeSettings
 export const settingsStatus = core.settingsStatus
-export const sendHardwareOverride = core.sendHardwareOverride
+export const getHardwareInfo = core.getHardwareInfo
+export const refreshHardware = core.refreshHardware
+export const getBackendCatalog = core.getBackendCatalog
+export const recommendBackend = core.recommendBackend
+export const checkBackendUpdates = core.checkBackendUpdates
 export const listInstalledBackends = core.listInstalledBackends
 export const installBackend = core.installBackend
 export const cancelBackendDownload = core.cancelBackendDownload

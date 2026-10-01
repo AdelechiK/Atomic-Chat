@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   makeCatalog,
   makeFakeDiffusion,
+  makeFilesFor,
   makeStatus,
   Q4_ID,
   Z_IMAGE,
@@ -27,7 +28,11 @@ vi.mock('@/i18n/react-i18next-compat', () => ({
         ? `${values?.seconds} s`
         : key === 'videos:errors.OUT_OF_MEMORY.body'
           ? `${values?.frames} frames at ${values?.size} (${values?.seconds} s)`
-          : key,
+          : key === 'videos:progress.remaining'
+            ? `осталось ${values?.duration}`
+            : key === 'videos:estimate.units.min'
+              ? 'мин'
+              : key,
   }),
 }))
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }))
@@ -153,19 +158,20 @@ describe('VideoGenerationPage', () => {
     useImageGenerationStore.setState({
       status: makeStatus(),
       installedArtifacts: [completeVideo],
+      modelFiles: makeFilesFor(LTX_2, 'q4_k_m'),
     })
     await renderPage({ model: 'ltx-2', quant: 'q4_k_m' })
     expect(screen.queryByTestId('image-empty-download')).not.toBeInTheDocument()
     expect(useVideoSetting.getState().selectedArtifactId).toBe(LTX_Q4_ID)
+    // Picked and stopped is enough: Generate starts it, so no "select a model".
+    expect(screen.getByTestId('image-empty-state')).toHaveTextContent(
+      'videos:gallery.empty.description'
+    )
     expect(screen.getByTestId('video-prompt-form')).toHaveAttribute('data-models-open', 'true')
   })
 
   it('shows the running clip as a live placeholder above a pending tile', async () => {
-    fake.listVideoGallery.mockResolvedValue({
-      items: [makeVideoItem()],
-      hasMore: false,
-      total: 1,
-    })
+    fake.listVideoGallery.mockResolvedValue({ items: [makeVideoItem()], hasMore: false, total: 1 })
     useImageGenerationStore.setState({
       status: makeVideoLoadedStatus(),
       videoCapabilities: makeVideoCapabilities(),
@@ -199,6 +205,116 @@ describe('VideoGenerationPage', () => {
       await userEvent.click(screen.getByTestId('gallery-pending-0'))
     })
     expect(screen.getByTestId('image-generation-preview')).toBeInTheDocument()
+  })
+
+  describe('the live progress', () => {
+    const running = (
+      progress: Partial<
+        NonNullable<ReturnType<typeof makeVideoJob>['progress']>
+      > | null,
+      overrides: Partial<ReturnType<typeof makeVideoJob>> = {}
+    ) => {
+      useImageGenerationStore.setState({
+        status: makeVideoLoadedStatus(),
+        videoCapabilities: makeVideoCapabilities(),
+        installedArtifacts: [completeVideo],
+      })
+      useVideoGenerationStore.setState({
+        generating: true,
+        generationStartedAtMs: Date.now(),
+        currentJob: makeVideoJob({
+          state: 'generating',
+          progress:
+            progress === null
+              ? null
+              : {
+                  phase: 'sampling',
+                  step: 3,
+                  totalSteps: 8,
+                  fraction: 0.4,
+                  etaSeconds: null,
+                  elapsedMs: 60_000,
+                  ...progress,
+                },
+          ...overrides,
+        }),
+      })
+    }
+
+    it('fills the bar inside the preview frame and puts the time left on the step line', async () => {
+      running({ etaSeconds: 750, fraction: 0.4 })
+      await renderPage()
+      const preview = screen.getByTestId('image-generation-preview')
+      expect(
+        within(preview).getByTestId('image-generation-progress-detail')
+      ).toHaveTextContent('videos:progress.step · 60 s · осталось ~13 мин')
+      // The shared bar moves its indicator rather than setting aria-valuenow.
+      const indicator = within(preview)
+        .getByTestId('image-generation-progress-bar')
+        .querySelector('[data-slot="progress-indicator"]')
+      expect(indicator).toHaveStyle({ transform: 'translateX(-60%)' })
+      expect(screen.queryByTestId('video-slowdown')).not.toBeInTheDocument()
+    })
+
+    it('says the phase once when the decode runs past its forecast', async () => {
+      running({ phase: 'decoding', step: 8, etaSeconds: null, fraction: 0.9 })
+      await renderPage()
+      const preview = screen.getByTestId('image-generation-preview')
+      expect(preview).toHaveTextContent('videos:progress.phase.decoding')
+      expect(
+        within(preview).queryByTestId('image-generation-remaining')
+      ).not.toBeInTheDocument()
+      // Nothing outside the frame repeats it.
+      expect(screen.getByTestId('video-viewer-section').textContent).toBe(
+        preview.textContent
+      )
+    })
+
+    it('counts down from the job’s estimate before the core reports progress', async () => {
+      running(null, {
+        estimate: {
+          memory: {
+            requiredBytes: 1,
+            budgetBytes: 2,
+            pool: 'unified',
+            verdict: 'fits',
+          },
+          seconds: { low: 450, high: 1800 },
+          basis: 'heuristic',
+        },
+      })
+      await renderPage()
+      // The middle of 450–1800 s is 900 s: fifteen minutes, less the moment since the start.
+      expect(screen.getByTestId('image-generation-remaining')).toHaveTextContent(
+        'осталось ~15 мин'
+      )
+    })
+
+    it('warns when the steps slowed down sharply, and Stop cancels the clip', async () => {
+      running({ slowdown: true })
+      await renderPage()
+      const warning = screen.getByTestId('video-slowdown')
+      expect(warning).toHaveTextContent('videos:progress.slowdown.title')
+      expect(warning).toHaveTextContent('videos:progress.slowdown.body')
+      await act(async () => {
+        await userEvent.click(
+          within(warning).getByRole('button', {
+            name: 'videos:progress.slowdown.stop',
+          })
+        )
+      })
+      expect(fake.cancelVideoJob).toHaveBeenCalledWith('vjob-1')
+      expect(useVideoGenerationStore.getState().stopRequested).toBe(true)
+      expect(
+        within(screen.getByTestId('video-slowdown')).getByRole('button')
+      ).toBeDisabled()
+    })
+
+    it('reads a progress without the flag, from an older core, as no slowdown', async () => {
+      running({ etaSeconds: 30 })
+      await renderPage()
+      expect(screen.queryByTestId('video-slowdown')).not.toBeInTheDocument()
+    })
   })
 
   it('shows a job error and a video-filed model error, and clears both; an image error stays off the page', async () => {
@@ -246,7 +362,10 @@ describe('VideoGenerationPage', () => {
     expect(useImageGenerationStore.getState().lastError?.code).toBe('MODEL_LOAD_FAILED')
   })
 
-  it('routes the install and download actions to the wizard for video', async () => {
+  it('installs the engine straight from the install action, with no wizard', async () => {
+    const install = vi
+      .spyOn(useImageGenerationStore.getState(), 'installEngine')
+      .mockResolvedValue()
     useImageGenerationStore.setState({
       status: makeStatus({ install: { state: 'not-installed' } }),
       lastError: { code: 'ENGINE_MISSING', message: 'x' },
@@ -254,15 +373,17 @@ describe('VideoGenerationPage', () => {
     })
     await renderPage()
     await userEvent.click(screen.getByRole('button', { name: 'images:errors.actions.install' }))
-    expect(useImageGenerationStore.getState()).toMatchObject({
-      setupOpen: true,
-      setupStep: 1,
-      setupModality: 'video',
-    })
+    expect(install).toHaveBeenCalledOnce()
+    expect(useImageGenerationStore.getState().setupOpen).toBe(false)
+    install.mockRestore()
   })
 
   it('offers to load the recipe model from the viewer', async () => {
-    fake.listVideoGallery.mockResolvedValue({ items: [makeVideoItem()], hasMore: false, total: 1 })
+    fake.listVideoGallery.mockResolvedValue({
+      items: [makeVideoItem()],
+      hasMore: false,
+      total: 1,
+    })
     useImageGenerationStore.setState({
       status: makeStatus(),
       installedArtifacts: [completeVideo],

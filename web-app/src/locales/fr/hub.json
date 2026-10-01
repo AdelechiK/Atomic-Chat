@@ -6,6 +6,7 @@
   "downloaded": "Téléchargé",
   "loadingModels": "Chargement des modèles...",
   "noModels": "Aucun modèle trouvé",
+  "clearSearch": "Effacer la recherche",
   "by": "Par",
   "downloads": "Téléchargements",
   "variants": "Variantes",
@@ -48,5 +49,18 @@
   "readmeUnavailable": "Aucun README disponible pour ce modèle.",
   "tooLargeTitle": "Ce modèle risque de ne pas fonctionner sur cet appareil",
   "tooLargeDescription": "Il nécessite plus de mémoire que cet appareil n’en possède : il peut ne pas se charger ou fonctionner lentement.",
-  "downloadAnyway": "Télécharger quand même"
+  "downloadAnyway": "Télécharger quand même",
+  "categoryChat": "Text",
+  "categoryImages": "Images",
+  "categoryVideo": "Video",
+  "categories": "Type de modèle",
+  "searchImagePlaceholder": "Rechercher des modèles d'image…",
+  "searchVideoPlaceholder": "Rechercher des modèles vidéo…",
+  "open": "Ouvrir",
+  "openInImages": "Ouvrir dans Images",
+  "openInVideo": "Ouvrir dans Video",
+  "defaultSize": "Taille par défaut",
+  "steps": "Étapes",
+  "license": "Licence",
+  "frameRate": "Fréquence d'images"
 }

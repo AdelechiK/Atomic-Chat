@@ -21,6 +21,7 @@ import {
   makeVideoLoadedStatus,
 } from '@/lib/diffusion/__tests__/video-fixtures'
 import { seedServiceHub } from '@/test/service-hub'
+import { useHardware } from '@/hooks/useHardware'
 import { useImageForm } from '@/hooks/useImageForm'
 import { useImageSetting } from '@/hooks/useImageSetting'
 import { useVideoForm } from '@/hooks/useVideoForm'
@@ -77,7 +78,7 @@ vi.mock('@/services/diffusion/install', () => ({
   selectDiffusionBackendForHost: install.select,
   resolveSdcppManifest: install.manifest,
 }))
-vi.mock('@/lib/notifications', () => ({ notifyThreadCompleted: vi.fn() }))
+vi.mock('@/lib/notifications', () => ({ notifyWhenAway: vi.fn() }))
 const captured = vi.hoisted(() => ({
   events: [] as Array<[string, Record<string, unknown>]>,
 }))
@@ -116,6 +117,7 @@ describe('image-generation-store', () => {
       keepModelLoaded: false,
       idleUnloadMinutes: 10,
       outputDir: null,
+      offloadOverride: 'auto',
     })
     useVideoSetting.setState({ selectedArtifactId: null, outputDir: null })
     resetImageGenerationForTests()
@@ -769,6 +771,51 @@ describe('image-generation-store', () => {
       await useImageGenerationStore.getState().loadModel('z-image:q4_k_m')
 
       expect(fake.loadModel.mock.calls[0][0].offload).toBe('model')
+      expect(fake.loadModel.mock.calls[0][0]).not.toHaveProperty(
+        'offloadFallback'
+      )
+    })
+
+    it('keeps Auto on a 12 GB card on the GPU and leaves offloading to a shortage', async () => {
+      const hardware = useHardware.getState().hardwareData
+      useHardware.setState({
+        hardwareData: {
+          ...hardware,
+          os_type: 'windows',
+          total_memory: 32768,
+          gpus: [
+            {
+              name: 'NVIDIA GeForce RTX 3060',
+              total_memory: 12288,
+              vendor: 'NVIDIA',
+              uuid: 'gpu-0',
+              driver_version: '',
+              nvidia_info: { index: 0, compute_capability: '8.6' },
+              vulkan_info: {
+                index: 0,
+                device_id: 0,
+                device_type: '',
+                api_version: '',
+              },
+            },
+          ],
+        },
+      })
+      useImageGenerationStore.setState({
+        status: makeStatus(),
+        capabilities: null,
+      })
+      try {
+        await useImageGenerationStore.getState().loadModel('z-image:q4_k_m')
+      } finally {
+        useHardware.setState({ hardwareData: hardware })
+      }
+
+      // The estimate alone would offload Z-Image in groups on this card.
+      expect(fake.loadModel.mock.calls[0][0]).toMatchObject({
+        offload: 'none',
+        offloadFallback: 'group',
+      })
     })
 
     it('reports an unknown artifact as a missing model', async () => {
@@ -1091,19 +1138,17 @@ describe('image-generation-store', () => {
       expect(useImageGenerationStore.getState().bound).toBe(false)
     })
 
-    it('opens and closes the setup wizard on a given step', () => {
-      useImageGenerationStore.getState().openSetup(2)
+    it('opens and closes the model-list dialog for a given page', () => {
+      useImageGenerationStore.getState().openSetup()
       expect(useImageGenerationStore.getState()).toMatchObject({
         setupOpen: true,
-        setupStep: 2,
         setupModality: 'image',
       })
       useImageGenerationStore.getState().closeSetup()
       expect(useImageGenerationStore.getState().setupOpen).toBe(false)
-      useImageGenerationStore.getState().openSetup(1, 'video')
+      useImageGenerationStore.getState().openSetup('video')
       expect(useImageGenerationStore.getState()).toMatchObject({
         setupOpen: true,
-        setupStep: 1,
         setupModality: 'video',
       })
     })
@@ -1119,7 +1164,7 @@ describe('image-generation-store', () => {
       fake.getVideoCapabilities.mockResolvedValue(makeVideoCapabilities())
     })
 
-    it('loads a video checkpoint into the video slot, leaving the image side as it was', async () => {
+    it('loads a video checkpoint into the video slot, leaving both forms as they were', async () => {
       useImageSetting.setState({ selectedArtifactId: 'z-image:q4_k_m' })
       useImageForm.setState({ steps: 17 })
       useVideoForm.setState({ frames: 25, steps: 3, width: 704, height: 1216 })
@@ -1147,12 +1192,13 @@ describe('image-generation-store', () => {
       expect(state.lastError).toBeNull()
       expect(useVideoSetting.getState().selectedArtifactId).toBe(LTX_Q4_ID)
       expect(useImageSetting.getState().selectedArtifactId).toBe('z-image:q4_k_m')
-      // The video form took the family defaults; the image form was not touched.
+      // Loading touches neither form: what was set before the start is what
+      // generates. The page makes a draft a new family's when it picks one.
       expect(useVideoForm.getState()).toMatchObject({
-        frames: 121,
-        steps: 8,
-        width: 768,
-        height: 512,
+        frames: 25,
+        steps: 3,
+        width: 704,
+        height: 1216,
       })
       expect(useImageForm.getState().steps).toBe(17)
     })

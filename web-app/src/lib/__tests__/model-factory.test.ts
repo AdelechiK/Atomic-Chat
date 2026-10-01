@@ -156,6 +156,8 @@ describe('ModelFactory', () => {
     // bag (`top_k`, `repeat_penalty`, …), which strict upstreams reject.
     it.each([
       ['aimlapi', false],
+      ['openrouter', false],
+      ['edenai', false],
       ['custom', true],
     ])(
       'forwards local-only parameters to %s: %s',

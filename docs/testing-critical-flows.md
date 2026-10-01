@@ -22,11 +22,15 @@ Line coverage cannot raise a grade by itself.
 
 Production entrypoints:
 
-- `tauri-plugin-hardware` reports OS, architecture, GPUs, drivers, CUDA, and
-  Vulkan capabilities.
-- Both llama.cpp plugins map those facts through provider-specific
-  `get_supported_features`, `determine_supported_backends`, and
-  `prioritize_backends` paths.
+- The core probes OS, architecture, CPU flags, GPUs and drivers
+  (`GET /hardware/info`) and maps those facts to each provider's catalog,
+  recommendation and update check
+  (`POST /backends/:provider/{catalog,recommendation,updates}`);
+  `tauri-plugin-hardware` only polls GPU usage for the System Monitor.
+- Both llama.cpp plugins still carry the provider-specific
+  `get_supported_features`, `determine_supported_backends` and
+  `prioritize_backends` commands, deprecated: their tables are the source of
+  the fixtures that pin the core's port.
 - Both llama.cpp extensions filter their provider manifest and map internal
   backend ids to exact archive URLs.
 - `web-app/src/lib/utils.ts` selects the product-default provider.
@@ -50,11 +54,26 @@ Existing evidence:
   selected backends resolve to published manifest assets.
 - The TurboQuant extension now covers remote-manifest transport fallback and
   hardware recommendation parity with upstream.
+- The Rust decision tables of both plugins are pinned as the fixture sets
+  `tests/fixtures/core-contracts/backend-select/` (upstream, 165 cases) and
+  `backend-select-llamacpp/` (TurboQuant, 174 cases), emitted by each plugin's
+  `backend_select_fixture_dump.rs`: driver floors (550 / 551.61 / 581.14 /
+  581.15 / 581.42; the fork's 527.41), the compute-capability vetoes (5.2 /
+  6.1 / 7.0 / 7.5 / 10.0 / 12.0, one old card vetoing the host), the Windows
+  ROCm PCI table and the Linux ROCm facts, every `os-arch` row including the
+  `Unsupported system type` error, priority with and without VRAM, numeric tag
+  ordering, legacy id migration and the `version_backend` setting update. The
+  core replays them (test/contract/backend-select.test.ts there); one shape
+  divergence is recorded in each set's `known_divergence`.
 
 Gap:
 
-- The shared profile fixture does not yet drive both Rust feature detection and
-  TypeScript asset selection in one cross-language test.
+- The six machine profiles now run through the Rust feature detection as the
+  `features_profile_*` fixture cases, but nothing yet joins them to the
+  TypeScript asset selection in one cross-language test. The
+  `windows-x64-amd-rdna3-rocm` profile's `device_id` 30284 is `0x764c`, not
+  the `0x744c` its comment claims, so the Rust gate and the core both report
+  `rocm: false` for it.
 - macOS Intel has no published TurboQuant tag in the current fork release
   catalog. The build now skips that pairing, but there is no executable test
   for the build-time branch.
@@ -205,7 +224,8 @@ desktop (ADR 2026-09-18). Here the seam is proved by
 `services/__tests__/app.test.ts` (the four remote-access calls hit their core
 routes and a refused start keeps the core's `details` for
 `parseRemoteAccessRejection`), `hooks/__tests__/useRemoteAccessSync.test.ts`
-and `routes/settings/__tests__/remote-lan.test.tsx` on the page, and in Rust by
+and `containers/remote-lan/__tests__/RemoteLanSection.test.tsx` on the API
+screen, and in Rust by
 `atomic_core::launch` (`--cloudflared-bin` only when the sidecar is there),
 `atomic_core::relay::legacy_events` (`download:stage` under the legacy task
 name) and `server::api_request_analytics` (the image labels). A status read
@@ -301,8 +321,8 @@ Production entrypoints:
   engine here, asks the core for free space (`POST /disk/available`) and hands
   the tree over (`POST /diffusion/backends/finalize`).
 - `web-app/src/containers/images/*`, `containers/dialogs/ImageSetupDialog.tsx`,
-  `routes/settings/media.tsx` — the Images page, the first-run wizard and the
-  Media settings page.
+  `routes/settings/media.tsx` — the Images page with its one-click engine
+  card, the model-list dialog and the Media settings page.
 - `web-app/src/lib/diffusion/{size,recipe,generation-stop,errors,telemetry}.ts`
   — pure helpers: size snapping, recipe restore and export naming, the
   stop/report decisions, the error-code routing table, PostHog props.
@@ -347,7 +367,13 @@ Existing evidence:
   Ctrl+Enter submit, the Generate/Stop swap, capability-gated controls, the
   download plan's present/missing rows, Restore filling the form with the batch
   seed, the export filename handed to the save dialog, delete removing the
-  tile, the wizard's Done gate, and the output-folder change.
+  tile, the model-list dialog's Done gate, and the output-folder change.
+  `ImageSetupCard.test.tsx` proves one click on the card starts the engine
+  install with no dialog, the progress sits on the button, a failure offers
+  the same button with its reason, and a host with no build gets no button;
+  the pages' `install` error action starts the install the same way.
+  `ImageSetupCard.layout.test.tsx` (browser layout suite) holds the button's
+  width and the card's height through idle, installing and failed.
 - `NavMain.test.tsx` checks the Images row sits after Models and disappears
   without the media-generation feature.
 - The endpoint's Local API Server comes up for an image model with no chat
@@ -452,8 +478,8 @@ Existing evidence:
 - `ImageSetupCard.test.tsx`, `ImageSetupDialog.test.tsx`,
   `ImageGenerationPlaceholder.test.tsx`, `ImageModelPicker.test.tsx`,
   `ImageModelSelector.test.tsx`, `NavMain.test.tsx` and `media.test.tsx`
-  cover the shared components' video variants: the card's copy, done row and
-  wizard modality, the wizard keeping its modality across steps, the video
+  cover the shared components' video variants: the card's copy and install
+  label, the dialog listing the Video page's models, the video
   progress words, a resident video model kept off the Images picker, the
   selector's modality filter writing the Video selection, the sidebar row
   after Images, and the video output folder's change, default and refusal.
@@ -672,7 +698,7 @@ The suite is outside `make verify`.
 | 8. Agent mode, local model | `tests/e2e/desktop/agent-mode.spec.ts` | with Agent mode on, the Rust loop drives the chat model's own core session through the raw `/completion` endpoint (no second session appears): it reads a file in the default workspace, writes one there without asking, and for a write outside the workspace shows "Allow folder access" naming the tool and the folder, with nothing written meanwhile. Refused, the file is never created; allowed, it is written. Either way the turn ends with the model's reply, and the reply shows the read file's text had reached the model's prompt | the model's part is three scripted steps: the grammar, the prompt, repair steps and loop guards are not exercised by a real model; shell, web and git tools; MCP tools inside the agent (`mcp.*`); cloud and MLX transports; cancelling a run; whether a second approval follows "Allow folder" is tolerated, not asserted |
 | 6. Document attached for retrieval | `tests/e2e/desktop/document-attachment.spec.ts` | a text file chosen through the composer's menu is attached to the thread; with the next message the app parses and chunks it and the core embeds the chunks — the embedding model runs as a process of its own with `--embedding --pooling mean` — and the thread's collection holds one file and one chunk with the document's words and exactly the vector the scripted backend gives for a text of that length. Then the model asks: the app offers `retrieve` because the thread has documents, the scripted chat model calls it, the query is embedded by the core and matched, and the tool's result in the thread store carries the document's words, which the model's answer repeats. Nothing is downloaded: the embedding model is placed in the profile. **Found by these tool scenarios and fixed on 2026-09-19:** about once in a dozen long runs a turn in which the model calls a tool ended empty. Replies from local models are relayed over an IPC channel, and every reader took the relaying command's return for the end of the stream; the return can overtake chunks still on their way, and a reply of two chunks — a tool call — was closed before it arrived. The end now travels on the channel. The scenario still prints the thread store and the tool-related console lines if a tool turn ever ends empty again. The thread's collection is in `<data folder>/db` and nothing is left in the fixed place under the home directory the plugin used until 2026-09-19 (it ignored the data folder, so a moved folder left the indexes behind and a factory reset did not remove them) | the file is picked through the e2e build's dialog queue, not the native dialog; drag-and-drop; `auto` and `inline` modes and the per-file prompt (the scenario pins `embeddings`); PDF/DOCX parsing; ranking among many chunks (the scripted vectors differ only by text length); the ANN index (`sqlite-vec` ships on Linux only; the scenario pins linear search); project-scoped collections; the agent's `docs.*` path |
 | 4. Local API request log | `tests/e2e/desktop/api-inspector.spec.ts` | with the API page open and the server started, a streamed completion made by an outside client appears in the list by itself — nobody reopens or refreshes the page — and opens to its method and path, the prompt it carried, the reply it got and its stop reason; a request refused for lack of a key is counted as the one error (Requests 2, Completed 1, Errors 1). This is the path core → Rust relay → inspector → webview; until 2026-09-18 its last step dropped every live event, because the emitter was bound only when the app's own proxy started, which no longer happens with the core serving the API | token counts and speeds are whatever the scripted backend yields, not checked; progress events while a long reply streams; the log's filters, search and Clear |
-| 5. On-device Foundation Models | `tests/e2e/desktop/foundation-models.spec.ts` (macOS only) | when the bundled server answers `--check` with `available`, the provider is offered in the picker, its one model is picked and answered, and the core's session is `foundation-models` / `apple/on-device`; when it answers `notEligible`, the provider is not offered at all | the server is the core's scripted sidecar brought by the profile, as for MLX: nothing of Apple Intelligence runs; `appleIntelligenceNotEnabled` and the other answers; the settings page's explanation of why it is unavailable |
+| 5. On-device Foundation Models | `tests/e2e/desktop/foundation-models.spec.ts` (macOS only) | hidden since 2026-09-30 (ADR 2026-09-30-hide-the-apple-on-device-provider): even when the bundled server answers `--check` with `available`, the provider is not offered in the picker | the server is the core's scripted sidecar brought by the profile, as for MLX: nothing of Apple Intelligence runs; a chat with the on-device model, which returns with the provider (the spec's history has it) |
 | 5. MLX provider | `tests/e2e/desktop/mlx-provider.spec.ts` (macOS only) | a model folder under `mlx/models` is listed under the MLX provider, picked there, and answered; the core's session says `provider: mlx` and its process is `mlx-server` started with `--model <the folder>` and a `--max-kv-size` | `mlx-server` is the core's scripted sidecar, which the profile brings in `<root>/sidecars`, where an e2e build looks before its own `resources/bin`; nothing of MLX itself runs (weights, vision, draft models, KV overflow growth); MLX model download and import |
 | 5. Second llama.cpp provider | `tests/e2e/desktop/turboquant-provider.spec.ts` | the TurboQuant provider is off on a fresh install and is turned on from its page in settings; with both llama.cpp providers on, the same model has a row under each in the picker; picked under the fork it is answered by the backend installed for `llamacpp` and the core's session says `provider: llamacpp` with the executable under `llamacpp/backends/`; picked under the default provider it is answered by the other backend, the session says `llamacpp-upstream`, and the fork's process is gone — one model, one process | the fork's backend is the scripted one: nothing TurboQuant-specific is exercised (cache types, flash-attn, its release index and updates); turning the provider off again; MLX and Foundation Models |
 | 3. Working with a conversation | `tests/e2e/desktop/chat-workflows.spec.ts` | Stop cuts a streaming reply: Send comes back, the text stops growing, the reply's end never arrives, the model's process stays the same and answers the next message. Regenerate replaces the assistant's turn (new id, same user turn, one reply on the page); rewriting the question replaces it and its answer; deleting a message removes it from the page and from `messages.jsonl`; a thread is renamed (sidebar and `thread.json`) and deleted (sidebar and disk), both from the row's menu by keyboard. A stopped reply stays on the page and what was received of it is saved as the assistant's turn with status `stopped` | whether Stop reaches the backend (the scripted one cannot tell); branching, search, projects, attachments; the reply is the same text every time, so "another answer" is proven by the turn's id, not its words |

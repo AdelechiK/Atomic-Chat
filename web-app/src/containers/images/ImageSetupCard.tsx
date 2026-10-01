@@ -1,65 +1,44 @@
 import { memo } from 'react'
-import { IconCircleCheckFilled, IconSparkles } from '@tabler/icons-react'
+import { IconDownload, IconLoader2 } from '@tabler/icons-react'
 
 import { Button } from '@/components/ui/button'
 import { ClapperboardIcon } from '@/components/animated-icon/clapperboard'
 import { ImageIcon } from '@/components/animated-icon/image'
 import { useImageEngine } from '@/hooks/useImageEngine'
 import { useTranslation } from '@/i18n/react-i18next-compat'
+import { formatProgressPair } from '@/lib/downloadFormat'
 import { cn } from '@/lib/utils'
 import type { DiffusionModality } from '@/services/diffusion/types'
-import {
-  selectHasInstalledModel,
-  useImageGenerationStore,
-} from '@/stores/image-generation-store'
 
 type ImageSetupCardProps = {
   className?: string
-  /**
-   * The page the card stands on. The engine step is the same for both; the
-   * words, the mark and the model row are the page's own, and the wizard
-   * opens with that page's model list.
-   */
+  /** The page the card stands on: the words and the mark are that page's own. */
   modality?: DiffusionModality
 }
 
 /**
  * What the page shows until the engine binary is installed — the one thing
- * the studio cannot open without. The rows are the road ahead: the engine row
- * opens the wizard on its install step; the model row is only a preview,
- * because models are fetched from the form's picker once the studio is open.
+ * the studio cannot open without. One click installs it, with the progress on
+ * the button itself (the downloads panel shows it too); once it lands the page
+ * opens the studio, whose empty canvas offers the model download.
  */
 export const ImageSetupCard = memo(function ImageSetupCard({
   className,
   modality = 'image',
 }: ImageSetupCardProps) {
   const { t } = useTranslation()
-  const { hostBackendId, hostBackendReason } = useImageEngine()
-  const hasModel = useImageGenerationStore(selectHasInstalledModel(modality))
-  const openSetup = useImageGenerationStore((state) => state.openSetup)
-  const unsupported = hostBackendId === null && Boolean(hostBackendReason)
+  const engine = useImageEngine()
   const ns = modality === 'video' ? 'videos' : 'images'
   const Icon = modality === 'video' ? ClapperboardIcon : ImageIcon
-
-  const rows: Array<{
-    id: 'engine' | 'model'
-    done: boolean
-    label: string
-    description: string
-  }> = [
-    {
-      id: 'engine',
-      done: false,
-      label: t(`${ns}:setup.card.engine`),
-      description: t(`${ns}:setup.card.engineDescription`),
-    },
-    {
-      id: 'model',
-      done: hasModel,
-      label: t(`${ns}:setup.card.model`),
-      description: t(`${ns}:setup.card.modelDescription`),
-    },
-  ]
+  const unsupported =
+    engine.hostBackendId === null && !engine.resolvingHostBackend
+  const { transferred, total, error } = engine.progress
+  const percent = total > 0 ? Math.round((transferred / total) * 100) : 0
+  const busy = engine.installing
+    ? `${percent}%`
+    : engine.resolvingHostBackend
+      ? t('images:setup.engine.checking')
+      : null
 
   return (
     <div
@@ -79,60 +58,72 @@ export const ImageSetupCard = memo(function ImageSetupCard({
             ? t('images:setup.engine.unsupported')
             : t(`${ns}:setup.card.description`)}
         </p>
+        {unsupported && engine.hostBackendReason && (
+          <p className="mt-1 max-w-lg text-pretty text-xs leading-relaxed text-muted-foreground">
+            {engine.hostBackendReason}
+          </p>
+        )}
       </div>
-      <ol className="grid gap-3 sm:grid-cols-2">
-        {rows.map((row, index) => {
-          const content = (
-            <>
+      {!unsupported && (
+        <div className="flex flex-col items-center gap-2 text-center">
+          <Button
+            size="lg"
+            // While installing the fill is the progress, so the button keeps
+            // full strength instead of the dimmed disabled look.
+            className={cn(
+              'relative flex min-w-56 overflow-hidden tabular-nums',
+              engine.installing && 'disabled:opacity-100'
+            )}
+            disabled={busy !== null}
+            onClick={() => void engine.startInstall()}
+            data-testid="image-engine-install"
+          >
+            {engine.installing && (
+              <span
+                aria-hidden
+                className="absolute inset-y-0 left-0 bg-primary-foreground/15 transition-[width] duration-200"
+                style={{ width: `${percent}%` }}
+              />
+            )}
+            {/* The idle label stays laid out underneath, so the button keeps
+                its width when the percentage takes its place. */}
+            <span className="relative grid place-items-center">
               <span
                 className={cn(
-                  'grid size-8 shrink-0 place-items-center rounded-full border text-sm font-semibold',
-                  row.done
-                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-secondary text-foreground'
+                  'col-start-1 row-start-1 flex items-center gap-2',
+                  busy !== null && 'invisible'
                 )}
               >
-                {row.done ? <IconCircleCheckFilled size={17} /> : index + 1}
+                <IconDownload size={17} aria-hidden />
+                {t(`${ns}:setup.card.engine`)}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">{row.label}</span>
-                <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                  {row.description}
+              {busy !== null && (
+                <span className="col-start-1 row-start-1 flex items-center gap-2">
+                  <IconLoader2 size={17} className="animate-spin" aria-hidden />
+                  {busy}
                 </span>
-              </span>
-            </>
-          )
-          const frame =
-            'flex h-full w-full items-start gap-3 rounded-xl border bg-background p-4 text-left'
-          return (
-            <li key={row.id} data-testid={`image-setup-row-${row.id}`}>
-              {row.id === 'engine' ? (
-                <button
-                  type="button"
-                  onClick={() => openSetup(1, modality)}
-                  className={cn(
-                    frame,
-                    'transition-colors hover:border-foreground/20 hover:bg-secondary/40'
-                  )}
-                >
-                  {content}
-                </button>
-              ) : (
-                <div className={frame}>{content}</div>
               )}
-            </li>
-          )
-        })}
-      </ol>
-      <Button
-        size="lg"
-        className="mx-auto flex min-w-48"
-        onClick={() => openSetup(0, modality)}
-        data-testid="image-setup-open"
-      >
-        <IconSparkles size={17} />
-        {t(`${ns}:setup.card.button`)}
-      </Button>
+            </span>
+          </Button>
+          {/* One reserved slot for the byte count or the failure, so neither
+              moves the centered card when it appears. */}
+          <div className="h-8 w-full max-w-lg" aria-live="polite">
+            {engine.installing && total > 0 ? (
+              <p
+                className="truncate text-xs tabular-nums text-muted-foreground"
+                data-testid="image-engine-progress"
+              >
+                {formatProgressPair(transferred, total)}
+              </p>
+            ) : error && !engine.installing ? (
+              <p className="line-clamp-2 text-pretty text-xs text-destructive">
+                {t('images:setup.engine.failed')}
+                {error.message ? ` ${error.message}` : ''}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   )
 })
