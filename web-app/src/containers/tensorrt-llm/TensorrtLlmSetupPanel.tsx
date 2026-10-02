@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { useModelProvider } from '@/hooks/useModelProvider'
+import { useTensorrtPlan } from '@/hooks/useTensorrtPlan'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { formatBytes } from '@/lib/utils'
 import {
@@ -25,8 +26,6 @@ import {
 import {
   beginOperation,
   cancelOperation,
-  descriptorHint,
-  probe,
   resumeOperation,
   runHostStep,
 } from '@/services/managed-environment/client'
@@ -101,8 +100,9 @@ export function TensorrtLlmSetupPanel() {
   const failed = useManagedEnvironmentStore(selectFailedSetup)
   const failedEnvironmentRemoval = useManagedEnvironmentStore(selectFailedEnvironmentRemoval)
 
-  const [plan, setPlan] = useState<RequirementPlan>()
-  const [probing, setProbing] = useState(false)
+  // The plan is shared with the Model Hub and asked once per snapshot revision (a new one when the
+  // WSL distribution appears or goes on Windows: its removal turns the page back to the install).
+  const { plan, probing, error: probeError, recheck: probeAgain } = useTensorrtPlan()
   const [actionError, setActionError] = useState<string | null>(null)
   const [planOpen, setPlanOpen] = useState(false)
   const [removeOpen, setRemoveOpen] = useState(false)
@@ -114,31 +114,12 @@ export function TensorrtLlmSetupPanel() {
   const answeredConsent = useRef<string | null>(null)
   const elevatingSteps = useElevatingSteps((state) => state.steps)
   const stepFailures = useElevatingSteps((state) => state.failures)
-  const environmentRef = useRef(environment)
-  environmentRef.current = environment
 
   /** Ask the core again what setting up would take on this machine; probing changes nothing. */
-  const recheck = useCallback(async () => {
-    setProbing(true)
+  const recheck = useCallback(() => {
     setActionError(null)
-    try {
-      const next = await probe(descriptorHint(environmentRef.current))
-      setPlan(next)
-      return next
-    } catch (error) {
-      setActionError(errorText(error))
-      return undefined
-    } finally {
-      setProbing(false)
-    }
-  }, [])
-
-  // Again whenever Atomic Chat's WSL distribution appears or goes (Windows): its removal turns the
-  // page back to the install, and the plan to one that imports it anew.
-  const distributionName = environment?.distribution?.name ?? null
-  useEffect(() => {
-    void recheck()
-  }, [recheck, distributionName])
+    return probeAgain()
+  }, [probeAgain])
 
   // The NVIDIA notices of the descriptor this plan installs; when the core cannot serve that
   // descriptor, the plan says the notices were not reported.
@@ -421,7 +402,9 @@ export function TensorrtLlmSetupPanel() {
         <p className="text-sm text-destructive break-words">{failedEnvironmentRemoval.error.message}</p>
       )}
 
-      {actionError && <p className="text-sm text-destructive break-words">{actionError}</p>}
+      {(actionError ?? probeError) && (
+        <p className="text-sm text-destructive break-words">{actionError ?? probeError}</p>
+      )}
 
       <Dialog open={planOpen} onOpenChange={setPlanOpen}>
         <DialogContent className="max-h-[80vh] overflow-y-auto">

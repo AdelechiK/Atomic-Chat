@@ -28,6 +28,7 @@ vi.mock('@/services/managed-environment/client', async (importOriginal) => ({
 }))
 
 import { resetHostStepPromptsForTests, TensorrtLlmSetupPanel } from '../TensorrtLlmSetupPanel'
+import { resetTensorrtPlanForTests } from '@/hooks/useTensorrtPlan'
 import { useManagedEnvironmentStore } from '@/stores/managed-environment-store'
 import { useModelProvider } from '@/hooks/useModelProvider'
 import type {
@@ -146,6 +147,7 @@ function coreSays(op: EnvironmentOperation) {
 beforeEach(() => {
   vi.clearAllMocks()
   resetHostStepPromptsForTests()
+  resetTensorrtPlanForTests()
   store().reset()
   seed(environment())
   client.probe.mockResolvedValue(plan())
