@@ -46,6 +46,8 @@ export const TensorrtModelDownloadAction = memo(function TensorrtModelDownloadAc
     const store = useDownloadStore.getState()
     setFailure(null)
     store.clearResumableDownload(downloadId)
+    // The download panel names the row after this, not after the id.
+    store.setDownloadOrigin(downloadId, repository)
     store.addLocalDownloadingModel(downloadId)
     try {
       await installTensorrtModel({ repository, revision, token })

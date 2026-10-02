@@ -92,6 +92,7 @@ vi.mock('@/services/tensorrt-llm/models', async (importOriginal) => ({
 
 import { useModelProvider } from '@/hooks/useModelProvider'
 import { useGeneralSetting } from '@/hooks/useGeneralSetting'
+import { useDownloadStore } from '@/hooks/useDownloadStore'
 import { resetTensorrtVerdictsForTests } from '@/services/tensorrt-llm/verdict'
 import type { ModelCompatibility } from '@/services/managed-environment/types'
 import { DownloadOptionsSelect } from '../DownloadOptionsSelect'
@@ -429,7 +430,10 @@ describe('DownloadOptionsSelect for a TensorRT-LLM model', () => {
       revision: 'rev-a-sha',
       token: 'hf_secret',
     })
-    // Started: the button gives way to the download's progress.
+    // Started: the button gives way to the download's progress, and the panel's row is named.
     expect(screen.queryByRole('button', { name: 'hub:download' })).not.toBeInTheDocument()
+    expect(
+      useDownloadStore.getState().downloadOriginByModelId['tensorrt-llm-nvidia_Qwen3-8B-FP8']
+    ).toBe('nvidia/Qwen3-8B-FP8')
   })
 })

@@ -31,12 +31,15 @@ import type {
   ModelCompatibility,
 } from '@/services/managed-environment/types'
 import { isDownloadCancellationError } from '@/lib/downloadCancellation'
+import { tensorrtDownloadId } from '@/lib/tensorrt-llm/download-id'
 import {
   isTransferValidationError,
   transferFiles,
   type TransferItem,
   type TransferOptions,
 } from '@/services/diffusion/transfer'
+
+export { tensorrtDownloadId }
 
 const HF = 'https://huggingface.co'
 
@@ -121,15 +124,6 @@ async function hfJson(
     throw new Error(`Hugging Face answered ${response.status} for ${url}`)
   }
   return response.json()
-}
-
-/**
- * The one id of a model's download (change `add-tensorrt-llm-model-hub`, design D6): the Rust task
- * id, each file's `model_id` and the download panel's row. Tauri takes only `[A-Za-z0-9_-]` in
- * the event name the task id ends up in.
- */
-export function tensorrtDownloadId(repository: string): string {
-  return `tensorrt-llm-${normalizeRepository(repository).replace(/[^A-Za-z0-9_-]/g, '_')}`
 }
 
 /** Normalises what a person pastes: a repo id or its huggingface.co URL. */
