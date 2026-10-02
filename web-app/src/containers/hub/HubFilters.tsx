@@ -82,7 +82,9 @@ export function HubFilters({
   const selectedFormat = state.formats[0] ?? 'gguf'
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    // Wraps rather than overflows: "TensorRT-LLM" in the format button leaves no
+    // room for Uncensored in the Hub's narrowest column.
+    <div className={cn('flex flex-wrap items-center gap-2', className)}>
       {availableFormats.length > 1 && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
