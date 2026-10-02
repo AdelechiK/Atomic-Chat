@@ -159,6 +159,23 @@ beforeEach(() => {
 })
 
 describe('TensorrtLlmSetupPanel', () => {
+  it('offers the install once the core has answered, though its probe made it publish a new revision', async () => {
+    let revision = 1
+    client.probe.mockImplementation(async () => {
+      revision += 1
+      act(() => store().applyEnvironment(environment({ revision })))
+      return plan()
+    })
+
+    render(<TensorrtLlmSetupPanel />)
+
+    const install = await screen.findByRole('button', { name: 'providers:tensorrt.install' })
+    await waitFor(() => expect(install).toBeEnabled())
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(install).toBeEnabled()
+    expect(client.probe).toHaveBeenCalledTimes(1)
+  })
+
   it('asks the core again every time the page opens, as something may have changed outside the app', async () => {
     client.probe.mockResolvedValueOnce(
       plan({

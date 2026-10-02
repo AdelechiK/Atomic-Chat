@@ -81,6 +81,24 @@ describe('useTensorrtPlan', () => {
     expect(client.probe).toHaveBeenCalledWith('tensorrt-llm')
   })
 
+  it('does not ask again because its own probe made the core publish a new revision', async () => {
+    // The core publishes the environment after every look at the host (`onAssessment`): a probe
+    // bumps the snapshot's revision without changing what the plan depends on.
+    let revision = 1
+    client.probe.mockImplementation(async () => {
+      revision += 1
+      store().applyEnvironment(environment({ revision, availability: 'setup-required' }))
+      return plan()
+    })
+
+    const { result } = renderHook(() => useTensorrtPlan())
+
+    await waitFor(() => expect(result.current.plan?.plan_digest).toBe(digest('a')))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(result.current.probing).toBe(false)
+    expect(client.probe).toHaveBeenCalledTimes(1)
+  })
+
   it('asks again when the snapshot changes, with the installed descriptor as the hint', async () => {
     client.probe.mockResolvedValue(plan())
     const { result } = renderHook(() => useTensorrtPlan())

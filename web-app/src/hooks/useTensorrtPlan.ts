@@ -3,22 +3,28 @@ import { create } from 'zustand'
 
 import { descriptorHint, probe } from '@/services/managed-environment/client'
 import type { EnvironmentSnapshot, RequirementPlan } from '@/services/managed-environment/types'
-import { selectEnvironment, useManagedEnvironmentStore } from '@/stores/managed-environment-store'
+import {
+  selectEnvironment,
+  TENSORRT_LLM_ENGINE_ID,
+  useManagedEnvironmentStore,
+} from '@/stores/managed-environment-store'
 
 /**
  * The core's plan for setting TensorRT-LLM up on this machine (`probe(descriptorHint(env))`), shared
  * by every screen that reads it — the provider page's setup and the Model Hub's TensorRT-LLM format
  * (change `add-tensorrt-llm-model-hub`, design D2) — so the two never disagree.
  *
- * One probe per revision of the core's environment snapshot: a new revision (the engine installed,
- * the WSL distribution gone, a new core) asks again, and so does `recheck()`. Probing changes
- * nothing on the machine. Module state, not component state: a screen opened later reads the plan
- * already held instead of asking again — except the provider page, which asks on every opening
- * (`enabled: false` and its own `recheck()`), as before. A failed probe holds no revision.
+ * One probe per state of what the plan depends on (`tensorrtPlanKey`): a new core, another
+ * descriptor to install, the WSL distribution appearing or going, the engine installed or removed
+ * — and `recheck()`. Not per revision of the snapshot: the core publishes a new revision after every
+ * probe (each look at the host), so that would ask forever. Probing changes nothing on the machine.
+ * Module state, not component state: a screen opened later reads the plan already held instead of
+ * asking again — except the provider page, which asks on every opening (`enabled: false` and its
+ * own `recheck()`), as before. A failed probe holds no key.
  */
 
 interface PlanState {
-  /** The snapshot the held plan answers (`instance:revision`, `none` before any snapshot). */
+  /** The `tensorrtPlanKey` the held plan answers. */
   key: string | null
   plan: RequirementPlan | undefined
   error: string | null
@@ -45,8 +51,18 @@ const errorText = (error: unknown) =>
     ? String((error as { message: unknown }).message)
     : String(error)
 
-function snapshotKey(environment: EnvironmentSnapshot | undefined): string {
-  return environment ? `${environment.instance_id}:${environment.revision}` : 'none'
+/** What the plan depends on; `none` before any snapshot. */
+export function tensorrtPlanKey(environment: EnvironmentSnapshot | undefined): string {
+  if (!environment) return 'none'
+  const installation = environment.installations.find(
+    (entry) => entry.engine_id === TENSORRT_LLM_ENGINE_ID
+  )
+  return [
+    environment.instance_id,
+    descriptorHint(environment),
+    environment.distribution?.name ?? '',
+    installation?.status ?? 'absent',
+  ].join('|')
 }
 
 function request(key: string, environment: EnvironmentSnapshot | undefined) {
@@ -84,7 +100,7 @@ export interface TensorrtPlan {
 /** `enabled: false` asks nothing (for a screen where the provider is hidden) and reads what is held. */
 export function useTensorrtPlan({ enabled = true }: { enabled?: boolean } = {}): TensorrtPlan {
   const environment = useManagedEnvironmentStore(selectEnvironment)
-  const key = snapshotKey(environment)
+  const key = tensorrtPlanKey(environment)
   const plan = usePlanStore((state) => state.plan)
   const probing = usePlanStore((state) => state.probing)
   const error = usePlanStore((state) => state.error)
@@ -97,7 +113,7 @@ export function useTensorrtPlan({ enabled = true }: { enabled?: boolean } = {}):
 
   const recheck = useCallback(() => {
     const current = selectEnvironment(useManagedEnvironmentStore.getState())
-    return request(snapshotKey(current), current)
+    return request(tensorrtPlanKey(current), current)
   }, [])
 
   return { plan, probing, error, recheck }

@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { useModelProvider } from '@/hooks/useModelProvider'
-import { useTensorrtPlan } from '@/hooks/useTensorrtPlan'
+import { tensorrtPlanKey, useTensorrtPlan } from '@/hooks/useTensorrtPlan'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { formatBytes } from '@/lib/utils'
 import {
@@ -100,9 +100,10 @@ export function TensorrtLlmSetupPanel() {
   const failed = useManagedEnvironmentStore(selectFailedSetup)
   const failedEnvironmentRemoval = useManagedEnvironmentStore(selectFailedEnvironmentRemoval)
 
-  // The plan is shared with the Model Hub, which asks once per snapshot revision. This page asks on
-  // every opening — something may have been fixed outside the app — and on every new revision (the
-  // WSL distribution appearing or going on Windows turns the page back to the install).
+  // The plan is shared with the Model Hub. This page asks on every opening — something may have
+  // been fixed outside the app — and whenever what the plan depends on changes (the WSL
+  // distribution going on Windows turns the page back to the install); never on a bare revision,
+  // which the core bumps after every probe.
   const { plan, probing, error: probeError, recheck: probeAgain } = useTensorrtPlan({
     enabled: false,
   })
@@ -124,10 +125,10 @@ export function TensorrtLlmSetupPanel() {
     return probeAgain()
   }, [probeAgain])
 
-  const snapshot = environment ? `${environment.instance_id}:${environment.revision}` : null
+  const planKey = tensorrtPlanKey(environment)
   useEffect(() => {
     void recheck()
-  }, [recheck, snapshot])
+  }, [recheck, planKey])
 
   // The NVIDIA notices of the descriptor this plan installs; when the core cannot serve that
   // descriptor, the plan says the notices were not reported.
