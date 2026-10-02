@@ -4,6 +4,7 @@ import {
   applyHubFilters,
   DEFAULT_HUB_FILTERS,
   filterByFormats,
+  formatForEngine,
   formatMemoryBudget,
   hasLikeData,
   HUB_FILTERS_STORAGE_KEY,
@@ -12,6 +13,7 @@ import {
   modelDownloadSizeText,
   modelFitsBudget,
   normalizeHubFilters,
+  parseHubEngine,
   readHubFilters,
   sortModels,
   writeHubFilters,
@@ -191,6 +193,24 @@ describe('hubFormats', () => {
       'gguf',
       'tensorrt-llm',
     ])
+  })
+})
+
+describe('engine in the Hub URL', () => {
+  it('accepts the three formats and nothing else', () => {
+    expect(parseHubEngine('gguf')).toBe('gguf')
+    expect(parseHubEngine('mlx')).toBe('mlx')
+    expect(parseHubEngine('tensorrt-llm')).toBe('tensorrt-llm')
+    expect(parseHubEngine('onnx')).toBeUndefined()
+    expect(parseHubEngine(undefined)).toBeUndefined()
+    expect(parseHubEngine(['gguf'])).toBeUndefined()
+  })
+
+  it('selects the engine where it is offered, GGUF otherwise', () => {
+    expect(formatForEngine('tensorrt-llm', ['gguf', 'tensorrt-llm'])).toBe('tensorrt-llm')
+    expect(formatForEngine('tensorrt-llm', ['gguf'])).toBe('gguf')
+    expect(formatForEngine('mlx', ['gguf', 'mlx'])).toBe('mlx')
+    expect(formatForEngine('mlx', ['gguf'])).toBe('gguf')
   })
 })
 

@@ -33,12 +33,14 @@ import { useTranslation } from '@/i18n/react-i18next-compat'
 import {
   applyHubFilters,
   hasLikeData,
+  formatForEngine,
   hubFormats,
   huggingFaceQueries,
   isUncensoredModel,
   modelDownloadSizeText,
   modelFitsBudget,
   normalizeHubFilters,
+  parseHubEngine,
   readHubFilters,
   sortModels,
   writeHubFilters,
@@ -56,7 +58,7 @@ import {
   isHubCategory,
   type HubCategory,
 } from '@/lib/hub-media'
-import { getMemoryBudgetBytes } from '@/lib/model-card'
+import { getMemoryBudgetBytes, type ModelFormat } from '@/lib/model-card'
 import { extractModelName } from '@/lib/models'
 import { PlatformFeatures } from '@/lib/platform/const'
 import { PlatformFeature } from '@/lib/platform/types'
@@ -74,7 +76,8 @@ import { getHubSearchQuery, setHubSearchQuery } from './hub-session'
 
 type SearchParams = {
   repo?: string
-  engine?: 'mlx' | 'gguf'
+  /** The format to open on (a provider page's "find a model"), applied once on entry. */
+  engine?: ModelFormat
   q?: string
   /**
    * Repo id of the model shown in the right-hand detail panel; in the Images
@@ -133,10 +136,7 @@ export const Route = createFileRoute(route.hub.index as any)({
   component: HubContent,
   validateSearch: (search: Record<string, unknown>): SearchParams => ({
     repo: typeof search.repo === 'string' ? search.repo : undefined,
-    engine:
-      search.engine === 'mlx' || search.engine === 'gguf'
-        ? search.engine
-        : undefined,
+    engine: parseHubEngine(search.engine),
     q: typeof search.q === 'string' ? search.q : undefined,
     model: typeof search.model === 'string' ? search.model : undefined,
     category: isHubCategory(search.category) ? search.category : undefined,
@@ -318,6 +318,7 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
     q: querySearchParam,
     model: modelSearchParam,
     repo: repoSearchParam,
+    engine: engineSearchParam,
   } = Route.useSearch()
 
   const catalogSnapshot = useModelCatalogStore((s) => s.catalog)
@@ -363,13 +364,13 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
   const [storedFilters, setFilters] = useState<HubFilterState>(() =>
     readHubFilters()
   )
+  const availableFormats = useMemo(
+    () => hubFormats({ mlx: IS_MACOS, tensorrt: tensorrtHub.visible }),
+    [tensorrtHub.visible]
+  )
   const filters = useMemo(
-    () =>
-      normalizeHubFilters(
-        storedFilters,
-        hubFormats({ mlx: IS_MACOS, tensorrt: tensorrtHub.visible })
-      ),
-    [storedFilters, tensorrtHub.visible]
+    () => normalizeHubFilters(storedFilters, availableFormats),
+    [storedFilters, availableFormats]
   )
   const [showOnlyDownloaded, setShowOnlyDownloaded] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
@@ -388,6 +389,24 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
     setFilters(next)
     writeHubFilters(next)
   }, [])
+
+  // A link into the Hub that names a format (`?engine=`) opens on it, as if it
+  // were picked from the filter, then leaves the URL: coming back to this page
+  // must not undo a format chosen since.
+  useEffect(() => {
+    if (!engineSearchParam) return
+    updateFilters({
+      ...filters,
+      formats: [formatForEngine(engineSearchParam, availableFormats)],
+    })
+    void navigate({
+      to: route.hub.index,
+      search: (prev: SearchParams) => ({ ...prev, engine: undefined }),
+      replace: true,
+    })
+    // Once per link: the filters it overrides are not a reason to apply it again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engineSearchParam])
 
   // MiniSearch resolves a query against ~3k models in single-digit ms, so a
   // long debounce only leaves the previous query's results on screen — read

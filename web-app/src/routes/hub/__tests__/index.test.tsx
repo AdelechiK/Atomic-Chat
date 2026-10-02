@@ -583,6 +583,34 @@ describe('/hub route', () => {
     expect(screen.queryByText('Qwen3.5 4B')).not.toBeInTheDocument()
   })
 
+  it('opens on the format a provider page links with, keeps it and drops it from the URL', () => {
+    // "Find a model" on the MLX provider page: /hub/?engine=mlx, over a saved GGUF filter.
+    vi.stubGlobal('IS_MACOS', true)
+    mocks.search = { engine: 'mlx' }
+
+    render(<HubPage />)
+
+    expect(mocks.requestedPickFormats).toContain('mlx')
+    expect(screen.getByText('Qwen3.5 4B (MLX)')).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(HUB_FILTERS_STORAGE_KEY) ?? '{}').formats).toEqual([
+      'mlx',
+    ])
+    const cleared = mocks.navigate.mock.calls
+      .map(([options]) => options as { search?: (prev: object) => object })
+      .filter((options) => typeof options.search === 'function')
+      .map((options) => options.search!({ engine: 'mlx' }))
+    expect(cleared).toContainEqual(expect.objectContaining({ engine: undefined }))
+  })
+
+  it('reads an engine this machine does not offer as GGUF', () => {
+    mocks.search = { engine: 'mlx' }
+
+    render(<HubPage />)
+
+    expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
+    expect(screen.queryByText('Qwen3.5 4B (MLX)')).not.toBeInTheDocument()
+  })
+
   it('resolves a deep link the catalog does not carry from Hugging Face', async () => {
     mocks.search = { model: 'tiny-lab/experimental-3b' }
     mocks.fetchHuggingFaceRepo.mockResolvedValue(
