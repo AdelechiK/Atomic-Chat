@@ -783,6 +783,61 @@ describe('/hub route', () => {
       expect(opened).toContain('someone/Mamba-7B')
     })
 
+    it('keeps the format a link names even before the provider is known, and reads it as GGUF meanwhile', () => {
+      mocks.search = { engine: 'tensorrt-llm' }
+
+      render(<HubPage />)
+
+      expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
+      expect(JSON.parse(localStorage.getItem(HUB_FILTERS_STORAGE_KEY) ?? '{}').formats).toEqual([
+        'tensorrt-llm',
+      ])
+    })
+
+    it('stops asking Hugging Face for pages the prefilter keeps emptying', async () => {
+      selectTensorrt()
+      engineReady()
+      let page = 0
+      mocks.listHuggingFaceFeed.mockImplementation(async () => {
+        page += 1
+        return {
+          models: [trtEntry(`someone/Mamba-${page}`, ['MambaForCausalLM'])],
+          nextCursor: `cursor-${page}`,
+        }
+      })
+
+      render(<HubPage />)
+
+      expect(await screen.findByText('Qwen3-8B-FP8')).toBeInTheDocument()
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      expect(mocks.listHuggingFaceFeed.mock.calls.length).toBeLessThanOrEqual(4)
+      expect(screen.queryByText(/Mamba/)).not.toBeInTheDocument()
+    })
+
+    it('asks Hugging Face for nothing while the engine is blocked, uncensored or not', () => {
+      localStorage.setItem(
+        HUB_FILTERS_STORAGE_KEY,
+        serializeHubFilters({
+          formats: ['tensorrt-llm'],
+          sort: 'recommended',
+          onlyFitting: false,
+          uncensored: true,
+        })
+      )
+      tensorrtHub.value = {
+        visible: true,
+        state: 'blocked',
+        blockers: [{ code: 'prerequisite-blocked', reason: 'docker-missing', message: 'No Docker.' }],
+        descriptorId: null,
+      }
+
+      render(<HubPage />)
+
+      expect(screen.getByText('No Docker.')).toBeInTheDocument()
+      expect(mocks.listHuggingFaceFeed).not.toHaveBeenCalled()
+      expect(mocks.searchHuggingFaceCandidates).not.toHaveBeenCalled()
+    })
+
     it('is GGUF again where the format is not offered', () => {
       selectTensorrt()
 

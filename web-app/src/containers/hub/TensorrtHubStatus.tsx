@@ -87,9 +87,23 @@ export function TensorrtHubBlocked({ blockers }: { blockers: ManagedBlocker[] })
   )
 }
 
-/** Before the core's snapshot and plan are in: nothing about the engine is claimed yet. */
+/**
+ * Before the core's snapshot and plan are in: nothing about the engine is claimed yet. A probe that
+ * failed says so and offers to ask again, rather than spinning on.
+ */
 export function TensorrtHubChecking() {
   const { t } = useTranslation()
+  const { probing, error, recheck } = useTensorrtPlan({ enabled: false })
+  if (error && !probing) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-6 text-sm">
+        <p className="break-words text-destructive">{error}</p>
+        <Button size="sm" variant="outline" onClick={() => void recheck()}>
+          {t('hub:tensorrt.blocked.checkAgain')}
+        </Button>
+      </div>
+    )
+  }
   return (
     <p
       role="status"

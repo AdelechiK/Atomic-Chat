@@ -227,6 +227,24 @@ describe('installTensorrtModel', () => {
       })
     })
 
+    it('passes on no status-only event as progress, so the panel bar never rewinds', async () => {
+      // With a Hugging Face token the transfer listens to the downloader itself, which also sends
+      // `{ stage }` events without byte counts while it retries (#290).
+      const { d, emitted } = deps({
+        transfer: vi.fn(async (_items, _taskId, options) => {
+          options.onProgress?.(2_000_000_000, 8_000_011_700)
+          options.onProgress?.(undefined as unknown as number, undefined as unknown as number)
+        }),
+      })
+
+      await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8', token: 'hf_secret' }, d)
+
+      const updates = emitted.filter((e) => e.event === 'onFileDownloadUpdate')
+      expect(updates.map((e) => e.payload.size)).toEqual([
+        { transferred: 2_000_000_000, total: 8_000_011_700 },
+      ])
+    })
+
     it('ends a verified download for the id the downloader validated, after model.yml', async () => {
       const { d, steps, emitted } = deps({
         writeYaml: vi.fn(async (savePath: string) => {

@@ -37,7 +37,6 @@ import { useTranslation } from '@/i18n/react-i18next-compat'
 import {
   applyHubFilters,
   hasLikeData,
-  formatForEngine,
   hubFormats,
   huggingFaceQueries,
   isUncensoredModel,
@@ -127,6 +126,13 @@ const NO_GPUS: GpuFacts[] = []
 
 /** How many rows before the end of the list the next page is asked for. */
 const FEED_PREFETCH_ROWS = 8
+
+/**
+ * TensorRT-LLM's prefilter can leave a whole page with nothing to show; after
+ * this many such pages in a row the feed stops asking on its own, rather than
+ * paging through every safetensors repository on Hugging Face.
+ */
+const TENSORRT_EMPTY_PAGES_LIMIT = 3
 
 // Base (non-instruction-tuned) Gemma 4 MLX builds (e.g.
 // `mlx-community/gemma-4-12B-4bit`, converted from `google/gemma-4-12B`)
@@ -411,13 +417,11 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
 
   // A link into the Hub that names a format (`?engine=`) opens on it, as if it
   // were picked from the filter, then leaves the URL: coming back to this page
-  // must not undo a format chosen since.
+  // must not undo a format chosen since. Saved as named: a format not offered
+  // (yet — the provider list may still be loading) reads as GGUF meanwhile.
   useEffect(() => {
     if (!engineSearchParam) return
-    updateFilters({
-      ...filters,
-      formats: [formatForEngine(engineSearchParam, availableFormats)],
-    })
+    updateFilters({ ...storedFilters, formats: [engineSearchParam] })
     void navigate({
       to: route.hub.index,
       search: (prev: SearchParams) => ({ ...prev, engine: undefined }),
@@ -509,13 +513,13 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
   const uncensoredFeed = useHuggingFaceFeed(
     listSources.feedFormat,
     FEED_SORT_FOR[filters.sort],
-    filters.uncensored,
+    filters.uncensored && !tensorrtPanel,
     uncensoredQueries[0] ?? ''
   )
   const abliteratedFeed = useHuggingFaceFeed(
     listSources.feedFormat,
     FEED_SORT_FOR[filters.sort],
-    filters.uncensored && uncensoredQueries.length > 1,
+    filters.uncensored && !tensorrtPanel && uncensoredQueries.length > 1,
     uncensoredQueries[1] ?? ''
   )
 
@@ -651,8 +655,9 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
   // Uncensored has cursor-based feeds of its own above; keeping it out of this
   // one-shot path removes the old 20-results-per-term ceiling.
   useEffect(() => {
-    if (showOnlyDownloaded) {
-      setHfCandidates([])
+    // Behind the TensorRT-LLM panel nothing is listed, so nothing is asked.
+    if (showOnlyDownloaded || tensorrtPanel) {
+      setHfCandidates((current) => (current.length > 0 ? [] : current))
       hfCandidatesFetchedForRef.current = ''
       return
     }
@@ -723,6 +728,7 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
     huggingfaceToken,
     huggingFaceRepo,
     tensorrtFormat,
+    tensorrtPanel,
     listSources.feedFormat,
   ])
 
@@ -818,11 +824,15 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
         : []
     for (const model of head) seen.add(model.model_name)
 
-    const pagedUncensored = filters.uncensored
-      ? [...uncensoredFeed.models, ...abliteratedFeed.models].map(
-          (model) => uncensoredFeed.details.get(model.model_name) ?? model
-        )
-      : []
+    // A TensorRT-LLM row keeps its listing entry: a card fetched for the same
+    // repository as a GGUF or MLX row carries none of its architectures.
+    const pagedUncensored = !filters.uncensored
+      ? []
+      : tensorrtFormat
+        ? [...uncensoredFeed.models, ...abliteratedFeed.models]
+        : [...uncensoredFeed.models, ...abliteratedFeed.models].map(
+            (model) => uncensoredFeed.details.get(model.model_name) ?? model
+          )
 
     if (tensorrtFormat) {
       const rows = tensorrtSearchRows({
@@ -1085,6 +1095,9 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
   // The next page is asked for a few rows before the end, and the rows on
   // screen that still lack a size get their card fetched — both from what the
   // virtualizer is actually painting, so a fast scroll costs what it shows.
+  // Feed entries and list rows when a TensorRT-LLM page last arrived, and how
+  // many pages in a row added no row (see TENSORRT_EMPTY_PAGES_LIMIT).
+  const tensorrtFeedPages = useRef({ feed: 0, rows: 0, empty: 0 })
   const virtualItems = rowVirtualizer.getVirtualItems()
   const lastVisibleIndex = virtualItems[virtualItems.length - 1]?.index ?? -1
   const visibleFeedRepos = useMemo(
@@ -1120,12 +1133,24 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
       return
     }
     if (isSearchMode) return
-    if (lastVisibleIndex >= listItems.length - FEED_PREFETCH_ROWS) {
+    if (tensorrtFormat) {
+      const seen = tensorrtFeedPages.current
+      if (feed.models.length !== seen.feed) {
+        seen.empty = listItems.length > seen.rows ? 0 : seen.empty + 1
+        seen.feed = feed.models.length
+        seen.rows = listItems.length
+      }
+    }
+    if (
+      lastVisibleIndex >= listItems.length - FEED_PREFETCH_ROWS &&
+      !(tensorrtFormat && tensorrtFeedPages.current.empty >= TENSORRT_EMPTY_PAGES_LIMIT)
+    ) {
       feed.loadMore()
     }
     if (visibleFeedRepos) feed.ensureDetails(visibleFeedRepos.split('\n'))
   }, [
     isSearchMode,
+    tensorrtFormat,
     filters.uncensored,
     listItems.length,
     lastVisibleIndex,

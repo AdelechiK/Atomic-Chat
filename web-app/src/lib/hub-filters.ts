@@ -77,14 +77,6 @@ export function parseHubEngine(value: unknown): ModelFormat | undefined {
   return isFormat(value) ? value : undefined
 }
 
-/** The format a link into the Hub asks for, where this machine offers it; GGUF otherwise. */
-export function formatForEngine(
-  engine: ModelFormat,
-  available: readonly ModelFormat[]
-): ModelFormat {
-  return available.includes(engine) ? engine : DEFAULT_HUB_FILTERS.formats[0]
-}
-
 const isSortKey = (value: unknown): value is HubSortKey =>
   typeof value === 'string' && HUB_SORT_KEYS.includes(value as HubSortKey)
 

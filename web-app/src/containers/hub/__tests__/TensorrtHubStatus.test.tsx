@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,7 +20,7 @@ vi.mock('@/services/managed-environment/client', async (importOriginal) => ({
 }))
 
 import { TensorrtHubBlocked, TensorrtHubChecking } from '../TensorrtHubStatus'
-import { resetTensorrtPlanForTests } from '@/hooks/useTensorrtPlan'
+import { resetTensorrtPlanForTests, useTensorrtPlan } from '@/hooks/useTensorrtPlan'
 import type { ManagedBlocker } from '@/services/managed-environment/types'
 
 const driverTooOld: ManagedBlocker = {
@@ -89,5 +89,20 @@ describe('TensorrtHubChecking', () => {
   it('claims nothing while the core has not answered', () => {
     render(<TensorrtHubChecking />)
     expect(screen.getByRole('status')).toHaveTextContent('hub:tensorrt.checking')
+  })
+
+  it('says the check failed and offers to check again, instead of spinning forever', async () => {
+    client.probe.mockRejectedValueOnce(new Error('core is restarting'))
+    const { result } = renderHook(() => useTensorrtPlan())
+    await waitFor(() => expect(result.current.error).toBe('core is restarting'))
+
+    render(<TensorrtHubChecking />)
+
+    expect(screen.getByText('core is restarting')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    client.probe.mockResolvedValue({ blockers: [], descriptor_id: null })
+    fireEvent.click(screen.getByRole('button', { name: 'hub:tensorrt.blocked.checkAgain' }))
+    await waitFor(() => expect(client.probe).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('status')).toHaveTextContent('hub:tensorrt.checking')
   })
 })

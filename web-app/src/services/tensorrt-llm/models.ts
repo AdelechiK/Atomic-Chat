@@ -254,6 +254,9 @@ export async function installTensorrtModel(
         resume: true,
         ...(request.token ? { hfToken: request.token } : {}),
         onProgress: (transferred, total) => {
+          // The downloader's status-only events (`{ stage }`, while it retries) carry no bytes;
+          // as progress they would rewind the panel's bar (#290).
+          if (typeof transferred !== 'number' || typeof total !== 'number') return
           deps.emit(DownloadEvent.onFileDownloadUpdate, {
             modelId: downloadId,
             percent: total > 0 ? transferred / total : 0,

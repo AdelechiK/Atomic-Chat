@@ -12,6 +12,7 @@ vi.mock('@/services/tensorrt-llm/models', async (importOriginal) => ({
 }))
 
 import { useTensorrtCurated } from '../useTensorrtCurated'
+import { GatedModelError } from '@/services/tensorrt-llm/models'
 import { resetTensorrtVerdictsForTests } from '@/services/tensorrt-llm/verdict'
 import type {
   CuratedModel,
@@ -100,6 +101,23 @@ describe('useTensorrtCurated', () => {
     // Each is read at the revision the descriptor pins.
     expect(models.fetchHfRevision).toHaveBeenCalledWith('nvidia/Qwen3-8B-FP8', 'rev-a', undefined)
     expect(models.describeDescriptor).toHaveBeenCalledWith('tensorrt-llm-1.3.0rc29-r2')
+  })
+
+  it('keeps a curated model the core never judged — gated, or Hugging Face unreachable — for its card to explain', async () => {
+    models.fetchHfRevision.mockImplementation(async (repository: string, revision?: string) => {
+      if (repository === 'nvidia/Qwen3.5-122B-NVFP4') throw new Error('network down')
+      if (repository === 'nvidia/Gemma-4-31B-FP8') throw new GatedModelError(repository)
+      return { repository, revision: `${revision}-sha`, config_json: {}, hf_quant_config_json: null, files: [] }
+    })
+
+    const { result } = renderHook(() => useTensorrtCurated('tensorrt-llm-1.3.0rc29-r2'))
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.models.map((model) => model.model_name)).toEqual([
+      'nvidia/Qwen3-8B-FP8',
+      'nvidia/Qwen3.5-122B-NVFP4',
+      'nvidia/Gemma-4-31B-FP8',
+    ])
   })
 
   it('asks the core again for nothing it already answered this session', async () => {

@@ -13,7 +13,8 @@ import { selectEnvironment, useManagedEnvironmentStore } from '@/stores/managed-
  * One probe per revision of the core's environment snapshot: a new revision (the engine installed,
  * the WSL distribution gone, a new core) asks again, and so does `recheck()`. Probing changes
  * nothing on the machine. Module state, not component state: a screen opened later reads the plan
- * already held instead of asking again.
+ * already held instead of asking again — except the provider page, which asks on every opening
+ * (`enabled: false` and its own `recheck()`), as before. A failed probe holds no revision.
  */
 
 interface PlanState {
@@ -61,7 +62,8 @@ function request(key: string, environment: EnvironmentSnapshot | undefined) {
     (error) => {
       if (inflight?.sequence !== mine) return undefined
       inflight = null
-      usePlanStore.setState({ probing: false, error: errorText(error) })
+      // A failure answers nothing about this revision: the next screen asks again.
+      usePlanStore.setState({ key: null, probing: false, error: errorText(error) })
       return undefined
     }
   )

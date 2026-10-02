@@ -100,9 +100,12 @@ export function TensorrtLlmSetupPanel() {
   const failed = useManagedEnvironmentStore(selectFailedSetup)
   const failedEnvironmentRemoval = useManagedEnvironmentStore(selectFailedEnvironmentRemoval)
 
-  // The plan is shared with the Model Hub and asked once per snapshot revision (a new one when the
-  // WSL distribution appears or goes on Windows: its removal turns the page back to the install).
-  const { plan, probing, error: probeError, recheck: probeAgain } = useTensorrtPlan()
+  // The plan is shared with the Model Hub, which asks once per snapshot revision. This page asks on
+  // every opening — something may have been fixed outside the app — and on every new revision (the
+  // WSL distribution appearing or going on Windows turns the page back to the install).
+  const { plan, probing, error: probeError, recheck: probeAgain } = useTensorrtPlan({
+    enabled: false,
+  })
   const [actionError, setActionError] = useState<string | null>(null)
   const [planOpen, setPlanOpen] = useState(false)
   const [removeOpen, setRemoveOpen] = useState(false)
@@ -120,6 +123,11 @@ export function TensorrtLlmSetupPanel() {
     setActionError(null)
     return probeAgain()
   }, [probeAgain])
+
+  const snapshot = environment ? `${environment.instance_id}:${environment.revision}` : null
+  useEffect(() => {
+    void recheck()
+  }, [recheck, snapshot])
 
   // The NVIDIA notices of the descriptor this plan installs; when the core cannot serve that
   // descriptor, the plan says the notices were not reported.

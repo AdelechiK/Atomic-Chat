@@ -94,12 +94,13 @@ export function tensorrtVerdict(
   return promise
 }
 
-/** Runs on some card of this machine: here, or on another card the core names. */
-export function runsOnSomeCard(verdict: TensorrtVerdict): boolean {
-  return (
-    verdict.kind === 'ok' ||
-    (verdict.kind === 'incompatible' && verdict.compatibility.fits_other_gpus.length > 0)
-  )
+/**
+ * The core refused the model for every card of this machine. Anything else — it runs here or on
+ * another card, or the core was never asked (Hugging Face refused access or could not be reached)
+ * — keeps a curated model listed, and its card says which.
+ */
+export function refusedOnEveryCard(verdict: TensorrtVerdict): boolean {
+  return verdict.kind === 'incompatible' && verdict.compatibility.fits_other_gpus.length === 0
 }
 
 /**

@@ -4,13 +4,13 @@ import { useGeneralSetting } from '@/hooks/useGeneralSetting'
 import type { CuratedModel } from '@/services/managed-environment/types'
 import type { CatalogModel } from '@/services/models/types'
 import { describeDescriptor } from '@/services/tensorrt-llm/models'
-import { runsOnSomeCard, tensorrtVerdict } from '@/services/tensorrt-llm/verdict'
+import { refusedOnEveryCard, tensorrtVerdict } from '@/services/tensorrt-llm/verdict'
 
 /**
  * The curated models of a TensorRT-LLM descriptor that run on this machine, as Model Hub cards
  * (change `add-tensorrt-llm-model-hub`, design D3): the installation's descriptor, or the one the
  * plan would install (`useTensorrtHubState().descriptorId`). Each is checked by the core at the
- * revision the descriptor pins; one that fits no card of this machine is left out. Also the
+ * revision the descriptor pins; one the core refuses for every card of this machine is left out. Also the
  * descriptor's `supported_architectures`, which the Hugging Face feed is narrowed by.
  */
 export interface TensorrtCurated {
@@ -64,7 +64,9 @@ export function useTensorrtCurated(descriptorId: string | null): TensorrtCurated
       )
       if (cancelled) return
       setState({
-        models: checked.filter((entry) => runsOnSomeCard(entry.verdict)).map((entry) => curatedCard(entry.model)),
+        models: checked
+          .filter((entry) => !refusedOnEveryCard(entry.verdict))
+          .map((entry) => curatedCard(entry.model)),
         supportedArchitectures: summary.supported_architectures,
         loading: false,
       })

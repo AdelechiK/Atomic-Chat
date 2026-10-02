@@ -127,6 +127,20 @@ describe('useTensorrtPlan', () => {
     expect(hub.result.current.plan?.plan_digest).toBe(digest('c'))
   })
 
+  it('asks again on the next screen after a probe failed, instead of keeping the failure for the revision', async () => {
+    client.probe.mockRejectedValueOnce(new Error('core is restarting'))
+    const first = renderHook(() => useTensorrtPlan())
+    await waitFor(() => expect(first.result.current.error).toBe('core is restarting'))
+    first.unmount()
+
+    client.probe.mockResolvedValue(plan())
+    const again = renderHook(() => useTensorrtPlan())
+
+    await waitFor(() => expect(again.result.current.plan?.plan_digest).toBe(digest('a')))
+    expect(again.result.current.error).toBeNull()
+    expect(client.probe).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps the reason a probe failed and asks nothing while disabled', async () => {
     client.probe.mockRejectedValue(new Error('core is not running'))
     const off = renderHook(() => useTensorrtPlan({ enabled: false }))

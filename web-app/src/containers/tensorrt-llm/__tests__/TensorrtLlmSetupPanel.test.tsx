@@ -159,6 +159,25 @@ beforeEach(() => {
 })
 
 describe('TensorrtLlmSetupPanel', () => {
+  it('asks the core again every time the page opens, as something may have changed outside the app', async () => {
+    client.probe.mockResolvedValueOnce(
+      plan({
+        availability: 'prerequisite-blocked',
+        blockers: [{ code: 'prerequisite-blocked', reason: 'docker-missing', message: 'Docker is not installed.' }],
+      })
+    )
+    const first = render(<TensorrtLlmSetupPanel />)
+    expect(await screen.findByText('Docker is not installed.')).toBeInTheDocument()
+    first.unmount()
+
+    // Docker installed in a terminal: the core's snapshot did not change.
+    render(<TensorrtLlmSetupPanel />)
+
+    expect(await screen.findByRole('button', { name: 'providers:tensorrt.install' })).toBeInTheDocument()
+    expect(screen.queryByText('Docker is not installed.')).not.toBeInTheDocument()
+    expect(client.probe).toHaveBeenCalledTimes(2)
+  })
+
   it('shows the whole plan and installs nothing when the person closes it', async () => {
     // spec "Отказ от согласия".
     render(<TensorrtLlmSetupPanel />)
