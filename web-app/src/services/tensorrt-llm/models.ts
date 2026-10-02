@@ -120,6 +120,15 @@ async function hfJson(
   return response.json()
 }
 
+/**
+ * The one id of a model's download (change `add-tensorrt-llm-model-hub`, design D6): the Rust task
+ * id, each file's `model_id` and the download panel's row. Tauri takes only `[A-Za-z0-9_-]` in
+ * the event name the task id ends up in.
+ */
+export function tensorrtDownloadId(repository: string): string {
+  return `tensorrt-llm-${normalizeRepository(repository).replace(/[^A-Za-z0-9_-]/g, '_')}`
+}
+
 /** Normalises what a person pastes: a repo id or its huggingface.co URL. */
 export function normalizeRepository(input: string): string {
   return input
@@ -243,7 +252,7 @@ export async function installTensorrtModel(
   }
   try {
     if (pending.length > 0) {
-      await deps.transfer(pending, `tensorrt-llm-${repository.replace(/[^A-Za-z0-9_-]/g, '_')}`, {
+      await deps.transfer(pending, tensorrtDownloadId(repository), {
         resume: true,
         ...(request.token ? { hfToken: request.token } : {}),
         ...(request.onProgress ? { onProgress: request.onProgress } : {}),

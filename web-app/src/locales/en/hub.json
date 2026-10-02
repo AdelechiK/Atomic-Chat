@@ -99,7 +99,8 @@
       "otherCard": "It would fit on: {{cards}}. Choose that card in the TensorRT-LLM settings.",
       "gated": "Hugging Face refused access. Open the model page, accept its terms (and set your Hugging Face token in Settings if needed), then try again: {{url}}",
       "noSpace": "Not enough free space for this model in {{path}}: it needs {{needed}}, {{free}} is free. Free some space there and try again."
-    }
+    },
+    "installEngine": "Install the engine"
   },
   "categoryChatHint": "Language models for chat",
   "categoryImagesHint": "Generate images from a prompt",
