@@ -54,6 +54,19 @@ export interface CatalogModel {
    * `add-tensorrt-llm-model-hub`): whether it runs is the core's verdict, never this flag.
    */
   is_tensorrt_llm?: boolean
+  /** What the Hub knows of a TensorRT-LLM entry before the core's verdict. */
+  tensorrt?: TensorrtCatalogFields
+}
+
+export interface TensorrtCatalogFields {
+  /** One of the descriptor's curated checkpoints. */
+  curated?: boolean
+  /** The revision to read and download at: the descriptor's pin; absent means `main`. */
+  revision?: string
+  /** `config.architectures` from Hugging Face's listing (`expand[]=config`). */
+  architectures?: string[]
+  /** Parameter counts by safetensors dtype from the listing (`expand[]=safetensors`). */
+  parameters?: Record<string, number>
 }
 
 export type ModelCatalog = CatalogModel[]
