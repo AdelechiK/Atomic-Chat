@@ -86,6 +86,11 @@ fn supported_input(os_type: &str, arch: &str, flags: [bool; 5]) -> Value {
     })
 }
 
+fn with_opencl(mut input: Value) -> Value {
+    input["features"]["opencl"] = json!(true);
+    input
+}
+
 fn prioritize_input(version_backends: Vec<Value>, has_enough_gpu_memory: bool) -> Value {
     json!({"kind": "prioritize", "version_backends": version_backends, "has_enough_gpu_memory": has_enough_gpu_memory})
 }
@@ -308,8 +313,11 @@ fn supported_cases() -> Vec<(String, Value)> {
         ("windows_x86_64_rocm_family_id_keeps_vulkan", supported_input("windows", "x86_64", [false, false, false, true, true])),
         ("windows_x86_64_every_flag", supported_input("windows", "x86_64", ALL)),
         ("windows_x86_64_no_flags", supported_input("windows", "x86_64", NONE)),
-        ("windows_aarch64_cpu_placeholder", supported_input("windows", "aarch64", ALL)),
-        ("windows_arm64_cpu_placeholder", supported_input("windows", "arm64", NONE)),
+        ("windows_aarch64_every_flag_but_opencl", supported_input("windows", "aarch64", ALL)),
+        ("windows_aarch64_opencl_adreno", with_opencl(supported_input("windows", "aarch64", NONE))),
+        ("windows_aarch64_every_flag", with_opencl(supported_input("windows", "aarch64", ALL))),
+        ("windows_arm64_cpu_only", supported_input("windows", "arm64", NONE)),
+        ("windows_x86_64_opencl_ignored", with_opencl(supported_input("windows", "x86_64", NONE))),
         ("linux_x86_64_cpu_only", supported_input("linux", "x86_64", NONE)),
         ("linux_x86_64_with_vulkan", supported_input("linux", "x86_64", [false, false, false, true, false])),
         ("linux_x86_64_cuda_flags_ignored", supported_input("linux", "x86_64", [true, true, true, false, false])),
@@ -377,6 +385,21 @@ fn prioritize_cases() -> Vec<(String, Value)> {
             prioritize_input(vec![vb("b7523", "win-noavx-x64", 0), vb("b7523", "win-avx2-x64", 0)], true),
         ),
         ("macos_arm64_category", prioritize_input(vec![vb("b10205", "macos-arm64", 0)], false)),
+        (
+            "windows_arm64_cuda13_over_opencl_over_cpu",
+            prioritize_input(
+                vec![
+                    vb("b11344", "win-cpu-arm64", 0),
+                    vb("b11344", "win-opencl-adreno-arm64", 0),
+                    vb("b11344", "win-cuda-13.4-arm64", 0),
+                ],
+                true,
+            ),
+        ),
+        (
+            "windows_arm64_opencl_over_cpu_without_enough_gpu_memory",
+            prioritize_input(vec![vb("b11344", "win-cpu-arm64", 0), vb("b11344", "win-opencl-adreno-arm64", 0)], false),
+        ),
         (
             "no_category_falls_back_to_first_entry",
             prioritize_input(vec![vb("b7523", "backend-a", 0), vb("b7524", "backend-b", 0)], true),
@@ -545,6 +568,14 @@ fn migrate_cases() -> Vec<(String, Value)> {
         ("win_cuda_13_1_to_13_3", migrate_input("win-cuda-13.1-x64", vec![vb("b10205", "win-cuda-13.3-x64", 0)])),
         ("ubuntu_vulkan_to_linux_vulkan", migrate_input("ubuntu-vulkan-x64", vec![vb("b10205", "linux-vulkan-x64", 0)])),
         ("family_id_needs_no_migration", migrate_input("win-cuda-13-x64", vec![vb("b10205", "win-cuda-13.3-x64", 0)])),
+        (
+            "win_cuda_13_4_arm64_kept",
+            migrate_input("win-cuda-13.4-arm64", vec![vb("b11344", "win-cuda-13.3-arm64", 0)]),
+        ),
+        (
+            "win_opencl_adreno_arm64_kept",
+            migrate_input("win-opencl-adreno-arm64", vec![vb("b11344", "win-cpu-arm64", 0)]),
+        ),
         ("empty_catalog_skips", migrate_input("linux-avx2-x64", vec![])),
     ]
     .into_iter()

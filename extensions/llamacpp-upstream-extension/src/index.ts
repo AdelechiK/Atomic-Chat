@@ -1082,19 +1082,24 @@ export default class llamacpp_upstream_extension extends AIEngine {
       // architecture is read off the bundled build rather than probed: the
       // installer ships the matching arch by construction. An Intel host gets
       // no sentinel — `latest/macos-x64` would resolve to nothing.
-      const macHostVariant = IS_MAC
-        ? (bundledBackendString ?? stripBom(this.config.version_backend || ''))
-            .split('/')[1]
-            ?.trim()
-        : undefined
+      const hostVariant = (
+        bundledBackendString ?? stripBom(this.config.version_backend || '')
+      )
+        .split('/')[1]
+        ?.trim()
+      const macHostVariant = IS_MAC ? hostVariant : undefined
+      // Windows on ARM ships `win-cpu-arm64` as its bundled build, so the
+      // arch is read off it the same way.
       const localStaticVariants: string[] = IS_WINDOWS
-        ? [
-            'win-cpu-x64',
-            'win-cuda-12-x64',
-            'win-cuda-13-x64',
-            'win-rocm-x64',
-            'win-vulkan-x64',
-          ]
+        ? hostVariant?.endsWith('-arm64')
+          ? ['win-cpu-arm64', 'win-opencl-adreno-arm64', 'win-cuda-13-arm64']
+          : [
+              'win-cpu-x64',
+              'win-cuda-12-x64',
+              'win-cuda-13-x64',
+              'win-rocm-x64',
+              'win-vulkan-x64',
+            ]
         : IS_LINUX
           ? ['linux-cpu-x64', 'linux-vulkan-x64']
           : macHostVariant === 'macos-arm64'

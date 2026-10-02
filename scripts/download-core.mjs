@@ -32,7 +32,7 @@ const BASE = CONFIG.baseUrl ?? `https://github.com/${REPO}/releases/download/v${
 /** Targets per platform. macOS takes both and merges them. */
 function targetsFor(platform, arch) {
   if (platform === 'darwin') return ['aarch64-apple-darwin', 'x86_64-apple-darwin']
-  if (platform === 'win32') return ['x86_64-pc-windows-msvc.exe']
+  if (platform === 'win32') return [arch === 'arm64' ? 'aarch64-pc-windows-msvc.exe' : 'x86_64-pc-windows-msvc.exe']
   if (platform === 'linux') return [arch === 'arm64' ? 'aarch64-unknown-linux-gnu' : 'x86_64-unknown-linux-gnu']
   throw new Error(`Unsupported platform: ${platform}`)
 }

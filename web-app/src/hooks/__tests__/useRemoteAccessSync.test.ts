@@ -13,7 +13,10 @@ import {
 const { capture, toastError, features } = vi.hoisted(() => ({
   capture: vi.fn(),
   toastError: vi.fn(),
-  features: { localApiServer: true } as Record<string, boolean>,
+  features: { localApiServer: true, remoteAccess: true } as Record<
+    string,
+    boolean
+  >,
 }))
 
 vi.mock('@/lib/telemetry-queue', () => ({ queuedCapture: capture }))
@@ -120,6 +123,7 @@ describe('useRemoteAccessSync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     features.localApiServer = true
+    features.remoteAccess = true
     localStorage.clear()
     useRemoteAccessStore.getState().reset()
     useAppState.setState({ serverStatus: 'stopped' })
@@ -479,6 +483,23 @@ describe('useRemoteAccessSync', () => {
 
     expect(events.listen).not.toHaveBeenCalled()
     expect(app.getRemoteAccessStatus).not.toHaveBeenCalled()
+    expect(app.startRemoteAccess).not.toHaveBeenCalled()
+    expect(tunnel().status).toBeNull()
+  })
+
+  it('does nothing in a build without the tunnel (Windows arm64)', async () => {
+    features.remoteAccess = false
+    const { app, events } = mountHub()
+    useLocalApiServer.setState({
+      remoteAccessAutoStart: true,
+      apiKey: 'sk-atomic-key',
+    })
+
+    renderHook(() => useRemoteAccessSync())
+    setServerStatus('running')
+    await act(async () => {})
+
+    expect(events.listen).not.toHaveBeenCalled()
     expect(app.startRemoteAccess).not.toHaveBeenCalled()
     expect(tunnel().status).toBeNull()
   })

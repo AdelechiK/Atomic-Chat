@@ -5,6 +5,20 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{Manager, Runtime};
 
+/// `win-cuda-13-arm64` or `win-cuda-13.<minor>-arm64`.
+fn is_win_cuda13_arm64(backend: &str) -> bool {
+    match backend
+        .strip_prefix("win-cuda-13")
+        .and_then(|rest| rest.strip_suffix("-arm64"))
+    {
+        Some("") => true,
+        Some(minor) => minor
+            .strip_prefix('.')
+            .is_some_and(|digits| !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit())),
+        None => false,
+    }
+}
+
 #[tauri::command]
 pub fn map_old_backend_to_new(old_backend: String) -> String {
     // Upstream provider serves two platforms with different naming streams:
@@ -68,6 +82,17 @@ pub fn map_old_backend_to_new(old_backend: String) -> String {
             || old_backend.contains("cuda-13.3")
             || old_backend.contains("rocm")
             || old_backend == "win-vulkan-x64")
+    {
+        return old_backend;
+    }
+
+    // ggml-org Windows arm64 ids (`win-cpu-arm64`, `win-opencl-adreno-arm64`, the CUDA 13
+    // family id and its concrete minors) pass through ahead of the CUDA 13 folding below,
+    // which would otherwise pin a 13.x minor that the arm64 stream does not publish.
+    if is_windows
+        && (old_backend == "win-cpu-arm64"
+            || old_backend == "win-opencl-adreno-arm64"
+            || is_win_cuda13_arm64(&old_backend))
     {
         return old_backend;
     }
@@ -376,6 +401,9 @@ pub struct SystemFeatures {
     vulkan: bool,
     #[serde(default)]
     rocm: bool,
+    // Qualcomm Adreno GPU present (Windows on Snapdragon); gates `win-opencl-adreno-arm64`.
+    #[serde(default)]
+    opencl: bool,
 }
 
 #[derive(Serialize)]
@@ -424,6 +452,12 @@ pub fn determine_supported_backends(
         }
         "windows-aarch64" | "windows-arm64" => {
             supported_backends.push("win-cpu-arm64".to_string());
+            if features.opencl {
+                supported_backends.push("win-opencl-adreno-arm64".to_string());
+            }
+            if features.cuda13 {
+                supported_backends.push("win-cuda-13-arm64".to_string());
+            }
         }
         "linux-x86_64" | "linux-x86" => {
             // Per 2026-05-28 ADR *Linux ships only `llamacpp-upstream`*:
@@ -886,6 +920,7 @@ pub async fn prioritize_backends(
             "cuda-cu11.7",
             "rocm",
             "vulkan",
+            "opencl",
             "common_cpus",
             "cpu",
             "avx512",
@@ -902,6 +937,7 @@ pub async fn prioritize_backends(
             "cuda-cu12.4",
             "cuda-cu12.0",
             "cuda-cu11.7",
+            "opencl",
             "common_cpus",
             "cpu",
             "avx512",
@@ -985,6 +1021,9 @@ fn get_backend_category(backend_string: &str) -> Option<String> {
     }
     if backend_string.contains("vulkan") {
         return Some("vulkan".to_string());
+    }
+    if backend_string.contains("opencl") {
+        return Some("opencl".to_string());
     }
     // ggml-org native Windows CPU name `win-cpu-x64` (and arm64 variant).
     // Matched as a dedicated category before falling back to the legacy
@@ -1966,6 +2005,7 @@ mod tests {
             cuda13: false,
             vulkan: true,
             rocm: false,
+            opencl: false,
         };
 
         let result =
@@ -1990,6 +2030,7 @@ mod tests {
             cuda13: true,
             vulkan: false,
             rocm: false,
+            opencl: false,
         };
 
         let result =
@@ -2012,6 +2053,7 @@ mod tests {
             cuda13: false,
             vulkan: true,
             rocm: true,
+            opencl: false,
         };
 
         let result =
@@ -2035,6 +2077,7 @@ mod tests {
             cuda13: false,
             vulkan: true,
             rocm: true,
+            opencl: false,
         };
 
         let result =
@@ -2100,6 +2143,7 @@ mod tests {
             cuda13: false,
             vulkan: false,
             rocm: false,
+            opencl: false,
         };
 
         let result =
@@ -2121,6 +2165,7 @@ mod tests {
             cuda13: false,
             vulkan: false,
             rocm: false,
+            opencl: false,
         };
 
         let result =
@@ -2139,6 +2184,7 @@ mod tests {
             cuda13: false,
             vulkan: true,
             rocm: false,
+            opencl: false,
         };
 
         let result =
@@ -2162,6 +2208,7 @@ mod tests {
             cuda13: true,
             vulkan: false,
             rocm: false,
+            opencl: false,
         };
 
         let result =
@@ -2183,6 +2230,7 @@ mod tests {
             cuda13: false,
             vulkan: true,
             rocm: false,
+            opencl: false,
         };
 
         let result =
@@ -2206,6 +2254,7 @@ mod tests {
             cuda13: false,
             vulkan: false,
             rocm: false,
+            opencl: false,
         };
 
         let result =
@@ -2213,6 +2262,61 @@ mod tests {
                 .unwrap();
 
         assert_eq!(result, vec!["linux-cpu-arm64".to_string()]);
+    }
+
+    #[test]
+    fn test_determine_supported_backends_windows_arm64_matrix() {
+        let cpu_only = SystemFeatures {
+            cuda11: true,
+            cuda12: true,
+            cuda13: false,
+            vulkan: true,
+            rocm: true,
+            opencl: false,
+        };
+        assert_eq!(
+            determine_supported_backends("windows".to_string(), "aarch64".to_string(), cpu_only)
+                .unwrap(),
+            vec!["win-cpu-arm64".to_string()]
+        );
+
+        let every_tier = SystemFeatures {
+            cuda11: false,
+            cuda12: false,
+            cuda13: true,
+            vulkan: false,
+            rocm: false,
+            opencl: true,
+        };
+        assert_eq!(
+            determine_supported_backends("windows".to_string(), "arm64".to_string(), every_tier)
+                .unwrap(),
+            vec![
+                "win-cpu-arm64".to_string(),
+                "win-opencl-adreno-arm64".to_string(),
+                "win-cuda-13-arm64".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_windows_arm64_ids_pass_through_migration() {
+        for id in [
+            "win-cpu-arm64",
+            "win-opencl-adreno-arm64",
+            "win-cuda-13-arm64",
+            "win-cuda-13.4-arm64",
+        ] {
+            assert_eq!(map_old_backend_to_new(id.to_string()), id);
+        }
+        assert_eq!(
+            map_old_backend_to_new("win-cuda-13.4-x64".to_string()),
+            "win-cuda-13.3-x64"
+        );
+        assert_eq!(
+            get_backend_category("win-opencl-adreno-arm64").as_deref(),
+            Some("opencl")
+        );
     }
 
     #[tokio::test]

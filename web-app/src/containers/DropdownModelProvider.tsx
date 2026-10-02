@@ -12,6 +12,8 @@ import {
   isLocalEngineProvider,
   isProviderConnected,
 } from '@/lib/cloud-providers'
+import { PlatformFeatures } from '@/lib/platform/const'
+import { PlatformFeature } from '@/lib/platform/types'
 import { ModelSourceBadge } from '@/components/ModelSourceBadge'
 import {
   IconChevronDown,
@@ -62,6 +64,8 @@ import {
 const isPickerSection = (provider: ModelProvider): boolean =>
   provider.active &&
   !/(?:diffusion|image|video)/i.test(provider.provider) &&
+  (PlatformFeatures[PlatformFeature.TURBOQUANT_ENGINE] ||
+    provider.provider !== 'llamacpp') &&
   (isLocalEngineProvider(provider) || isProviderConnected(provider))
 
 const NON_CHAT_CAPABILITIES = new Set([
@@ -364,7 +368,7 @@ const DropdownModelProvider = memo(function DropdownModelProvider({
             (p.provider === 'llamacpp-upstream' ||
               p.provider === 'llamacpp' ||
               p.provider === 'mlx') &&
-            p.active &&
+            isPickerSection(p) &&
             p.models.length > 0
         )
         if (localProvider && localProvider.models.length > 0) {

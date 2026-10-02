@@ -377,6 +377,9 @@ ifeq ($(OS),Windows_NT)
 			'src-tauri/resources/bin/bun-x86_64-pc-windows-msvc.exe', \
 			'src-tauri/resources/bin/uv-x86_64-pc-windows-msvc.exe', \
 			'src-tauri/resources/bin/cloudflared-x86_64-pc-windows-msvc.exe', \
+			'src-tauri/resources/bin/bun-aarch64-pc-windows-msvc.exe', \
+			'src-tauri/resources/bin/uv-aarch64-pc-windows-msvc.exe', \
+			'src-tauri/resources/bin/cloudflared-aarch64-pc-windows-msvc.exe', \
 			'src-tauri/resources/llamacpp-backend/test-placeholder', \
 			'src-tauri/resources/llamacpp-backend-upstream/test-placeholder' \
 		); \
@@ -967,7 +970,8 @@ download-llamacpp-upstream-backend-win-cpu:
 		$$dir = 'src-tauri/resources/llamacpp-backend-upstream'; \
 		if (Test-Path $$dir) { Remove-Item $$dir -Recurse -Force }; \
 		New-Item -ItemType Directory -Path $$dir -Force | Out-Null; \
-		$$resolved = & node scripts/resolve-upstream-backend.mjs --backend win-cpu-x64; \
+		$$cpuBackend = if ((Get-CimInstance Win32_Processor | Select-Object -First 1).Architecture -eq 12) { 'win-cpu-arm64' } else { 'win-cpu-x64' }; \
+		$$resolved = & node scripts/resolve-upstream-backend.mjs --backend $$cpuBackend; \
 		if ($$LASTEXITCODE -ne 0) { throw 'scripts/resolve-upstream-backend.mjs failed' }; \
 		$$r = @{}; \
 		foreach ($$line in $$resolved) { $$kv = $$line -split '=', 2; if ($$kv.Length -eq 2) { $$r[$$kv[0]] = $$kv[1] } }; \
@@ -1175,9 +1179,13 @@ else ifeq ($(OS),Windows_NT)
 	@mkdir -p src-tauri/resources/llamacpp-backend-upstream
 	@echo "Detecting GPU and selecting best upstream backend for Windows..."; \
 	BACKEND=""; \
+	IS_ARM64=$$(powershell -NoProfile -Command "if((Get-CimInstance Win32_Processor | Select-Object -First 1).Architecture -eq 12){'true'}else{'false'}" 2>/dev/null); \
 	if [ -n "$(LLAMACPP_BACKEND)" ]; then \
 		BACKEND="$(LLAMACPP_BACKEND)"; \
 		echo "Using manually specified backend: $$BACKEND"; \
+	elif [ "$$IS_ARM64" = "true" ]; then \
+		BACKEND="win-cpu-arm64"; \
+		echo "Windows ARM64 host: bundling $$BACKEND (OpenCL Adreno / CUDA are picked at runtime)"; \
 	else \
 		NV_DRIVER=$$(powershell -NoProfile -Command "try { $$g = Get-CimInstance Win32_VideoController -EA Stop | Where-Object { $$_.Name -match 'NVIDIA' } | Select-Object -First 1; if($$g -and $$g.DriverVersion){ $$r = $$g.DriverVersion -replace '\\.','' ; if($$r.Length -ge 5){ $$nv=$$r.Substring($$r.Length-5); $$maj=$$nv.Substring(0,3).TrimStart('0'); $$min=$$nv.Substring(3,2); if(-not $$maj){$$maj='0'}; Write-Output \"$$maj.$$min\" } } } catch {}" 2>/dev/null); \
 		HAS_VULKAN=$$(powershell -NoProfile -Command "if(Test-Path \"$$env:SystemRoot\\System32\\vulkan-1.dll\"){'true'}else{'false'}" 2>/dev/null); \
