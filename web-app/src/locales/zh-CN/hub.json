@@ -62,5 +62,15 @@
   "defaultSize": "默认尺寸",
   "steps": "步数",
   "license": "许可证",
-  "frameRate": "帧率"
+  "frameRate": "帧率",
+  "categoryChatHint": "Language models for chat",
+  "categoryImagesHint": "Generate images from a prompt",
+  "categoryVideoHint": "Generate short videos",
+  "categoryDecision": "Decision",
+  "categoryDecisionHint": "Converts data to probabilities.",
+  "searchDecisionPlaceholder": "Search decision models…",
+  "available": "Available",
+  "cpu": "CPU",
+  "languages": "Languages",
+  "backbone": "Backbone"
 }

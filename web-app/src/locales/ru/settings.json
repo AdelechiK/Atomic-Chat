@@ -529,6 +529,42 @@
     "runSetupAgain": "Пройти настройку заново",
     "runSetupAgainDescription": "Ещё раз пройти шаги доступа к микрофону и загрузки модели."
   },
+  "decision": {
+    "multilingual": "100+ языков",
+    "context": "{{tokens}} токенов",
+    "diskSize": "{{size}} ГБ на диске",
+    "progress": "{{current}} из {{total}} ГБ",
+    "start": "Запустить",
+    "stop": "Остановить",
+    "remove": "Удалить",
+    "removeTitle": "Удалить {{name}}?",
+    "removeDescription": "Файлы модели и её сконвертированная копия будут удалены. Если модель запущена, она сначала остановится.",
+    "removed": "{{name}} удалена",
+    "installEngine": "Установить TurboQuant",
+    "engineLatest": "TurboQuant обновлён. Сборка, которая запускает decision-модели, ещё не вышла.",
+    "engineInstallFailed": "Не удалось установить TurboQuant",
+    "state": {
+      "disabled": "Остановлена",
+      "idle": "Запустится при следующем запросе",
+      "starting": "Запускается…",
+      "ready": "Работает",
+      "restarting": "Перезапускается…",
+      "failed": "Ошибка",
+      "unsupported": "Движок не поддерживается"
+    },
+    "errors": {
+      "engineUnsupported": "Установленный движок TurboQuant не умеет запускать decision-модели.",
+      "notConfigured": "Decision-модель не выбрана. Скачайте модель и нажмите «Запустить».",
+      "checkpointIncomplete": "В папке модели не хватает файлов. Удалите модель и скачайте её заново.",
+      "modelFileNotFound": "Файлов модели нет на диске. Скачайте модель заново.",
+      "notChat": "Decision-модель нельзя использовать как чат-модель.",
+      "generic": "Не удалось запустить decision-модель."
+    },
+    "sectionTitle": "Decision-модели",
+    "noneTitle": "Decision-модели не скачаны",
+    "noneDescription": "Скачайте модель в категории Decision в Hub",
+    "availableInApi": "Доступна в API"
+  },
   "media": {
     "subtitle": "Local image generation with stable-diffusion.cpp. Everything runs on this computer.",
     "engineTitle": "Engine",

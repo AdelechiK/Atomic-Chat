@@ -35,13 +35,16 @@ const CORE_ATTACHED_EVENT = 'atomic-core://snapshot'
  * honestly mean "at launch" — it means every time the server comes up: app
  * start, the tray, the API screen, sending a message.
  *
- * No-op wherever there is no Local API Server (mobile, web).
+ * No-op wherever there is no Local API Server (mobile, web) or no bundled
+ * tunnel (Windows arm64).
  */
 export function useRemoteAccessSync(): void {
   const { t } = useTranslation()
   const serviceHub = useServiceHub()
   const serverStatus = useAppState((state) => state.serverStatus)
-  const enabled = PlatformFeatures[PlatformFeature.LOCAL_API_SERVER]
+  const enabled =
+    PlatformFeatures[PlatformFeature.LOCAL_API_SERVER] &&
+    PlatformFeatures[PlatformFeature.REMOTE_ACCESS]
 
   // A new `t` identity must not tear the subscription down.
   const translate = useRef(t)

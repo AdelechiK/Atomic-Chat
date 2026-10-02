@@ -93,5 +93,15 @@
       "body": "TensorRT-LLM needs something changed on this computer before it can be installed. Its provider page says what.",
       "action": "See what is needed"
     }
-  }
+  },
+  "categoryChatHint": "Language models for chat",
+  "categoryImagesHint": "Generate images from a prompt",
+  "categoryVideoHint": "Generate short videos",
+  "categoryDecision": "Decision",
+  "categoryDecisionHint": "Converts data to probabilities.",
+  "searchDecisionPlaceholder": "Search decision models…",
+  "available": "Available",
+  "cpu": "CPU",
+  "languages": "Languages",
+  "backbone": "Backbone"
 }

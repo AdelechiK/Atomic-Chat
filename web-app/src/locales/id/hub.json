@@ -62,5 +62,15 @@
   "defaultSize": "Ukuran bawaan",
   "steps": "Langkah",
   "license": "Lisensi",
-  "frameRate": "Laju bingkai"
+  "frameRate": "Laju bingkai",
+  "categoryChatHint": "Language models for chat",
+  "categoryImagesHint": "Generate images from a prompt",
+  "categoryVideoHint": "Generate short videos",
+  "categoryDecision": "Decision",
+  "categoryDecisionHint": "Converts data to probabilities.",
+  "searchDecisionPlaceholder": "Search decision models…",
+  "available": "Available",
+  "cpu": "CPU",
+  "languages": "Languages",
+  "backbone": "Backbone"
 }

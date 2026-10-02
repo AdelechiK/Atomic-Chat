@@ -3,6 +3,9 @@ import {
   type LocalApiServerControl,
   useRemoteAccess,
 } from '@/hooks/useRemoteAccess'
+import { PlatformFeatures } from '@/lib/platform/const'
+import { PlatformFeature } from '@/lib/platform/types'
+import { cn } from '@/lib/utils'
 
 import { LanAccessCard } from './LanAccessCard'
 import { RemoteAccessCard } from './RemoteAccessCard'
@@ -21,12 +24,15 @@ export function RemoteLanSection({
 }) {
   const remote = useRemoteAccess({ server })
   const lan = useLanAccess({ server, hasApiKey: remote.hasApiKey })
+  const remoteAccess = PlatformFeatures[PlatformFeature.REMOTE_ACCESS]
 
   // Side by side the two cards share the row's height: the shorter one
   // stretches instead of leaving a hole above the metrics.
   return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-      <RemoteAccessCard remote={remote} />
+    <div
+      className={cn('grid grid-cols-1 gap-3', remoteAccess && 'lg:grid-cols-2')}
+    >
+      {remoteAccess && <RemoteAccessCard remote={remote} />}
       <LanAccessCard lan={lan} />
     </div>
   )

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Card, CardItem } from '@/containers/Card'
+import { DecisionModelsSection } from '@/containers/DecisionModelsSection'
 import HeaderPage from '@/containers/HeaderPage'
 import { TensorrtLlmSetupPanel } from '@/containers/tensorrt-llm/TensorrtLlmSetupPanel'
 import { TensorrtLlmModelPicker } from '@/containers/tensorrt-llm/TensorrtLlmModelPicker'
@@ -2648,6 +2649,10 @@ function ProviderDetail() {
 
                 <DeleteProvider provider={provider} />
               </Card>
+
+              {/* Decision models: the column is reversed for llama.cpp, so
+                  this shows under the chat models. */}
+              {providerName === 'llamacpp' && <DecisionModelsSection />}
 
               {/* Models */}
               <Card

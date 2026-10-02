@@ -236,6 +236,9 @@ pub fn endpoint_label(value: &str) -> &'static str {
         "images/generations" => "images/generations",
         // `/v1/videos*`, the core's video facade over the same sd.cpp runner.
         "videos" => "videos",
+        // The core's decision model routes.
+        "systemone" => "systemone",
+        "router/score" => "router/score",
         _ => "other",
     }
 }
@@ -248,6 +251,8 @@ pub fn backend_label(value: &str) -> &'static str {
         "remote" => "remote",
         // `/v1/images/generations`, served by the core's own sd.cpp runner.
         "atomic-diffusion" => "atomic-diffusion",
+        // `/v1/systemone` and `/v1/router/score`, served by the core's decision process.
+        "atomic-decision" => "atomic-decision",
         _ => "unknown",
     }
 }
@@ -453,6 +458,20 @@ mod tests {
             ("videos", "atomic-diffusion")
         );
         assert_eq!(endpoint_label("videos/abc/content"), "other");
+        let decision = observation_from_core(&serde_json::json!({
+            "endpoint": "router/score",
+            "method": "POST",
+            "model_id": "laya-multilingual",
+            "backend": "atomic-decision",
+            "status": 501,
+            "error_kind": "local_model_error"
+        }))
+        .unwrap();
+        assert_eq!(
+            (decision.endpoint, decision.backend),
+            ("router/score", "atomic-decision")
+        );
+        assert_eq!(endpoint_label("systemone"), "systemone");
         assert_eq!(error_kind_label("timeout"), "timeout");
         assert_eq!(error_kind_label("upstream"), "upstream");
         assert!(observation_from_core(&serde_json::json!({"method": "GET"})).is_none());

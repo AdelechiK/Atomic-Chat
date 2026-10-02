@@ -75,5 +75,15 @@
   "defaultSize": "既定のサイズ",
   "steps": "ステップ数",
   "license": "ライセンス",
-  "frameRate": "フレームレート"
+  "frameRate": "フレームレート",
+  "categoryChatHint": "Language models for chat",
+  "categoryImagesHint": "Generate images from a prompt",
+  "categoryVideoHint": "Generate short videos",
+  "categoryDecision": "Decision",
+  "categoryDecisionHint": "Converts data to probabilities.",
+  "searchDecisionPlaceholder": "Search decision models…",
+  "available": "Available",
+  "cpu": "CPU",
+  "languages": "Languages",
+  "backbone": "Backbone"
 }

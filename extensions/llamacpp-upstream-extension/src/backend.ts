@@ -323,7 +323,8 @@ export function getBackendArchiveName(
  */
 export function friendlyBackendLabel(backend: string): string {
   const id = backend.replace(/\uFEFF/g, '').trim()
-  if (id.endsWith('cpu-x64')) return 'CPU'
+  if (id.endsWith('cpu-x64') || id.endsWith('cpu-arm64')) return 'CPU'
+  if (id.includes('opencl-adreno')) return 'OpenCL (Adreno)'
   if (id.includes('cuda-13')) return 'CUDA 13'
   if (id.includes('cuda-12')) return 'CUDA 12'
   if (id.includes('rocm')) {
@@ -375,12 +376,12 @@ export function requiredDiskSpaceForBackend(
 
 /**
  * Matches a *minor-less* Windows CUDA family id (e.g. `win-cuda-13-x64`,
- * `win-cuda-12-x64`). These are the family ids the Rust matrix
- * (`determine_supported_backends`) and the TS dropdown `staticVariants`
+ * `win-cuda-12-x64`, `win-cuda-13-arm64`). These are the family ids the Rust
+ * matrix (`determine_supported_backends`) and the TS dropdown `staticVariants`
  * emit — the concrete minor (`13.3`, `12.4`) is only known once the
  * ggml-org release stream is queried (ATO-105/ATO-174).
  */
-const WIN_CUDA_FAMILY_RE = /^win-cuda-(\d+)-x64$/
+const WIN_CUDA_FAMILY_RE = /^win-cuda-(\d+)-(x64|arm64)$/
 
 /**
  * The ROCm equivalent. HIP has no major to pin at all: upstream publishes a
@@ -410,8 +411,8 @@ export function cudaFamilyMajor(backend: string): string | null {
 function gpuFamilyConcreteRe(familyBackend: string): RegExp | null {
   const id = familyBackend.replace(/\uFEFF/g, '').trim()
   if (id === WIN_ROCM_FAMILY_ID) return WIN_ROCM_CONCRETE_RE
-  const major = cudaFamilyMajor(id)
-  return major ? new RegExp(`^win-cuda-(${major})\\.(\\d+)-x64$`) : null
+  const m = WIN_CUDA_FAMILY_RE.exec(id)
+  return m ? new RegExp(`^win-cuda-(${m[1]})\\.(\\d+)-${m[2]}$`) : null
 }
 
 /**

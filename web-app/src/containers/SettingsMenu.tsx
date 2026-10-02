@@ -29,10 +29,13 @@ const SettingsMenu = () => {
   // filter, so nothing is listed in neither place.
   const localProviders = providers.filter(isLocalEngineProvider)
 
+  const turboquant = PlatformFeatures[PlatformFeature.TURBOQUANT_ENGINE]
+
   const activeProviders = sortProvidersForSettings(
     localProviders.filter((provider) => {
       if (!provider.active) return false
       if (!IS_MACOS && provider.provider === 'mlx') return false
+      if (!turboquant && provider.provider === 'llamacpp') return false
       return true
     })
   )
@@ -41,6 +44,7 @@ const SettingsMenu = () => {
     localProviders.filter((provider) => {
       if (provider.active) return false
       if (!IS_MACOS && provider.provider === 'mlx') return false
+      if (!turboquant && provider.provider === 'llamacpp') return false
       return true
     })
   )

@@ -133,6 +133,30 @@ describe('Backend functions', () => {
       ).toBe('b10205/win-cuda-13.3-x64')
     })
 
+    it('resolves the arm64 CUDA 13 family only against arm64 assets', () => {
+      const remote = [
+        { version: 'b11344', backend: 'win-cuda-13.5-x64', order: 0 },
+        { version: 'b11344', backend: 'win-cuda-13.4-arm64', order: 0 },
+      ]
+      expect(resolveGpuFamilyConcrete('win-cuda-13-arm64', remote)).toBe(
+        'b11344/win-cuda-13.4-arm64'
+      )
+      expect(resolveGpuFamilyConcrete('win-cuda-13-x64', remote)).toBe(
+        'b11344/win-cuda-13.5-x64'
+      )
+      expect(
+        isConcreteOfGpuFamily('win-cuda-13-arm64', 'win-cuda-13.4-x64')
+      ).toBe(false)
+    })
+
+    it('labels the Windows arm64 variants', () => {
+      expect(friendlyBackendLabel('win-cpu-arm64')).toBe('CPU')
+      expect(friendlyBackendLabel('win-opencl-adreno-arm64')).toBe(
+        'OpenCL (Adreno)'
+      )
+      expect(friendlyBackendLabel('win-cuda-13-arm64')).toBe('CUDA 13')
+    })
+
     it('resolves the version-less ROCm family to the published HIP asset', () => {
       const remote = [
         { version: 'b10405', backend: 'win-rocm-7.14-x64', order: 0 },

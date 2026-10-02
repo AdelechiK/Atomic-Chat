@@ -11,7 +11,8 @@ import {
 } from 'react'
 import { Loader } from 'lucide-react'
 import HeaderPage from '@/containers/HeaderPage'
-import { HubCategoryTabs } from '@/containers/hub/HubCategoryTabs'
+import { DecisionHub } from '@/containers/hub/DecisionHub'
+import { HubCategorySelect } from '@/containers/hub/HubCategorySelect'
 import { HubFilters } from '@/containers/hub/HubFilters'
 import { HubNoResults, HubSearchInput } from '@/containers/hub/HubSearch'
 import { MediaHub } from '@/containers/hub/MediaHub'
@@ -46,7 +47,12 @@ import {
   filterInstalledBySearch,
   withStaffPicks,
 } from '@/lib/hub-installed'
-import { isHubCategory, type HubCategory } from '@/lib/hub-media'
+import { isDecisionHostSupported } from '@/lib/decision/platform'
+import {
+  HUB_CATEGORIES,
+  isHubCategory,
+  type HubCategory,
+} from '@/lib/hub-media'
 import { getMemoryBudgetBytes } from '@/lib/model-card'
 import { extractModelName } from '@/lib/models'
 import { PlatformFeatures } from '@/lib/platform/const'
@@ -69,7 +75,8 @@ type SearchParams = {
   q?: string
   /**
    * Repo id of the model shown in the right-hand detail panel; in the Images
-   * and Video categories, the id of the catalog family.
+   * and Video categories, the id of the catalog family; in Decision, the
+   * catalog id of the model.
    */
   model?: string
   /** Absent means Chat: every link into the Hub from a chat asks for one. */
@@ -140,11 +147,29 @@ const hubScrollCache: { q: string; offset: number } = { q: '', offset: 0 }
 function HubContent() {
   const navigate = useNavigate()
   const { category: categorySearchParam } = Route.useSearch()
-  // Image and video models need the local media engine, so without it the
-  // Hub stays the chat catalog it always was, switch and all.
+  const decisionApiSupported = useServiceHub().decision().isSupported()
+  const cpuArch = useHardware((s) => s.hardwareData.cpu.arch)
+  // Image and video models need the local media engine, decision models a
+  // TurboQuant build for this machine; with neither the Hub stays the chat
+  // catalog it always was, switch and all.
   const mediaSupported = PlatformFeatures[PlatformFeature.MEDIA_GENERATION]
+  const decisionSupported =
+    PlatformFeatures[PlatformFeature.LOCAL_INFERENCE] &&
+    decisionApiSupported &&
+    isDecisionHostSupported(cpuArch)
+  const categories = useMemo(
+    () =>
+      HUB_CATEGORIES.filter((c) =>
+        c === 'decision'
+          ? decisionSupported
+          : c === 'chat' || mediaSupported
+      ),
+    [mediaSupported, decisionSupported]
+  )
   const category: HubCategory =
-    mediaSupported && categorySearchParam ? categorySearchParam : 'chat'
+    categorySearchParam && categories.includes(categorySearchParam)
+      ? categorySearchParam
+      : 'chat'
 
   const changeCategory = useCallback(
     (next: HubCategory) => {
@@ -163,17 +188,67 @@ function HubContent() {
     [navigate]
   )
 
-  const categoryTabs = mediaSupported ? (
-    <HubCategoryTabs value={category} onChange={changeCategory} />
-  ) : undefined
+  const categoryTabs =
+    categories.length > 1 ? (
+      <HubCategorySelect
+        categories={categories}
+        value={category}
+        onChange={changeCategory}
+      />
+    ) : undefined
 
-  return category === 'chat' ? (
-    <ChatHub categoryTabs={categoryTabs} />
-  ) : (
+  if (category === 'chat') return <ChatHub categoryTabs={categoryTabs} />
+  if (category === 'decision') {
+    return <DecisionHubContent categoryTabs={categoryTabs} />
+  }
+  return (
     <MediaHubContent
       key={category}
       modality={category}
       categoryTabs={categoryTabs}
+    />
+  )
+}
+
+function DecisionHubContent({ categoryTabs }: { categoryTabs?: ReactNode }) {
+  const navigate = useNavigate()
+  const { q: querySearchParam, model: modelSearchParam } = Route.useSearch()
+  const [query, setQuery] = useState(querySearchParam ?? getHubSearchQuery())
+
+  const changeQuery = useCallback(
+    (next: string) => {
+      setQuery(next)
+      setHubSearchQuery(next)
+      void navigate({
+        to: route.hub.index,
+        search: (prev: SearchParams) => ({
+          ...prev,
+          q: next.trim() || undefined,
+        }),
+        replace: true,
+      })
+    },
+    [navigate]
+  )
+
+  const selectModel = useCallback(
+    (modelId: string, options?: { replace?: boolean }) => {
+      void navigate({
+        to: route.hub.index,
+        search: (prev: SearchParams) => ({ ...prev, model: modelId }),
+        replace: options?.replace ?? false,
+      })
+    },
+    [navigate]
+  )
+
+  return (
+    <DecisionHub
+      categoryTabs={categoryTabs}
+      query={query}
+      onQueryChange={changeQuery}
+      selectedModelId={modelSearchParam ?? null}
+      onSelectModel={selectModel}
     />
   )
 }
