@@ -18,7 +18,10 @@ import { HubNoResults, HubSearchInput } from '@/containers/hub/HubSearch'
 import { MediaHub } from '@/containers/hub/MediaHub'
 import { ModelDetailPanel } from '@/containers/hub/ModelDetailPanel'
 import { ModelListRow } from '@/containers/hub/ModelListRow'
-import { TensorrtLlmHubHint } from '@/containers/tensorrt-llm/TensorrtLlmHubHint'
+import {
+  TensorrtHubBlocked,
+  TensorrtHubChecking,
+} from '@/containers/hub/TensorrtHubStatus'
 import { RECOMMENDED_MODEL_FALLBACKS } from '@/constants/models'
 import { route } from '@/constants/routes'
 import { useGeneralSetting } from '@/hooks/useGeneralSetting'
@@ -455,6 +458,18 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
       : 'gguf'
   const staffPickItems = useStaffPicks(sources, picksFormat)
 
+  // Under the TensorRT-LLM format the engine's state comes first: what blocks
+  // it, or nothing at all until the core has answered. "Downloaded" lists what
+  // is on disk whatever the format, so it is never replaced.
+  const tensorrtPanel: 'blocked' | 'checking' | null =
+    filters.formats[0] !== 'tensorrt-llm' || showOnlyDownloaded
+      ? null
+      : tensorrtHub.state === 'blocked'
+        ? 'blocked'
+        : tensorrtHub.state === 'unknown'
+          ? 'checking'
+          : null
+
   // Uncensored builds are a search of their own: the curated picks carry none,
   // so the filter opens the whole catalog plus Hugging Face even with no query.
   const isSearchMode =
@@ -658,6 +673,7 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
   // ---- Unified list -----------------------------------------------------
 
   const listItems = useMemo<HubListItem[]>(() => {
+    if (tensorrtPanel) return []
     if (showOnlyDownloaded) {
       // The format and fit filters describe what to look for in the catalog;
       // applied here they would hide models the user already has on disk.
@@ -768,6 +784,7 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
         filters.uncensored && index === 0 ? t('hub:uncensored') : undefined,
     }))
   }, [
+    tensorrtPanel,
     isSearchMode,
     showOnlyDownloaded,
     installedResults,
@@ -1054,11 +1071,14 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
               }
             }}
           />
-          <TensorrtLlmHubHint />
         </div>
 
         <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto p-2">
-          {showSkeleton ? (
+          {tensorrtPanel === 'blocked' ? (
+            <TensorrtHubBlocked blockers={tensorrtHub.blockers} />
+          ) : tensorrtPanel === 'checking' ? (
+            <TensorrtHubChecking />
+          ) : showSkeleton ? (
             <div className="flex animate-pulse flex-col gap-2">
               {[...Array(6)].map((_, index) => (
                 <div key={index} className="h-16 rounded-lg bg-muted" />

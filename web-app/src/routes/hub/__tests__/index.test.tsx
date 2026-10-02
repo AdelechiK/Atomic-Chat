@@ -22,6 +22,18 @@ const mocks = vi.hoisted(() => ({
   })),
 }))
 
+const tensorrtHub = vi.hoisted(() => ({
+  value: {
+    visible: false,
+    state: 'unknown',
+    blockers: [] as Array<Record<string, unknown>>,
+    descriptorId: null as string | null,
+  },
+}))
+vi.mock('@/hooks/useTensorrtHubState', () => ({
+  useTensorrtHubState: () => tensorrtHub.value,
+}))
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
@@ -254,6 +266,12 @@ describe('/hub route', () => {
     localStorage.clear()
     setHubSearchQuery('')
     mocks.search = {}
+    tensorrtHub.value = {
+      visible: false,
+      state: 'unknown',
+      blockers: [],
+      descriptorId: null,
+    }
     mocks.mediaSupported = false
     mocks.decisionSupported = false
     mocks.sources = []
@@ -609,6 +627,63 @@ describe('/hub route', () => {
 
     expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
     expect(screen.queryByText('Qwen3.5 4B (MLX)')).not.toBeInTheDocument()
+  })
+
+  describe('under the TensorRT-LLM format', () => {
+    const selectTensorrt = () =>
+      localStorage.setItem(
+        HUB_FILTERS_STORAGE_KEY,
+        serializeHubFilters({
+          formats: ['tensorrt-llm'],
+          sort: 'recommended',
+          onlyFitting: false,
+          uncensored: false,
+        })
+      )
+
+    it('shows what blocks the engine instead of models', () => {
+      selectTensorrt()
+      tensorrtHub.value = {
+        visible: true,
+        state: 'blocked',
+        blockers: [
+          {
+            code: 'prerequisite-blocked',
+            reason: 'driver-too-old',
+            message: 'The NVIDIA driver is too old.',
+            params: { required: '615.65.02', actual: '580.95.05' },
+          },
+        ],
+        descriptorId: 'tensorrt-llm-1.3.0rc29-r2',
+      }
+
+      render(<HubPage />)
+
+      expect(screen.getByText('hub:tensorrt.blocked.title')).toBeInTheDocument()
+      expect(screen.getByText('The NVIDIA driver is too old.')).toBeInTheDocument()
+      expect(screen.queryByText('Qwen3.5 4B')).not.toBeInTheDocument()
+      // Nothing to open: no model is selected for the detail panel.
+      expect(screen.getByTestId('detail-panel')).toHaveTextContent('hub:selectModel')
+    })
+
+    it('claims nothing until the core has answered', () => {
+      selectTensorrt()
+      tensorrtHub.value = { ...tensorrtHub.value, visible: true, state: 'unknown' }
+
+      render(<HubPage />)
+
+      expect(screen.getByRole('status')).toHaveTextContent('hub:tensorrt.checking')
+      expect(screen.queryByText('hub:tensorrt.blocked.title')).not.toBeInTheDocument()
+    })
+
+    it('is GGUF again where the format is not offered', () => {
+      selectTensorrt()
+
+      render(<HubPage />)
+
+      expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
+      expect(screen.queryByText('hub:tensorrt.checking')).not.toBeInTheDocument()
+    })
   })
 
   it('resolves a deep link the catalog does not carry from Hugging Face', async () => {

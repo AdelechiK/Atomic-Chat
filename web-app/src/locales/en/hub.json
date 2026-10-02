@@ -80,18 +80,17 @@
   "license": "License",
   "frameRate": "Frame rate",
   "tensorrt": {
-    "title": "Models for TensorRT-LLM",
-    "choose-model": {
-      "body": "TensorRT-LLM runs models on your NVIDIA GPU. Its models are chosen and downloaded on its provider page.",
-      "action": "Choose a TensorRT-LLM model"
-    },
-    "install": {
-      "body": "TensorRT-LLM can run models on your NVIDIA GPU. Install the engine first: it downloads the engine image and, if needed, sets up Docker and the NVIDIA Container Toolkit.",
-      "action": "Install TensorRT-LLM"
-    },
+    "checking": "Checking whether TensorRT-LLM can run on this computer…",
     "blocked": {
-      "body": "TensorRT-LLM needs something changed on this computer before it can be installed. Its provider page says what.",
-      "action": "See what is needed"
+      "title": "TensorRT-LLM can't be set up on this computer yet",
+      "body": "Fix what is listed below, then check again. The TensorRT-LLM settings page walks through each step.",
+      "openProvider": "Open TensorRT-LLM settings",
+      "checkAgain": "Check again"
+    },
+    "blocker": {
+      "driver-too-old": "TensorRT-LLM needs NVIDIA driver {{required}} or newer; this computer has {{actual}}.",
+      "driver-too-old-fix": "Install a newer driver for your card from NVIDIA or your system's updates, restart the computer, then check again.",
+      "compute-capability-too-low": "TensorRT-LLM needs an NVIDIA card of the Ampere generation (RTX 30xx) or newer: compute capability {{required}} or higher. This card has {{actual}}."
     }
   },
   "categoryChatHint": "Language models for chat",
