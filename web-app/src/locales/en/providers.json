@@ -220,6 +220,10 @@
       "later": "Later",
       "details": "Details",
       "actionFailed": "Could not do it from here ({{error}}). Do it yourself; the installation continues afterwards."
+    },
+    "hub": {
+      "body": "TensorRT-LLM models are chosen and downloaded in the Model Hub, with a check that each one runs on this computer.",
+      "action": "Choose a model in Model Hub"
     }
   }
 }

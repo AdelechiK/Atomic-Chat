@@ -3,7 +3,7 @@ import { Card, CardItem } from '@/containers/Card'
 import { DecisionModelsSection } from '@/containers/DecisionModelsSection'
 import HeaderPage from '@/containers/HeaderPage'
 import { TensorrtLlmSetupPanel } from '@/containers/tensorrt-llm/TensorrtLlmSetupPanel'
-import { TensorrtLlmModelPicker } from '@/containers/tensorrt-llm/TensorrtLlmModelPicker'
+import { TensorrtLlmHubLink } from '@/containers/tensorrt-llm/TensorrtLlmHubLink'
 import { TensorrtLlmSettingsCard } from '@/containers/tensorrt-llm/TensorrtLlmSettingsCard'
 import {
   selectTensorrtInstallation,
@@ -1975,11 +1975,7 @@ function ProviderDetail() {
               />
             )}
             {providerName === 'tensorrt-llm' && tensorrtInstalled && (
-              <TensorrtLlmModelPicker
-                onInstalled={() =>
-                  serviceHub.providers().getProviders().then(setProviders)
-                }
-              />
+              <TensorrtLlmHubLink />
             )}
 
             <div
