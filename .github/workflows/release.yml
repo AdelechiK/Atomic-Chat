@@ -960,8 +960,11 @@ jobs:
           $version = $pkg.atomicCore.version
           $base = "https://github.com/$($pkg.atomicCore.repo)/releases/download/v$version"
           New-Item -ItemType Directory -Force -Path core | Out-Null
+          # Saved to disk: GitHub serves release assets as octet-stream, for
+          # which Invoke-WebRequest's .Content is a byte array, not text.
+          Invoke-WebRequest "$base/SHA256SUMS" -OutFile SHA256SUMS
           $sums = @{}
-          foreach ($line in (Invoke-WebRequest "$base/SHA256SUMS").Content -split "`n") {
+          foreach ($line in Get-Content SHA256SUMS) {
             if ($line.Trim() -match '^([0-9a-f]{64})\s+\*?(.+)$') { $sums[$Matches[2]] = $Matches[1] }
           }
           foreach ($name in @('atomic-chat-core', 'atomic-chat-app-core')) {
