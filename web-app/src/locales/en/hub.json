@@ -91,7 +91,8 @@
       "driver-too-old": "TensorRT-LLM needs NVIDIA driver {{required}} or newer; this computer has {{actual}}.",
       "driver-too-old-fix": "Install a newer driver for your card from NVIDIA or your system's updates, restart the computer, then check again.",
       "compute-capability-too-low": "TensorRT-LLM needs an NVIDIA card of the Ampere generation (RTX 30xx) or newer: compute capability {{required}} or higher. This card has {{actual}}."
-    }
+    },
+    "curated": "Tested with TensorRT-LLM"
   },
   "categoryChatHint": "Language models for chat",
   "categoryImagesHint": "Generate images from a prompt",

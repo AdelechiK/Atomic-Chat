@@ -34,6 +34,17 @@ vi.mock('@/hooks/useTensorrtHubState', () => ({
   useTensorrtHubState: () => tensorrtHub.value,
 }))
 
+const tensorrtCurated = vi.hoisted(() => ({
+  value: {
+    models: [] as CatalogModel[],
+    supportedArchitectures: null as string[] | null,
+    loading: false,
+  },
+}))
+vi.mock('@/hooks/useTensorrtCurated', () => ({
+  useTensorrtCurated: () => tensorrtCurated.value,
+}))
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
@@ -272,6 +283,7 @@ describe('/hub route', () => {
       blockers: [],
       descriptorId: null,
     }
+    tensorrtCurated.value = { models: [], supportedArchitectures: null, loading: false }
     mocks.mediaSupported = false
     mocks.decisionSupported = false
     mocks.sources = []
@@ -674,6 +686,101 @@ describe('/hub route', () => {
 
       expect(screen.getByRole('status')).toHaveTextContent('hub:tensorrt.checking')
       expect(screen.queryByText('hub:tensorrt.blocked.title')).not.toBeInTheDocument()
+    })
+
+    const trtEntry = (name: string, architectures: string[]): CatalogModel => ({
+      model_name: name,
+      developer: name.split('/')[0],
+      description: '',
+      downloads: 10,
+      is_tensorrt_llm: true,
+      tensorrt: { architectures, parameters: { BF16: 4e9 } },
+    })
+
+    const engineReady = () => {
+      tensorrtHub.value = {
+        visible: true,
+        state: 'ready',
+        blockers: [],
+        descriptorId: 'tensorrt-llm-1.3.0rc29-r2',
+      }
+      tensorrtCurated.value = {
+        models: [
+          {
+            model_name: 'nvidia/Qwen3-8B-FP8',
+            developer: 'nvidia',
+            description: '',
+            downloads: 0,
+            is_tensorrt_llm: true,
+            tensorrt: { curated: true, revision: 'rev-a' },
+          },
+        ],
+        supportedArchitectures: ['Qwen3ForCausalLM'],
+        loading: false,
+      }
+    }
+
+    it('lists the curated models first, then the narrowed safetensors feed, and no staff picks', async () => {
+      selectTensorrt()
+      engineReady()
+      mocks.listHuggingFaceFeed.mockResolvedValueOnce({
+        models: [
+          trtEntry('nvidia/Qwen3-8B-FP8', ['Qwen3ForCausalLM']),
+          trtEntry('someone/Qwen3-4B-FP8', ['Qwen3ForCausalLM']),
+          trtEntry('someone/Mamba-7B', ['MambaForCausalLM']),
+        ],
+        nextCursor: null,
+      })
+
+      render(<HubPage />)
+
+      expect(await screen.findByText('Qwen3-4B-FP8')).toBeInTheDocument()
+      const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+      expect(headings).toEqual(['hub:tensorrt.curated', 'hub:feedTitle'])
+      expect(screen.getAllByText('Qwen3-8B-FP8')).toHaveLength(1)
+      expect(screen.queryByText('Mamba-7B')).not.toBeInTheDocument()
+      expect(screen.queryByText('Qwen3.5 4B')).not.toBeInTheDocument()
+      expect(mocks.listHuggingFaceFeed).toHaveBeenCalledWith(
+        expect.objectContaining({ format: 'tensorrt-llm' })
+      )
+    })
+
+    it('shows and opens a repository typed in full even when the prefilter would hide it', async () => {
+      selectTensorrt()
+      engineReady()
+      const user = userEvent.setup()
+      mocks.fetchHuggingFaceRepo.mockImplementation(async (repo: string) =>
+        repo === 'someone/Mamba-7B'
+          ? (trtEntry('someone/Mamba-7B', ['MambaForCausalLM']) as never)
+          : null
+      )
+      mocks.searchHuggingFaceCandidates.mockImplementation(async () => [
+        trtEntry('someone/Mamba-7B-v2', ['MambaForCausalLM']),
+        trtEntry('someone/Qwen3-14B', ['Qwen3ForCausalLM']),
+      ])
+
+      render(<HubPage />)
+      await user.type(
+        screen.getByRole('textbox', { name: 'hub:searchPlaceholder' }),
+        'someone/Mamba-7B'
+      )
+
+      await waitFor(() => expect(screen.getByText('Mamba-7B')).toBeInTheDocument(), {
+        timeout: 2000,
+      })
+      expect(screen.getByText('Qwen3-14B')).toBeInTheDocument()
+      expect(screen.queryByText('Mamba-7B-v2')).not.toBeInTheDocument()
+      expect(mocks.searchHuggingFaceCandidates).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.anything(),
+        expect.any(Number),
+        'tensorrt-llm'
+      )
+      const opened = mocks.navigate.mock.calls
+        .map(([options]) => options as { search?: (prev: object) => { model?: string } })
+        .filter((options) => typeof options.search === 'function')
+        .map((options) => options.search!({}).model)
+      expect(opened).toContain('someone/Mamba-7B')
     })
 
     it('is GGUF again where the format is not offered', () => {

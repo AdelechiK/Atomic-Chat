@@ -31,6 +31,7 @@ import { useModelProvider } from '@/hooks/useModelProvider'
 import { useModelSources } from '@/hooks/useModelSources'
 import { useServiceHub } from '@/hooks/useServiceHub'
 import { useStaffPicks } from '@/hooks/useStaffPicks'
+import { useTensorrtCurated } from '@/hooks/useTensorrtCurated'
 import { useTensorrtHubState } from '@/hooks/useTensorrtHubState'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import {
@@ -62,11 +63,23 @@ import {
   type HubCategory,
 } from '@/lib/hub-media'
 import { getMemoryBudgetBytes, type ModelFormat } from '@/lib/model-card'
+import {
+  hubListSources,
+  tensorrtBrowseRows,
+  tensorrtSearchRows,
+  type TensorrtPrefilterContext,
+} from '@/lib/tensorrt-llm/hub-feed'
 import { extractModelName } from '@/lib/models'
 import { PlatformFeatures } from '@/lib/platform/const'
 import { PlatformFeature } from '@/lib/platform/types'
 import { cn } from '@/lib/utils'
 import { getModelSearchService } from '@/services/model-search'
+import type { GpuFacts } from '@/services/managed-environment/types'
+import { normalizeRepository } from '@/services/tensorrt-llm/models'
+import {
+  selectEnvironment,
+  useManagedEnvironmentStore,
+} from '@/stores/managed-environment-store'
 import { useModelCatalogStore } from '@/stores/model-catalog-store'
 import type { DiffusionModality } from '@/services/diffusion/types'
 import type { CatalogModel, HuggingFaceFeedSort } from '@/services/models/types'
@@ -108,6 +121,9 @@ const FEED_SORT_FOR: Record<HubSortKey, HuggingFaceFeedSort> = {
   'likes': 'likes',
   'last-modified': 'lastModified',
 }
+
+/** One empty list for every render without a snapshot: a fresh `[]` would re-render forever. */
+const NO_GPUS: GpuFacts[] = []
 
 /** How many rows before the end of the list the next page is asked for. */
 const FEED_PREFETCH_ROWS = 8
@@ -457,6 +473,10 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
       ? 'mlx'
       : 'gguf'
   const staffPickItems = useStaffPicks(sources, picksFormat)
+  // TensorRT-LLM lists the descriptor's curated models and a narrowed feed of
+  // any safetensors repository instead of the picks and the catalog.
+  const listSources = hubListSources(filters.formats[0] ?? 'gguf')
+  const tensorrtFormat = filters.formats[0] === 'tensorrt-llm'
 
   // Under the TensorRT-LLM format the engine's state comes first: what blocks
   // it, or nothing at all until the core has answered. "Downloaded" lists what
@@ -478,25 +498,41 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
   // Under the picks, the rest of Hugging Face in the order the sort dropdown
   // names — its own trending score by default — a page at a time.
   const feed = useHuggingFaceFeed(
-    picksFormat,
+    listSources.feedFormat,
     FEED_SORT_FOR[filters.sort],
-    !isSearchMode
+    !isSearchMode && !tensorrtPanel
   )
   const uncensoredQueries = useMemo(
     () => huggingFaceQueries(debouncedSearchValue, true),
     [debouncedSearchValue]
   )
   const uncensoredFeed = useHuggingFaceFeed(
-    picksFormat,
+    listSources.feedFormat,
     FEED_SORT_FOR[filters.sort],
     filters.uncensored,
     uncensoredQueries[0] ?? ''
   )
   const abliteratedFeed = useHuggingFaceFeed(
-    picksFormat,
+    listSources.feedFormat,
     FEED_SORT_FOR[filters.sort],
     filters.uncensored && uncensoredQueries.length > 1,
     uncensoredQueries[1] ?? ''
+  )
+
+  // The curated models of the engine's descriptor, and what narrows the feed:
+  // its architectures and this machine's cards.
+  const tensorrtCurated = useTensorrtCurated(
+    tensorrtFormat && !tensorrtPanel ? tensorrtHub.descriptorId : null
+  )
+  const tensorrtGpus = useManagedEnvironmentStore(
+    (state) => selectEnvironment(state)?.gpus ?? NO_GPUS
+  )
+  const tensorrtContext = useMemo<TensorrtPrefilterContext>(
+    () => ({
+      supportedArchitectures: tensorrtCurated.supportedArchitectures,
+      gpus: tensorrtGpus,
+    }),
+    [tensorrtCurated.supportedArchitectures, tensorrtGpus]
   )
 
   // ---- Staff picks mode -------------------------------------------------
@@ -563,9 +599,22 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
   )
 
   const catalogResults = useMemo(
-    () => searchMatches.filter((model) => !isUnsupportedBaseGemmaMlx(model)),
-    [searchMatches]
+    () =>
+      listSources.catalog
+        ? searchMatches.filter((model) => !isUnsupportedBaseGemmaMlx(model))
+        : [],
+    [listSources.catalog, searchMatches]
   )
+
+  // A repository typed in full under TensorRT-LLM is shown as it is, whatever
+  // the prefilter would say: the core's verdict in its card is the answer. A
+  // bare word is not one — the lookup behind it finds GGUF repositories.
+  const tensorrtExactRepo = useMemo<CatalogModel | null>(() => {
+    if (!tensorrtFormat || !huggingFaceRepo) return null
+    const typed = normalizeRepository(debouncedSearchValue).toLowerCase()
+    if (huggingFaceRepo.model_name.toLowerCase() !== typed) return null
+    return { ...huggingFaceRepo, is_mlx: false, is_tensorrt_llm: true }
+  }, [tensorrtFormat, huggingFaceRepo, debouncedSearchValue])
 
   // Exact-repo lookup: the user pasted a full `owner/name`.
   const fetchExactRepo = useCallback(
@@ -619,7 +668,7 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
       return
     }
     const queries = huggingFaceQueries(query, false)
-    const cacheKey = queries.join('\n').toLowerCase()
+    const cacheKey = `${listSources.feedFormat}\n${queries.join('\n')}`.toLowerCase()
     if (hfCandidatesFetchedForRef.current === cacheKey) return
     hfCandidatesFetchedForRef.current = cacheKey
 
@@ -631,7 +680,12 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
       queries.map((q) =>
         serviceHub
           .models()
-          .searchHuggingFaceCandidates(q, huggingfaceToken, limit)
+          .searchHuggingFaceCandidates(
+            q,
+            huggingfaceToken,
+            limit,
+            tensorrtFormat ? 'tensorrt-llm' : undefined
+          )
       )
     )
       .then((batches) => {
@@ -668,6 +722,8 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
     serviceHub,
     huggingfaceToken,
     huggingFaceRepo,
+    tensorrtFormat,
+    listSources.feedFormat,
   ])
 
   // ---- Unified list -----------------------------------------------------
@@ -684,6 +740,24 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
       return sortModels(installed, filters.sort).map((model) => ({
         model,
         pick: pickByRepo.get(model.model_name),
+      }))
+    }
+
+    if (!isSearchMode && tensorrtFormat) {
+      // The feed waits for the descriptor's architectures: narrowed only once
+      // they arrive, its rows would vanish under the pointer.
+      const rows = tensorrtBrowseRows({
+        curated: tensorrtCurated.models,
+        feed: tensorrtCurated.loading ? [] : feed.models,
+        context: tensorrtContext,
+      })
+      return rows.map((row, index) => ({
+        model: row.model,
+        fromHuggingFace: row.section !== 'curated',
+        sectionLabel:
+          index === 0 || rows[index - 1].section !== row.section
+            ? t(row.section === 'curated' ? 'hub:tensorrt.curated' : 'hub:feedTitle')
+            : undefined,
       }))
     }
 
@@ -749,6 +823,28 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
           (model) => uncensoredFeed.details.get(model.model_name) ?? model
         )
       : []
+
+    if (tensorrtFormat) {
+      const rows = tensorrtSearchRows({
+        exact: tensorrtExactRepo,
+        candidates: filters.uncensored ? pagedUncensored : hfCandidates,
+        context: tensorrtContext,
+      })
+      const exact = rows.filter((row) => row.section === 'exact').map((row) => row.model)
+      // The memory-budget fit is a GGUF reading of system memory; TensorRT-LLM
+      // weights were already weighed against the cards by the prefilter.
+      const found = applyHubFilters(
+        rows.filter((row) => row.section !== 'exact').map((row) => row.model),
+        filters,
+        { applyFitFilter: false }
+      )
+      return [...exact, ...found].map((model, index) => ({
+        model,
+        fromHuggingFace: true,
+        sectionLabel:
+          filters.uncensored && index === 0 ? t('hub:uncensored') : undefined,
+      }))
+    }
     // A search hit carries no file list, so the detail panel has nothing to
     // offer for download until the card fetched for the selected row replaces
     // it — the same swap the feed and the uncensored listing make.
@@ -785,6 +881,11 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
     }))
   }, [
     tensorrtPanel,
+    tensorrtFormat,
+    tensorrtCurated.models,
+    tensorrtCurated.loading,
+    tensorrtContext,
+    tensorrtExactRepo,
     isSearchMode,
     showOnlyDownloaded,
     installedResults,
@@ -879,6 +980,22 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
     },
     [navigate, searchValue]
   )
+
+  // A repository typed in full under TensorRT-LLM opens its card at once, to
+  // show the core's verdict; once per repository, so a row picked afterwards
+  // stays picked.
+  const openedExactRef = useRef<string | null>(null)
+  const exactRepoName = tensorrtExactRepo?.model_name ?? null
+  useEffect(() => {
+    if (!exactRepoName || openedExactRef.current === exactRepoName) return
+    openedExactRef.current = exactRepoName
+    if (selectedRepo === exactRepoName) return
+    void navigate({
+      to: route.hub.index,
+      search: (prev: SearchParams) => ({ ...prev, model: exactRepoName }),
+      replace: true,
+    })
+  }, [exactRepoName, selectedRepo, navigate])
 
   // Open on a populated panel rather than on an empty right-hand column: with
   // nothing selected the widest part of the page carries no information. Only
@@ -977,6 +1094,8 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
         .filter(
           (item): item is HubListItem =>
             !!item?.fromHuggingFace &&
+            // A TensorRT-LLM row needs no file sizes: its card asks the core.
+            !item.model.is_tensorrt_llm &&
             modelDownloadSizeText(item.model) === undefined
         )
         .map((item) => item.model.model_name)
@@ -1022,6 +1141,7 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
     const model = selectedItem?.model
     if (!model || !('fromHuggingFace' in selectedItem)) return
     if (!selectedItem.fromHuggingFace) return
+    if (model.is_tensorrt_llm) return
     if (modelDownloadSizeText(model) !== undefined) return
     feed.ensureDetails([model.model_name])
   }, [selectedItem, feed])
@@ -1030,8 +1150,16 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
   const uncensoredLoading =
     filters.uncensored &&
     (uncensoredFeed.loading || abliteratedFeed.loading)
+  const tensorrtLoading =
+    tensorrtFormat &&
+    !isSearchMode &&
+    (tensorrtCurated.loading || feed.loading)
   const showSkeleton =
-    isEmpty && ((loading && !isSearchMode) || hfSearching || uncensoredLoading)
+    isEmpty &&
+    ((loading && !isSearchMode) ||
+      hfSearching ||
+      uncensoredLoading ||
+      tensorrtLoading)
 
   return (
     <div className="grid h-svh w-full grid-cols-[minmax(320px,420px)_1fr] grid-rows-[auto_minmax(0,1fr)]">
@@ -1087,7 +1215,7 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
           ) : isEmpty ? (
             <HubNoResults
               message={
-                !isSearchMode && filters.onlyFitting
+                !isSearchMode && filters.onlyFitting && !tensorrtFormat
                   ? t('hub:noFittingPicks')
                   : t('hub:noModels')
               }
