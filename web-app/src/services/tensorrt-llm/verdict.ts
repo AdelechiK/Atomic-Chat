@@ -14,6 +14,8 @@ import {
   checkTensorrtModel,
   fetchHfRevision,
   GatedModelError,
+  IncompatibleModelError,
+  InsufficientModelSpaceError,
   type HfRevision,
 } from '@/services/tensorrt-llm/models'
 
@@ -98,4 +100,24 @@ export function runsOnSomeCard(verdict: TensorrtVerdict): boolean {
     verdict.kind === 'ok' ||
     (verdict.kind === 'incompatible' && verdict.compatibility.fits_other_gpus.length > 0)
   )
+}
+
+/**
+ * Why a download did not happen, in the same terms as the card's verdict: the core refused the
+ * files when it checked them again, Hugging Face refused access, the core has no room, or else.
+ */
+export function verdictFromError(error: unknown): TensorrtVerdict {
+  if (error instanceof IncompatibleModelError) {
+    return { kind: 'incompatible', compatibility: error.compatibility }
+  }
+  if (error instanceof GatedModelError) return { kind: 'gated', url: error.url }
+  if (error instanceof InsufficientModelSpaceError) {
+    return {
+      kind: 'no-space',
+      root: error.root,
+      neededBytes: error.neededBytes,
+      freeBytes: error.freeBytes,
+    }
+  }
+  return { kind: 'error', message: errorText(error) }
 }
