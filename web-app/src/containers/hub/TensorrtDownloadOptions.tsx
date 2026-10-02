@@ -1,14 +1,17 @@
 import { useNavigate } from '@tanstack/react-router'
-import type { RefObject } from 'react'
+import { useMemo, type RefObject } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { route } from '@/constants/routes'
 import { TensorrtModelDownloadAction } from '@/containers/TensorrtModelDownloadAction'
+import { TensorrtInstalledActions } from '@/containers/hub/TensorrtInstalledActions'
 import { TensorrtVerdict } from '@/containers/hub/TensorrtVerdict'
+import { useModelProvider } from '@/hooks/useModelProvider'
 import { useTensorrtHubState } from '@/hooks/useTensorrtHubState'
 import { useTensorrtVerdict } from '@/hooks/useTensorrtVerdict'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { HUB_FORMAT_LABELS } from '@/lib/hub-filters'
+import { findInstalledLocalModel, TENSORRT_LLM_PROVIDER } from '@/lib/hub-installed'
 import type { CatalogModel } from '@/services/models/types'
 import { TENSORRT_LLM_ENGINE_ID } from '@/stores/managed-environment-store'
 
@@ -29,6 +32,12 @@ export function TensorrtDownloadOptions({
   const navigate = useNavigate()
   const { state } = useTensorrtHubState()
   const { verdict, checking } = useTensorrtVerdict(model)
+  // Downloaded already: the extension lists it under its repository.
+  const providers = useModelProvider((store) => store.providers)
+  const installed = useMemo(
+    () => findInstalledLocalModel(providers, [model.model_name], [TENSORRT_LLM_PROVIDER]),
+    [providers, model.model_name]
+  )
 
   return (
     <section ref={sectionRef} className="scroll-mt-4 rounded-lg border border-border bg-card p-4">
@@ -44,7 +53,9 @@ export function TensorrtDownloadOptions({
             verdict && <TensorrtVerdict verdict={verdict} />
           )}
         </div>
-        {state === 'not-installed' && (
+        {installed ? (
+          <TensorrtInstalledActions modelId={installed.modelId} engineReady={state === 'ready'} />
+        ) : state === 'not-installed' ? (
           <Button
             size="sm"
             className="shrink-0"
@@ -57,9 +68,11 @@ export function TensorrtDownloadOptions({
           >
             {t('hub:tensorrt.installEngine')}
           </Button>
-        )}
-        {state === 'ready' && verdict?.kind === 'ok' && (
-          <TensorrtModelDownloadAction model={model} revision={verdict.meta.revision} />
+        ) : (
+          state === 'ready' &&
+          verdict?.kind === 'ok' && (
+            <TensorrtModelDownloadAction model={model} revision={verdict.meta.revision} />
+          )
         )}
       </div>
     </section>
