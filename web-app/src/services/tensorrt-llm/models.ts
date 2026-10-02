@@ -16,8 +16,10 @@
  * 4. Download every file into `<root>/<repository>/`, verified by size and LFS sha256, resuming
  *    partial files and skipping files already complete.
  * 5. Write `model.yml` last: a folder without one is a download in progress, not a model.
- * 6. End the download's events as a chat-model download ends them, so the "Validating Model"
- *    toast the downloader opened is closed: verified and done, or the reason it failed.
+ * 6. Report it as the download panel's row under one id (`tensorrtDownloadId`, change
+ *    `add-tensorrt-llm-model-hub`, design D6) — progress, then its end: done, stopped by a cancel
+ *    (partial files stay, Download again resumes them), or the reason it failed. The end also
+ *    closes the "Validating Model" toast the downloader opened under the same id.
  */
 
 import { invoke } from '@tauri-apps/api/core'
@@ -28,6 +30,7 @@ import type {
   DescriptorSummary,
   ModelCompatibility,
 } from '@/services/managed-environment/types'
+import { isDownloadCancellationError } from '@/lib/downloadCancellation'
 import {
   isTransferValidationError,
   transferFiles,
@@ -229,6 +232,7 @@ export async function installTensorrtModel(
   // Only for a model that can run here; before Atomic Chat's distribution exists on Windows the
   // core refuses (`MANAGED_ADAPTER_UNAVAILABLE`) and nothing is downloaded.
   const { root, free_bytes: freeBytes } = await deps.location()
+  const downloadId = tensorrtDownloadId(repository)
   const pending: TransferItem[] = []
   for (const file of meta.files) {
     const savePath = underRoot(root, repository, file.path)
@@ -238,7 +242,7 @@ export async function installTensorrtModel(
       url: `${HF}/${repository}/resolve/${meta.revision}/${file.path}`,
       save_path: savePath,
       size: file.size,
-      model_id: repository,
+      model_id: downloadId,
       ...(file.sha256 ? { sha256: file.sha256 } : {}),
     })
   }
@@ -252,10 +256,18 @@ export async function installTensorrtModel(
   }
   try {
     if (pending.length > 0) {
-      await deps.transfer(pending, tensorrtDownloadId(repository), {
+      await deps.transfer(pending, downloadId, {
         resume: true,
         ...(request.token ? { hfToken: request.token } : {}),
-        ...(request.onProgress ? { onProgress: request.onProgress } : {}),
+        onProgress: (transferred, total) => {
+          deps.emit(DownloadEvent.onFileDownloadUpdate, {
+            modelId: downloadId,
+            percent: total > 0 ? transferred / total : 0,
+            size: { transferred, total },
+            downloadType: 'Model',
+          })
+          request.onProgress?.(transferred, total)
+        },
       })
     }
 
@@ -268,15 +280,16 @@ export async function installTensorrtModel(
       files: meta.files,
     })
   } catch (error) {
-    if (pending.length > 0) emitDownloadFailed(deps, repository, error)
+    if (pending.length > 0) emitDownloadEnded(deps, downloadId, error)
     throw error
   }
-  // The Rust downloader opened a "Validating Model" toast for `repository` (each item's
-  // `model_id`) once the files arrived, and only a terminal download event closes it (F-10).
-  // Sent only after a download: with every file already on disk nothing was fetched or checked.
+  // The Rust downloader opened a "Validating Model" toast for `downloadId` (each item's
+  // `model_id`) once the files arrived, and only a terminal download event closes it (F-10); the
+  // same event ends the panel's row. Sent only after a download: with every file already on disk
+  // nothing was fetched or checked.
   if (pending.length > 0) {
-    deps.emit(DownloadEvent.onFileDownloadAndVerificationSuccess, {
-      modelId: repository,
+    deps.emit(DownloadEvent.onFileDownloadSuccess, {
+      modelId: downloadId,
       downloadType: 'Model',
       size: { transferred: downloaded, total: downloaded },
     })
@@ -285,22 +298,25 @@ export async function installTensorrtModel(
 }
 
 /**
- * Close the download's toasts as a failed chat-model download closes them: a file that failed its
- * size or sha256 check (the downloader has already removed it) as a validation failure, anything
- * else as a download error.
+ * End the download's row and toasts as a chat-model download ends them: a cancel as stopped (the
+ * panel then offers nothing to report, and the partials stay for Download again), a file that
+ * failed its size or sha256 check (the downloader has already removed it) as a validation failure,
+ * anything else as a download error.
  */
-function emitDownloadFailed(deps: InstallDeps, repository: string, error: unknown): void {
+function emitDownloadEnded(deps: InstallDeps, downloadId: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error)
-  if (isTransferValidationError(error)) {
+  if (isDownloadCancellationError(error)) {
+    deps.emit(DownloadEvent.onFileDownloadStopped, { modelId: downloadId, downloadType: 'Model' })
+  } else if (isTransferValidationError(error)) {
     deps.emit(DownloadEvent.onModelValidationFailed, {
-      modelId: repository,
+      modelId: downloadId,
       downloadType: 'Model',
       error: message,
       reason: 'validation_failed',
     })
   } else {
     deps.emit(DownloadEvent.onFileDownloadError, {
-      modelId: repository,
+      modelId: downloadId,
       downloadType: 'Model',
       error: message,
     })

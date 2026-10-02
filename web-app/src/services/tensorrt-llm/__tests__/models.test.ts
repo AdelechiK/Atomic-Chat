@@ -6,6 +6,7 @@ import {
   InsufficientModelSpaceError,
   fetchHfRevision,
   installTensorrtModel,
+  tensorrtDownloadId,
   type InstallDeps,
 } from '../models'
 
@@ -13,6 +14,9 @@ import {
 const LINUX_ROOT = '/home/ann/.local/share/Atomic Chat/data/tensorrt-llm/models'
 
 const SHA = 'c0ffee' + '0'.repeat(34)
+
+/** The one id of this repository's download: task, files, panel row and events (design D6). */
+const DOWNLOAD_ID = 'tensorrt-llm-nvidia_Qwen3-8B-FP8'
 
 /** A Hugging Face that answers the API listing and the files of one repository. */
 function hub(options: { status?: number; quant?: boolean } = {}) {
@@ -198,8 +202,32 @@ describe('installTensorrtModel', () => {
     expect(steps).toEqual([])
   })
 
-  describe('the download toasts (task 3.18, F-10)', () => {
-    it('ends a verified download as verified, for the id the downloader validated, after model.yml', async () => {
+  describe('the download panel and its toasts (task 3.18, F-10; design D6)', () => {
+    it('names the download once for the task, every file, its progress and its end', async () => {
+      const { d, emitted } = deps({
+        transfer: vi.fn(async (_items, _taskId, options) => {
+          options.onProgress?.(2_000_000_000, 8_000_011_700)
+        }),
+      })
+
+      await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
+
+      expect(tensorrtDownloadId('nvidia/Qwen3-8B-FP8')).toBe(DOWNLOAD_ID)
+      const [items, taskId] = vi.mocked(d.transfer).mock.calls[0]
+      expect(taskId).toBe(DOWNLOAD_ID)
+      expect(new Set(items.map((item) => item.model_id))).toEqual(new Set([DOWNLOAD_ID]))
+      expect(emitted.map((e) => [e.event, e.payload.modelId])).toEqual([
+        ['onFileDownloadUpdate', DOWNLOAD_ID],
+        ['onFileDownloadSuccess', DOWNLOAD_ID],
+      ])
+      expect(emitted[0].payload).toMatchObject({
+        percent: 2_000_000_000 / 8_000_011_700,
+        size: { transferred: 2_000_000_000, total: 8_000_011_700 },
+        downloadType: 'Model',
+      })
+    })
+
+    it('ends a verified download for the id the downloader validated, after model.yml', async () => {
       const { d, steps, emitted } = deps({
         writeYaml: vi.fn(async (savePath: string) => {
           steps.push(`yaml:${savePath}`)
@@ -211,12 +239,12 @@ describe('installTensorrtModel', () => {
       await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)
 
       const itemIds = vi.mocked(d.transfer).mock.calls[0][0].map((item) => item.model_id)
-      expect(new Set(itemIds)).toEqual(new Set(['nvidia/Qwen3-8B-FP8']))
+      expect(new Set(itemIds)).toEqual(new Set([DOWNLOAD_ID]))
       expect(emitted).toEqual([
         {
-          event: 'onFileDownloadAndVerificationSuccess',
+          event: 'onFileDownloadSuccess',
           payload: {
-            modelId: 'nvidia/Qwen3-8B-FP8',
+            modelId: DOWNLOAD_ID,
             downloadType: 'Model',
             size: { transferred: 8_000_011_700, total: 8_000_011_700 },
           },
@@ -238,7 +266,7 @@ describe('installTensorrtModel', () => {
         {
           event: 'onModelValidationFailed',
           payload: {
-            modelId: 'nvidia/Qwen3-8B-FP8',
+            modelId: DOWNLOAD_ID,
             downloadType: 'Model',
             error: 'Hash verification failed for model-00001-of-00002.safetensors',
             reason: 'validation_failed',
@@ -256,7 +284,25 @@ describe('installTensorrtModel', () => {
 
       await expect(installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)).rejects.toThrow()
       expect(emitted.map((e) => e.event)).toEqual(['onFileDownloadError'])
-      expect(emitted[0].payload).toMatchObject({ modelId: 'nvidia/Qwen3-8B-FP8', error: 'connection reset' })
+      expect(emitted[0].payload).toMatchObject({ modelId: DOWNLOAD_ID, error: 'connection reset' })
+    })
+
+    it('ends a cancelled download as stopped, not failed, and writes no model.yml', async () => {
+      // spec "Отмена в панели загрузок".
+      const { d, steps, emitted } = deps({
+        transfer: vi.fn(async () => {
+          throw new Error('Download cancelled')
+        }),
+      })
+
+      await expect(installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)).rejects.toThrow(
+        'cancelled'
+      )
+      expect(emitted).toEqual([
+        { event: 'onFileDownloadStopped', payload: { modelId: DOWNLOAD_ID, downloadType: 'Model' } },
+      ])
+      expect(d.writeYaml).not.toHaveBeenCalled()
+      expect(steps).toEqual([])
     })
 
     it('announces nothing when every file was already on disk and nothing was fetched', async () => {
@@ -275,6 +321,30 @@ describe('installTensorrtModel', () => {
       expect(d.transfer).not.toHaveBeenCalled()
       expect(emitted).toEqual([])
     })
+  })
+
+  it('after a cancel, Download again continues from what is on disk and then writes model.yml', async () => {
+    // spec "Отмена в панели загрузок", "Прерванное скачивание": the downloader kept the partials.
+    const cancelled = deps({
+      transfer: vi.fn(async () => {
+        throw new Error('Download cancelled')
+      }),
+    })
+    await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, cancelled.d).catch(() => undefined)
+
+    const again = deps({
+      existingSize: vi.fn(async (path: string) =>
+        path.endsWith('model-00001-of-00002.safetensors') ? 5_000_000_000 : null
+      ),
+      hasPartial: vi.fn(async (path: string) => path.endsWith('model-00002-of-00002.safetensors')),
+    })
+    await installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, again.d)
+
+    const [items, taskId, options] = vi.mocked(again.d.transfer).mock.calls[0]
+    expect(taskId).toBe(DOWNLOAD_ID)
+    expect(items.map((i) => i.save_path.split('/').pop())).not.toContain('model-00001-of-00002.safetensors')
+    expect(options).toMatchObject({ resume: true })
+    expect(again.steps.at(-1)).toBe(`yaml:${LINUX_ROOT}/nvidia/Qwen3-8B-FP8/model.yml`)
   })
 
   it('does not download again the files already complete on disk, and resumes the rest', async () => {
