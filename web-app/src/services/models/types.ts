@@ -49,6 +49,11 @@ export interface CatalogModel {
   readme?: string
   tools?: boolean
   is_mlx?: boolean
+  /**
+   * A safetensors checkpoint listed under the Hub's TensorRT-LLM format (change
+   * `add-tensorrt-llm-model-hub`): whether it runs is the core's verdict, never this flag.
+   */
+  is_tensorrt_llm?: boolean
 }
 
 export type ModelCatalog = CatalogModel[]

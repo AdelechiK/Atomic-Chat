@@ -28,14 +28,17 @@ import { useModelProvider } from '@/hooks/useModelProvider'
 import { useModelSources } from '@/hooks/useModelSources'
 import { useServiceHub } from '@/hooks/useServiceHub'
 import { useStaffPicks } from '@/hooks/useStaffPicks'
+import { useTensorrtHubState } from '@/hooks/useTensorrtHubState'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import {
   applyHubFilters,
   hasLikeData,
+  hubFormats,
   huggingFaceQueries,
   isUncensoredModel,
   modelDownloadSizeText,
   modelFitsBudget,
+  normalizeHubFilters,
   readHubFilters,
   sortModels,
   writeHubFilters,
@@ -355,7 +358,19 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
     querySearchParam ?? getHubSearchQuery()
   )
   const [debouncedSearchValue, setDebouncedSearchValue] = useState(searchValue)
-  const [filters, setFilters] = useState<HubFilterState>(() => readHubFilters())
+  const tensorrtHub = useTensorrtHubState()
+  // What was saved stays saved; a format this machine does not offer (yet) reads as GGUF.
+  const [storedFilters, setFilters] = useState<HubFilterState>(() =>
+    readHubFilters()
+  )
+  const filters = useMemo(
+    () =>
+      normalizeHubFilters(
+        storedFilters,
+        hubFormats({ mlx: IS_MACOS, tensorrt: tensorrtHub.visible })
+      ),
+    [storedFilters, tensorrtHub.visible]
+  )
   const [showOnlyDownloaded, setShowOnlyDownloaded] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [hfSearching, setHfSearching] = useState(false)

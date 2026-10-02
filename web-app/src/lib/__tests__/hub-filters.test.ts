@@ -7,6 +7,7 @@ import {
   formatMemoryBudget,
   hasLikeData,
   HUB_FILTERS_STORAGE_KEY,
+  hubFormats,
   huggingFaceQueries,
   modelDownloadSizeText,
   modelFitsBudget,
@@ -79,6 +80,23 @@ describe('normalizeHubFilters', () => {
     const state = normalizeHubFilters({ sort: 'stars', onlyFitting: 'yes' })
     expect(state.sort).toBe(DEFAULT_HUB_FILTERS.sort)
     expect(state.onlyFitting).toBe(DEFAULT_HUB_FILTERS.onlyFitting)
+  })
+
+  it('keeps a saved TensorRT-LLM format where the format is offered', () => {
+    expect(
+      normalizeHubFilters({ formats: ['tensorrt-llm'] }, ['gguf', 'tensorrt-llm'])
+        .formats
+    ).toEqual(['tensorrt-llm'])
+  })
+
+  it('reads a saved format this machine does not offer as GGUF', () => {
+    // A TensorRT-LLM filter saved on a machine (or a session) without the provider.
+    expect(
+      normalizeHubFilters({ formats: ['tensorrt-llm'], sort: 'likes' }, ['gguf'])
+    ).toMatchObject({ formats: ['gguf'], sort: 'likes' })
+    expect(normalizeHubFilters({ formats: ['mlx'] }, ['gguf']).formats).toEqual([
+      'gguf',
+    ])
   })
 
   it('preserves a fully valid state', () => {
@@ -165,6 +183,17 @@ describe('hub filter persistence', () => {
   })
 })
 
+describe('hubFormats', () => {
+  it('offers GGUF everywhere, MLX on macOS and TensorRT-LLM where its provider is', () => {
+    expect(hubFormats({ mlx: false, tensorrt: false })).toEqual(['gguf'])
+    expect(hubFormats({ mlx: true, tensorrt: false })).toEqual(['gguf', 'mlx'])
+    expect(hubFormats({ mlx: false, tensorrt: true })).toEqual([
+      'gguf',
+      'tensorrt-llm',
+    ])
+  })
+})
+
 describe('filterByFormats', () => {
   const models = [gguf('a/gguf-one', '1 GB'), mlx('a/mlx-one', '1 GB')]
 
@@ -186,6 +215,21 @@ describe('filterByFormats', () => {
 
   it('treats an empty selection as no filter rather than an empty list', () => {
     expect(filterByFormats(models, [])).toHaveLength(2)
+  })
+
+  it('keeps TensorRT-LLM entries apart from GGUF and MLX', () => {
+    const trt: CatalogModel = {
+      model_name: 'nvidia/Qwen3-8B-FP8',
+      description: '',
+      downloads: 0,
+      library_name: 'transformers',
+      is_tensorrt_llm: true,
+    }
+    const list = [gguf('a/gguf', '1 GB'), mlx('b/mlx', '1 GB'), trt]
+    expect(filterByFormats(list, ['tensorrt-llm']).map((m) => m.model_name)).toEqual([
+      'nvidia/Qwen3-8B-FP8',
+    ])
+    expect(filterByFormats(list, ['gguf']).map((m) => m.model_name)).toEqual(['a/gguf'])
   })
 
   it('recognizes MLX declared only through library_name', () => {

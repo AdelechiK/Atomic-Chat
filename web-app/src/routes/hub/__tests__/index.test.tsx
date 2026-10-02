@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CatalogModel, HuggingFaceRepo } from '@/services/models/types'
 import type { ResolvedStaffPick } from '@/hooks/useStaffPicks'
 
@@ -245,6 +245,10 @@ const HubPage = () => {
 }
 
 describe('/hub route', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
@@ -560,6 +564,8 @@ describe('/hub route', () => {
   })
 
   it('swaps to the MLX picks when the filter is narrowed to MLX alone', () => {
+    // MLX is offered on macOS only; elsewhere a saved MLX filter reads as GGUF.
+    vi.stubGlobal('IS_MACOS', true)
     localStorage.setItem(
       HUB_FILTERS_STORAGE_KEY,
       serializeHubFilters({

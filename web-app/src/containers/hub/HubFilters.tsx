@@ -13,9 +13,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useHardware } from '@/hooks/useHardware'
+import { useTensorrtHubState } from '@/hooks/useTensorrtHubState'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import {
+  HUB_FORMAT_LABELS,
   HUB_SORT_KEYS,
+  hubFormats,
   type HubFilterState,
   type HubSortKey,
 } from '@/lib/hub-filters'
@@ -65,8 +68,10 @@ export function HubFilters({
   )
 
   // MLX only exists on Apple Silicon, so offering the toggle elsewhere would
-  // be a filter that can only ever empty the list.
-  const availableFormats: ModelFormat[] = IS_MACOS ? ['gguf', 'mlx'] : ['gguf']
+  // be a filter that can only ever empty the list. TensorRT-LLM follows its
+  // provider: no platform check of the Hub's own.
+  const tensorrtVisible = useTensorrtHubState().visible
+  const availableFormats = hubFormats({ mlx: IS_MACOS, tensorrt: tensorrtVisible })
   const sortKeys = HUB_SORT_KEYS.filter(
     (key) => key !== 'likes' || showLikesSort
   )
@@ -82,7 +87,7 @@ export function HubFilters({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" aria-label={t('hub:formats')}>
-              {selectedFormat.toUpperCase()}
+              {HUB_FORMAT_LABELS[selectedFormat]}
               <ChevronsUpDown className="ml-2 size-4 shrink-0 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
@@ -95,7 +100,7 @@ export function HubFilters({
             >
               {availableFormats.map((format) => (
                 <DropdownMenuRadioItem key={format} value={format}>
-                  {format.toUpperCase()}
+                  {HUB_FORMAT_LABELS[format]}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
