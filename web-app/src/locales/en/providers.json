@@ -168,18 +168,6 @@
       "spaceWindows": "The engine image takes about {{size}} inside Atomic Chat's WSL distribution. Uninstalling Atomic Chat removes neither the image nor the distribution; remove the engine and then the environment here first.",
       "bodyWindows": "The engine image, its caches and the installation are deleted. Atomic Chat's WSL distribution, with Docker and the NVIDIA Container Toolkit in it, stays; you can remove it afterwards as the environment."
     },
-    "models": {
-      "title": "Models",
-      "curated": "Tested models that fit this computer",
-      "fromHub": "Or paste a Hugging Face repository",
-      "check": "Check",
-      "fits": "This model can run here ({{size}} of weights).",
-      "download": "Download",
-      "downloading": "Downloading {{repository}}…",
-      "otherCard": "It would fit on: {{cards}}. Choose that card in the settings below.",
-      "gated": "Hugging Face refused access. Open the model page, accept its terms (and set your Hugging Face token in Settings if needed), then try again: {{url}}",
-      "noSpace": "Not enough free space for this model in {{path}}: it needs {{needed}}, {{free}} is free. Free some space there and try again."
-    },
     "settings": {
       "title": "TensorRT-LLM settings",
       "gpu": "GPU",
