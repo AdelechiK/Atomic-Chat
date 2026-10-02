@@ -23,7 +23,7 @@
 //!   executor, reads the result file and sends the receipt;
 //! - with no `pkexec` or no polkit agent, it hands the person the exact `sudo` command and keeps
 //!   waiting for the result file instead; where UAC cannot be raised, it hands over
-//!   `wsl --install --no-distribution` for an administrator terminal.
+//!   `wsl --install` for an administrator terminal (the inbox `wsl.exe` stub runs only the bare form).
 //!
 //! The copy (Linux) and the request folder are removed once the executor has exited.
 
@@ -397,7 +397,7 @@ pub const ERROR_CANCELLED: i32 = 1223;
 
 /// What a person runs in an administrator terminal where UAC cannot be raised (design D15). The
 /// only step Windows elevates is `windows.enable-wsl`, and this is all its executor does.
-pub const ENABLE_WSL_MANUAL_COMMAND: &str = "wsl --install --no-distribution";
+pub const ENABLE_WSL_MANUAL_COMMAND: &str = "wsl --install";
 
 /// How an elevated run on Windows ended, from what `ShellExecuteExW` answered: the executor's
 /// exit code once it ran, or the Win32 error when it never started. A cancelled prompt is a
@@ -531,7 +531,7 @@ mod outcome_tests {
         for code in [5, 740, 1260] {
             assert_eq!(
                 elevation_after_runas(&prepared, Err(code)),
-                Elevation::Manual { command: "wsl --install --no-distribution".into() }
+                Elevation::Manual { command: "wsl --install".into() }
             );
         }
     }

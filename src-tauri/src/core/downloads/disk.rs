@@ -484,6 +484,7 @@ mod tests {
         assert_eq!(path_limit_error(r"\\wsl.localhost\AtomicChat\short"), None);
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn path_limit_is_a_no_op_off_windows() {
         let long = PathBuf::from(format!("/{}/model.gguf", "x".repeat(300)));

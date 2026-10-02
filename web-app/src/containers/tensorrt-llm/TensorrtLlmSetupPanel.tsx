@@ -31,6 +31,7 @@ import {
   runHostStep,
 } from '@/services/managed-environment/client'
 import { describeDescriptor } from '@/services/tensorrt-llm/models'
+import { useRunningHostSteps } from '@/stores/host-step-running-store'
 import type {
   EnvironmentOperation,
   RequirementPlan,
@@ -246,11 +247,12 @@ export function TensorrtLlmSetupPanel() {
         }
       })
       .catch((error) => setActionError(errorText(error)))
-      .finally(() =>
+      .finally(() => {
+        useRunningHostSteps.getState().ended(stepId)
         useElevatingSteps.setState(({ steps }) => ({
           steps: steps.filter((step) => step !== stepId),
         }))
-      )
+      })
   }, [])
 
   useEffect(() => {
@@ -694,6 +696,9 @@ function OperationStatus({
         : `providers:tensorrt.phase.${operation.phase}`
   /** The privileged step is UAC turning on WSL, not the system password. */
   const uac = operation.pending_host_step?.action === 'windows.enable-wsl'
+  const runningSteps = useRunningHostSteps((state) => state.steps)
+  const running =
+    operation.pending_host_step !== null && runningSteps.includes(operation.pending_host_step.step_id)
   const progress = operation.progress
   const bytes =
     progress?.unit === 'bytes' && progress.completed !== null && progress.total
@@ -737,7 +742,9 @@ function OperationStatus({
           <p className="text-sm text-main-view-fg/70">
             {manualCommand
               ? t(uac ? 'providers:tensorrt.hostStep.uac.manual' : 'providers:tensorrt.hostStep.manual')
-              : t(uac ? 'providers:tensorrt.hostStep.uac.waiting' : 'providers:tensorrt.hostStep.waiting')}
+              : running
+                ? t(uac ? 'providers:tensorrt.hostStep.uac.running' : 'providers:tensorrt.hostStep.running')
+                : t(uac ? 'providers:tensorrt.hostStep.uac.waiting' : 'providers:tensorrt.hostStep.waiting')}
           </p>
           {manualCommand && (
             <pre className="select-all overflow-x-auto rounded bg-main-view-fg/5 p-2 text-xs">

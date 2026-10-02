@@ -61,7 +61,7 @@ export function deriveSetupView(state: SetupState): SetupView {
   return { kind: 'not-installed', plan }
 }
 
-function stepOf(operation: EnvironmentOperation): OperationStep {
+export function stepOf(operation: EnvironmentOperation): OperationStep {
   switch (operation.phase) {
     case 'awaiting-consent':
       return 'consent'

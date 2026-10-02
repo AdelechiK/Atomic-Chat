@@ -149,8 +149,14 @@ pub fn prepare(
 
 /// Runs `program parameters` elevated and waits for it: its exit code (`u32::MAX` when it ran but
 /// the code could not be read), or the Win32 error when it never started (`ERROR_CANCELLED` when
-/// the person said no). Blocks; call it off the async runtime.
-pub fn run_as_administrator(program: &Path, parameters: &str) -> Result<u32, i32> {
+/// the person said no). `on_started` runs once the person approved UAC and the process started,
+/// before the wait: the UI then says the work is under way instead of asking for approval.
+/// Blocks; call it off the async runtime.
+pub fn run_as_administrator(
+    program: &Path,
+    parameters: &str,
+    on_started: &mut dyn FnMut(),
+) -> Result<u32, i32> {
     let verb = wide(OsStr::new("runas"));
     let file = wide(program.as_os_str());
     let parameters = wide(OsStr::new(parameters));
@@ -166,6 +172,7 @@ pub fn run_as_administrator(program: &Path, parameters: &str) -> Result<u32, i32
         if ShellExecuteExW(&mut info) == 0 {
             return Err(GetLastError() as i32);
         }
+        on_started();
         if info.hProcess.is_null() {
             // Nothing to wait on; the result file, if any, is the answer.
             return Ok(0);
@@ -183,9 +190,9 @@ pub fn run_as_administrator(program: &Path, parameters: &str) -> Result<u32, i32
     }
 }
 
-/// Run the executor through UAC and wait for it.
-pub fn elevate(prepared: &PreparedStep) -> Elevation {
-    let started = run_as_administrator(&prepared.binary, &runas_parameters(&prepared.request));
+/// Run the executor through UAC and wait for it; `on_started` as in `run_as_administrator`.
+pub fn elevate(prepared: &PreparedStep, on_started: &mut dyn FnMut()) -> Elevation {
+    let started = run_as_administrator(&prepared.binary, &runas_parameters(&prepared.request), on_started);
     elevation_after_runas(prepared, started)
 }
 

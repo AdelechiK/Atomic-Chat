@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useServiceHub } from '@/hooks/useServiceHub'
 import { readManagedSnapshot } from '@/services/managed-environment/client'
 import { startManagedEnvironmentSync } from '@/services/managed-environment/sync'
+import { HOST_STEP_RUNNING_EVENT, useRunningHostSteps } from '@/stores/host-step-running-store'
 
 /**
  * Follows the core's managed-runtime state for the whole session (`startManagedEnvironmentSync`).
@@ -25,9 +26,24 @@ export function useManagedEnvironmentSync(): void {
         else stop = unlisten
       })
       .catch((error) => console.warn('Managed environment events unavailable:', error))
+    // The privileged step the person approved is running (Rust, after UAC): say so, not "approve".
+    let stopRunning: (() => void) | undefined
+    void serviceHub
+      .events()
+      .listen<{ step_id?: unknown }>(HOST_STEP_RUNNING_EVENT, (event) => {
+        if (typeof event.payload?.step_id === 'string') {
+          useRunningHostSteps.getState().started(event.payload.step_id)
+        }
+      })
+      .then((unlisten) => {
+        if (cancelled) unlisten()
+        else stopRunning = unlisten
+      })
+      .catch((error) => console.warn('Host step events unavailable:', error))
     return () => {
       cancelled = true
       stop?.()
+      stopRunning?.()
     }
   }, [serviceHub])
 }
