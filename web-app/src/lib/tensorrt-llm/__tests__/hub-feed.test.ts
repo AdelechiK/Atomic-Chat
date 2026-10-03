@@ -74,6 +74,12 @@ describe('passesTensorrtPrefilter', () => {
       kept: true,
     },
     {
+      name: 'weights that fit the card alone but not with the engine overhead (Ministral-3b bf16 on 8 GB)',
+      model: entry({ architectures: ['Qwen3ForCausalLM'], parameters: { BF16: 3.3e9 } }),
+      gpus: [card(8 * GB)],
+      kept: false,
+    },
+    {
       name: 'a card with shared memory (no VRAM figure): size is not judged',
       model: entry({ architectures: ['Qwen3ForCausalLM'], parameters: { BF16: 70 * GB } }),
       gpus: [card(24 * GB), card(null, 'GB10')],

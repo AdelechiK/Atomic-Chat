@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Card, CardItem } from '@/containers/Card'
 import { DropdownControl } from '@/containers/dynamicControllerSetting/DropdownControl'
 import { useTranslation } from '@/i18n/react-i18next-compat'
 import { formatBytes } from '@/lib/utils'
@@ -61,6 +62,9 @@ export function TensorrtLlmSettingsCard({
   const context = Number(valueOf(settings, 'context_length'))
   const output = Number(valueOf(settings, 'max_output_tokens'))
   const [logs, setLogs] = useState<{ model: string; logs?: ModelLogs; error?: string } | null>(null)
+  // One entry point for every model's log: the model is picked, not given a button of its own.
+  const [picked, setPicked] = useState<string | null>(null)
+  const logModel = picked !== null && models.includes(picked) ? picked : (models[0] ?? null)
 
   const gpuGone = gpuId !== '' && !gpus.some((gpu) => gpu.gpu_id === gpuId)
 
@@ -79,63 +83,78 @@ export function TensorrtLlmSettingsCard({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-main-view-fg/10 p-4">
-      <h2 className="font-medium text-main-view-fg">{t('providers:tensorrt.settings.title')}</h2>
-
-      <div className="flex min-w-0 flex-col gap-1 text-sm">
-        <span className="font-medium">{t('providers:tensorrt.settings.gpu')}</span>
-        {/* The app's own menu, not a native <select>: WebKitGTK draws a select's list with the
-            system theme, so in the app's dark theme it came up light (F-11). */}
-        <DropdownControl
-          value={gpuId}
-          options={[
-            { value: '', name: t('providers:tensorrt.settings.gpuDefault') },
-            ...gpus.map((gpu) => ({ value: gpu.gpu_id, name: gpuLabel(gpu) })),
-            ...(gpuGone ? [{ value: gpuId, name: gpuId }] : []),
-          ]}
-          onChange={(value) => onChange('gpu_id', String(value))}
-        />
-        {gpuGone && (
-          <span className="text-xs text-main-view-fg/70">
-            {t('providers:tensorrt.settings.gpuMissing', { gpu: gpuId })}
-          </span>
-        )}
-      </div>
+    <Card
+      header={
+        <h1 className="text-foreground font-medium text-base mb-4">
+          {t('providers:tensorrt.settings.title')}
+        </h1>
+      }
+    >
+      <CardItem
+        title={t('providers:tensorrt.settings.gpu')}
+        description={
+          gpuGone
+            ? t('providers:tensorrt.settings.gpuMissing', { gpu: gpuId })
+            : t('providers:tensorrt.settings.gpuDescription')
+        }
+        actions={
+          // The app's own menu, not a native <select>: WebKitGTK draws a select's list with the
+          // system theme, so in the app's dark theme it came up light (F-11).
+          <DropdownControl
+            value={gpuId}
+            options={[
+              { value: '', name: t('providers:tensorrt.settings.gpuDefault') },
+              ...gpus.map((gpu) => ({ value: gpu.gpu_id, name: gpuLabel(gpu) })),
+              ...(gpuGone ? [{ value: gpuId, name: gpuId }] : []),
+            ]}
+            onChange={(value) => onChange('gpu_id', String(value))}
+          />
+        }
+      />
 
       {Number.isFinite(context) && Number.isFinite(output) && output >= context && (
-        <p className="text-sm text-destructive">
+        <p className="mt-2 text-sm text-destructive">
           {t('providers:tensorrt.settings.outputTooLong', { output, context })}
         </p>
       )}
 
-      {models.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium">{t('providers:tensorrt.settings.logs')}</p>
-          <ul className="flex flex-col gap-1">
-            {models.map((model) => (
-              <li key={model} className="flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate text-sm">{model}</span>
-                <Button variant="outline" size="sm" onClick={() => void showLogs(model)}>
-                  {t('providers:tensorrt.settings.viewLogs')}
-                </Button>
-              </li>
-            ))}
-          </ul>
-          {logs && (
-            <div className="flex min-w-0 flex-col gap-1">
-              {logs.logs?.source === 'last-attempt' && logs.logs.error && (
-                <p className="text-sm text-destructive break-words">{logs.logs.error.message}</p>
+      {logModel !== null && (
+        <CardItem
+          title={t('providers:tensorrt.settings.logs')}
+          description={t('providers:tensorrt.settings.logsDescription')}
+          actions={
+            <div className="flex items-center gap-2">
+              {models.length > 1 && (
+                <DropdownControl
+                  value={logModel}
+                  options={models.map((model) => ({ value: model, name: model }))}
+                  onChange={(value) => setPicked(String(value))}
+                />
               )}
-              {logs.error && <p className="text-sm text-destructive break-words">{logs.error}</p>}
-              {logs.logs && (
-                <pre className="max-h-80 overflow-auto rounded bg-main-view-fg/5 p-2 text-xs whitespace-pre-wrap break-words">
-                  {logs.logs.log_tail || t('providers:tensorrt.settings.noLogs')}
-                </pre>
-              )}
+              <Button variant="outline" size="sm" onClick={() => void showLogs(logModel)}>
+                {t('providers:tensorrt.settings.viewLogs')}
+              </Button>
             </div>
+          }
+        />
+      )}
+
+      {logs && (
+        <div className="mt-3 flex min-w-0 flex-col gap-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            {t('providers:tensorrt.settings.logOf', { model: logs.model })}
+          </p>
+          {logs.logs?.source === 'last-attempt' && logs.logs.error && (
+            <p className="text-sm text-destructive break-words">{logs.logs.error.message}</p>
+          )}
+          {logs.error && <p className="text-sm text-destructive break-words">{logs.error}</p>}
+          {logs.logs && (
+            <pre className="max-h-80 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground whitespace-pre-wrap break-words">
+              {logs.logs.log_tail || t('providers:tensorrt.settings.noLogs')}
+            </pre>
           )}
         </div>
       )}
-    </div>
+    </Card>
   )
 }

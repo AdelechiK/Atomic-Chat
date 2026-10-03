@@ -106,6 +106,10 @@ import { AppEvent, EngineManager, events } from '@janhq/core'
 import debounce from 'lodash.debounce'
 import { restartLocalModel } from '@/utils/restartLocalModel'
 
+/** Start, Stop and their spinner share one width, so a row does not jump between states; it fits
+ *  the longest translation ("Остановить"). */
+const MODEL_ACTION_BUTTON_CLASS = 'w-28'
+
 // as route.threadsDetail
 export const Route = createFileRoute('/settings/providers/$providerName')({
   /**
@@ -2858,6 +2862,7 @@ function ProviderDetail() {
                                         <Button
                                           size="sm"
                                           variant="destructive"
+                                          className={MODEL_ACTION_BUTTON_CLASS}
                                           disabled={isStopping}
                                           onClick={() =>
                                             handleStopModel(model.id)
@@ -2881,6 +2886,7 @@ function ProviderDetail() {
                                   const startButton = (
                                     <Button
                                       size="sm"
+                                      className={MODEL_ACTION_BUTTON_CLASS}
                                       disabled={isLoading || needsApiKey}
                                       onClick={() => handleStartModel(model.id)}
                                     >

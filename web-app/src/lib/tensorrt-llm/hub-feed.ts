@@ -1,7 +1,8 @@
 /**
  * The Model Hub's cheap narrowing of the Hugging Face feed under the TensorRT-LLM format (change
  * `add-tensorrt-llm-model-hub`, design D4): from the listing alone, leave out what certainly cannot
- * run here — an architecture the descriptor does not support, or weights larger than every card.
+ * run here — an architecture the descriptor does not support, or weights that with the engine's own
+ * overhead are larger than every card.
  * It is not a verdict: the quantization format is never looked at, and the card asks the core.
  */
 
@@ -39,6 +40,14 @@ export function estimateWeightBytes(parameters: Record<string, number> | undefin
   return entries.reduce((total, [dtype, count]) => total + count * bytesOf(dtype), 0)
 }
 
+/**
+ * What `trtllm-serve` holds beyond the weights on any card (CUDA context, cuBLAS workspaces): the
+ * low end the core's check counts too (core 0.9.3, `TENSORRT_LLM_RUNTIME_OVERHEAD_BYTES`). The
+ * activation peak is left out: it needs `intermediate_size`, which the listing does not carry, and
+ * the estimate may only ever be low.
+ */
+export const TENSORRT_ENGINE_OVERHEAD_BYTES = 1.5 * 1024 ** 3
+
 export interface TensorrtPrefilterContext {
   /** The descriptor's `supported_architectures`; null when it could not be read. */
   supportedArchitectures: readonly string[] | null
@@ -61,7 +70,7 @@ export function passesTensorrtPrefilter(model: CatalogModel, context: TensorrtPr
     return true
   }
   const largest = Math.max(...gpus.map((gpu) => gpu.total_vram_bytes as number))
-  return weights <= largest
+  return weights + TENSORRT_ENGINE_OVERHEAD_BYTES <= largest
 }
 
 /** Where the Hub's list comes from under each format (design D3, D4). */

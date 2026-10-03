@@ -158,3 +158,41 @@ describe('TensorrtLlmSettingsCard', () => {
     )
   })
 })
+
+describe('TensorrtLlmSettingsCard: one entry point for the logs', () => {
+  it('offers one "view logs" button and a model menu, not a button per model, and names whose log it shows', async () => {
+    invoke.mockResolvedValue({ model_id: 'b/two', source: null, log_tail: '' })
+    const user = userEvent.setup()
+    render(
+      <TensorrtLlmSettingsCard
+        settings={settings({ gpu_id: '', context_length: 8192, max_output_tokens: 4096 })}
+        models={['a/one', 'b/two', 'c/three']}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getAllByRole('button', { name: 'providers:tensorrt.settings.viewLogs' })).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'a/one' }))
+    await user.click(screen.getByRole('menuitem', { name: 'b/two' }))
+    await user.click(screen.getByRole('button', { name: 'providers:tensorrt.settings.viewLogs' }))
+
+    expect(await screen.findByText('providers:tensorrt.settings.noLogs')).toBeInTheDocument()
+    expect(screen.getByText(/providers:tensorrt.settings.logOf .*b\/two/)).toBeInTheDocument()
+    expect(invoke).toHaveBeenCalledWith('atomic_core_call', {
+      method: 'GET',
+      path: '/models/tensorrt-llm/b/two/logs',
+      body: null,
+    })
+  })
+
+  it('has no logs row before any model is downloaded', () => {
+    render(
+      <TensorrtLlmSettingsCard
+        settings={settings({ gpu_id: '', context_length: 8192, max_output_tokens: 4096 })}
+        models={[]}
+        onChange={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: 'providers:tensorrt.settings.viewLogs' })).toBeNull()
+  })
+})

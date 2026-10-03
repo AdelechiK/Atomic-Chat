@@ -176,7 +176,10 @@
       "outputTooLong": "Max output tokens ({{output}}) must be less than the context length ({{context}}).",
       "logs": "Model logs",
       "viewLogs": "View logs",
-      "noLogs": "No log yet: this model has not been loaded."
+      "noLogs": "No log yet: this model has not been loaded.",
+      "gpuDescription": "The card the model loads on. Changes apply from the next load.",
+      "logsDescription": "The engine log of the model's running session, or of its last failed load.",
+      "logOf": "Log of {{model}}"
     },
     "notInstalledWindows": "TensorRT-LLM is not installed. Installing it turns on WSL if needed, sets up Atomic Chat's own WSL distribution with Docker and the NVIDIA Container Toolkit inside it, and downloads the engine image.",
     "reboot": {
