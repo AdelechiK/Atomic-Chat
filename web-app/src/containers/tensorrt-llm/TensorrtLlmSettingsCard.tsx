@@ -97,6 +97,8 @@ export function TensorrtLlmSettingsCard({
             ? t('providers:tensorrt.settings.gpuMissing', { gpu: gpuId })
             : t('providers:tensorrt.settings.gpuDescription')
         }
+        // Bounded, so a long card name truncates inside the menu instead of widening the row.
+        classNameWrapperAction="w-80 max-w-[50%]"
         actions={
           // The app's own menu, not a native <select>: WebKitGTK draws a select's list with the
           // system theme, so in the app's dark theme it came up light (F-11).
@@ -122,16 +124,29 @@ export function TensorrtLlmSettingsCard({
         <CardItem
           title={t('providers:tensorrt.settings.logs')}
           description={t('providers:tensorrt.settings.logsDescription')}
+          // Under the title, across the card: a model id is long (`deepseek-ai/deepseek-coder-…`), and
+          // beside the title it pushed the button out of the card.
+          column
+          classNameWrapperAction="mt-3"
           actions={
-            <div className="flex items-center gap-2">
-              {models.length > 1 && (
-                <DropdownControl
-                  value={logModel}
-                  options={models.map((model) => ({ value: model, name: model }))}
-                  onChange={(value) => setPicked(String(value))}
-                />
-              )}
-              <Button variant="outline" size="sm" onClick={() => void showLogs(logModel)}>
+            <div className="flex w-full min-w-0 items-center gap-2">
+              <div className="min-w-0 flex-1">
+                {models.length > 1 ? (
+                  <DropdownControl
+                    value={logModel}
+                    options={models.map((model) => ({ value: model, name: model }))}
+                    onChange={(value) => setPicked(String(value))}
+                  />
+                ) : (
+                  <p className="truncate text-sm text-foreground">{logModel}</p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => void showLogs(logModel)}
+              >
                 {t('providers:tensorrt.settings.viewLogs')}
               </Button>
             </div>
