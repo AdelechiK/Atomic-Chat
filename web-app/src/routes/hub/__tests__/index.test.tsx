@@ -245,7 +245,7 @@ vi.mock('@/stores/model-catalog-store', () => ({
 
 import { Route } from '../index'
 import { HUB_FILTERS_STORAGE_KEY, serializeHubFilters } from '@/lib/hub-filters'
-import { setHubSearchQuery } from '../hub-session'
+import { getHubFormat, setHubFormat, setHubSearchQuery } from '../hub-session'
 import { resetHuggingFaceFeedForTest } from '@/hooks/useHuggingFaceFeed'
 import en from '@/locales/en/hub.json'
 
@@ -273,6 +273,7 @@ describe('/hub route', () => {
   })
 
   beforeEach(() => {
+    setHubFormat(null)
     vi.clearAllMocks()
     localStorage.clear()
     setHubSearchQuery('')
@@ -605,12 +606,26 @@ describe('/hub route', () => {
         uncensored: false,
       })
     )
+    setHubFormat('mlx')
 
     render(<HubPage />)
 
     expect(mocks.requestedPickFormats).toContain('mlx')
     expect(screen.getByText('Qwen3.5 4B (MLX)')).toBeInTheDocument()
     expect(screen.queryByText('Qwen3.5 4B')).not.toBeInTheDocument()
+  })
+
+  it('opens on GGUF on a new launch even when another format was saved', () => {
+    vi.stubGlobal('IS_MACOS', true)
+    localStorage.setItem(
+      HUB_FILTERS_STORAGE_KEY,
+      serializeHubFilters({ formats: ['mlx'], sort: 'recommended', onlyFitting: false, uncensored: false })
+    )
+
+    render(<HubPage />)
+
+    expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
+    expect(screen.queryByText('Qwen3.5 4B (MLX)')).not.toBeInTheDocument()
   })
 
   it('opens on the format a provider page links with, keeps it and drops it from the URL', () => {
@@ -622,9 +637,7 @@ describe('/hub route', () => {
 
     expect(mocks.requestedPickFormats).toContain('mlx')
     expect(screen.getByText('Qwen3.5 4B (MLX)')).toBeInTheDocument()
-    expect(JSON.parse(localStorage.getItem(HUB_FILTERS_STORAGE_KEY) ?? '{}').formats).toEqual([
-      'mlx',
-    ])
+    expect(getHubFormat()).toBe('mlx')
     const cleared = mocks.navigate.mock.calls
       .map(([options]) => options as { search?: (prev: object) => object })
       .filter((options) => typeof options.search === 'function')
@@ -642,16 +655,7 @@ describe('/hub route', () => {
   })
 
   describe('under the TensorRT-LLM format', () => {
-    const selectTensorrt = () =>
-      localStorage.setItem(
-        HUB_FILTERS_STORAGE_KEY,
-        serializeHubFilters({
-          formats: ['tensorrt-llm'],
-          sort: 'recommended',
-          onlyFitting: false,
-          uncensored: false,
-        })
-      )
+    const selectTensorrt = () => setHubFormat('tensorrt-llm')
 
     it('shows what blocks the engine instead of models', () => {
       selectTensorrt()
@@ -789,9 +793,7 @@ describe('/hub route', () => {
       render(<HubPage />)
 
       expect(screen.getByText('Qwen3.5 4B')).toBeInTheDocument()
-      expect(JSON.parse(localStorage.getItem(HUB_FILTERS_STORAGE_KEY) ?? '{}').formats).toEqual([
-        'tensorrt-llm',
-      ])
+      expect(getHubFormat()).toBe('tensorrt-llm')
     })
 
     it('stops asking Hugging Face for pages the prefilter keeps emptying', async () => {
@@ -824,6 +826,7 @@ describe('/hub route', () => {
           uncensored: true,
         })
       )
+      setHubFormat('tensorrt-llm')
       tensorrtHub.value = {
         visible: true,
         state: 'blocked',

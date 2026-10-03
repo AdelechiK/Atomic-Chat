@@ -116,7 +116,7 @@ describe('hub filter persistence', () => {
     window.localStorage.removeItem(HUB_FILTERS_STORAGE_KEY)
   })
 
-  it('round-trips through localStorage', () => {
+  it('round-trips sort and toggles through localStorage, not the format', () => {
     const state: HubFilterState = {
       formats: ['mlx'],
       sort: 'last-modified',
@@ -124,7 +124,12 @@ describe('hub filter persistence', () => {
       uncensored: true,
     }
     writeHubFilters(state)
-    expect(readHubFilters()).toEqual(state)
+    expect(readHubFilters()).toEqual({ ...state, formats: ['gguf'] })
+  })
+
+  it('never brings a saved format back: the Hub opens on GGUF on every launch', () => {
+    writeHubFilters({ formats: ['tensorrt-llm'], sort: 'likes', onlyFitting: true, uncensored: false })
+    expect(readHubFilters()).toMatchObject({ formats: ['gguf'], sort: 'likes' })
   })
 
   it('returns defaults when nothing was stored', () => {
@@ -142,7 +147,7 @@ describe('hub filter persistence', () => {
       JSON.stringify({ formats: ['mlx', 'bogus'], sort: 'nope' })
     )
     expect(readHubFilters()).toEqual({
-      formats: ['mlx'],
+      formats: ['gguf'],
       sort: DEFAULT_HUB_FILTERS.sort,
       onlyFitting: DEFAULT_HUB_FILTERS.onlyFitting,
       uncensored: DEFAULT_HUB_FILTERS.uncensored,

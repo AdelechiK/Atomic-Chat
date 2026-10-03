@@ -130,7 +130,9 @@ export function readHubFilters(storage?: Storage | null): HubFilterState {
   try {
     const raw = ls.getItem(HUB_FILTERS_STORAGE_KEY)
     if (!raw) return { ...DEFAULT_HUB_FILTERS }
-    return normalizeHubFilters(JSON.parse(raw))
+    // Sort and the toggles come back; the format does not — the Hub opens on GGUF on every launch
+    // (`hub-session.ts` keeps a format picked within one launch).
+    return { ...normalizeHubFilters(JSON.parse(raw)), formats: [...DEFAULT_HUB_FILTERS.formats] }
   } catch {
     return { ...DEFAULT_HUB_FILTERS }
   }

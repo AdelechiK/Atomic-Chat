@@ -87,7 +87,12 @@ import type {
   StaffPickFormat,
 } from '@/services/staff-picks-registry'
 import { useShallow } from 'zustand/shallow'
-import { getHubSearchQuery, setHubSearchQuery } from './hub-session'
+import {
+  getHubFormat,
+  getHubSearchQuery,
+  setHubFormat,
+  setHubSearchQuery,
+} from './hub-session'
 
 type SearchParams = {
   repo?: string
@@ -385,10 +390,13 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
   )
   const [debouncedSearchValue, setDebouncedSearchValue] = useState(searchValue)
   const tensorrtHub = useTensorrtHubState()
-  // What was saved stays saved; a format this machine does not offer (yet) reads as GGUF.
-  const [storedFilters, setFilters] = useState<HubFilterState>(() =>
-    readHubFilters()
-  )
+  // Sort and toggles are saved; the format is GGUF on every launch and kept only for this one
+  // (`hub-session.ts`). A format this machine does not offer (yet) reads as GGUF.
+  const [storedFilters, setFilters] = useState<HubFilterState>(() => {
+    const saved = readHubFilters()
+    const format = getHubFormat()
+    return format ? { ...saved, formats: [format] } : saved
+  })
   const availableFormats = useMemo(
     () => hubFormats({ mlx: IS_MACOS, tensorrt: tensorrtHub.visible }),
     [tensorrtHub.visible]
@@ -412,12 +420,13 @@ function ChatHub({ categoryTabs }: { categoryTabs?: ReactNode }) {
 
   const updateFilters = useCallback((next: HubFilterState) => {
     setFilters(next)
+    setHubFormat(next.formats[0] ?? null)
     writeHubFilters(next)
   }, [])
 
   // A link into the Hub that names a format (`?engine=`) opens on it, as if it
   // were picked from the filter, then leaves the URL: coming back to this page
-  // must not undo a format chosen since. Saved as named: a format not offered
+  // must not undo a format chosen since. Kept as named: a format not offered
   // (yet — the provider list may still be loading) reads as GGUF meanwhile.
   useEffect(() => {
     if (!engineSearchParam) return
