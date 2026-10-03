@@ -11,6 +11,7 @@
 
 import type { ModelCompatibility } from '@/services/managed-environment/types'
 import {
+  checkRequestFor,
   checkTensorrtModel,
   fetchHfRevision,
   GatedModelError,
@@ -39,13 +40,7 @@ async function evaluate(
 ): Promise<TensorrtVerdict> {
   try {
     const meta = await fetchHfRevision(repository, revision, token)
-    const compatibility = await checkTensorrtModel({
-      repository,
-      revision: meta.revision,
-      config_json: meta.config_json,
-      hf_quant_config_json: meta.hf_quant_config_json,
-      files: meta.files,
-    })
+    const compatibility = await checkTensorrtModel(checkRequestFor(meta))
     return compatibility.verdict.ok
       ? { kind: 'ok', meta, compatibility }
       : { kind: 'incompatible', compatibility }

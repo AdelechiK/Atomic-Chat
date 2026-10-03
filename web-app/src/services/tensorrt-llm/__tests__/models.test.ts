@@ -5,7 +5,9 @@ import {
   IncompatibleModelError,
   InsufficientModelSpaceError,
   fetchHfRevision,
+  foldTensorName,
   installTensorrtModel,
+  readWeightNames,
   tensorrtDownloadId,
   type InstallDeps,
 } from '../models'
@@ -464,5 +466,97 @@ describe('installTensorrtModel', () => {
       await expect(installTensorrtModel({ repository: 'nvidia/Qwen3-8B-FP8' }, d)).rejects.toBe(unavailable)
       expect(steps).toEqual([])
     })
+  })
+})
+
+/** A real `.safetensors` header: 8-byte little-endian length, then the JSON naming every tensor. */
+function safetensorsHeader(names: string[]): Uint8Array {
+  const header: Record<string, unknown> = { __metadata__: { format: 'pt' } }
+  names.forEach((name, index) => {
+    header[name] = { dtype: 'BF16', shape: [1], data_offsets: [index * 2, index * 2 + 2] }
+  })
+  const json = new TextEncoder().encode(JSON.stringify(header))
+  const bytes = new Uint8Array(8 + json.length)
+  new DataView(bytes.buffer).setBigUint64(0, BigInt(json.length), true)
+  bytes.set(json, 8)
+  return bytes
+}
+
+/** A Hugging Face that answers range requests on safetensors files from in-memory headers. */
+function rangeHub(headersByFile: Record<string, Uint8Array>, options: { ignoreRange?: boolean } = {}) {
+  const ranges: string[] = []
+  const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+    // jsdom's Headers drops Range; the webview's fetch sends it (a CORS-safelisted single range).
+    const range = (init?.headers as Record<string, string> | undefined)?.Range ?? null
+    const file = Object.keys(headersByFile).find((name) => url.endsWith(`/${name}`))
+    if (!file || !range) return new Response('not found', { status: 404 })
+    ranges.push(`${file} ${range}`)
+    const bytes = headersByFile[file]
+    if (options.ignoreRange) return new Response(bytes, { status: 200 })
+    const [from, to] = range.replace('bytes=', '').split('-').map(Number)
+    return new Response(bytes.slice(from, to + 1), { status: 206 })
+  })
+  return { fetch: fetch as unknown as typeof globalThis.fetch, ranges }
+}
+
+const shard = (path: string) => ({ path, size: 5_000_000_000, sha256: 'a'.repeat(64) })
+const resolve = (path: string) => `https://huggingface.co/acme/m/resolve/${SHA}/${path}`
+
+describe('readWeightNames', () => {
+  it("reads every shard's own header by range request, folds layer numbers and de-duplicates", async () => {
+    const { fetch, ranges } = rangeHub({
+      'model-00001-of-00002.safetensors': safetensorsHeader(['model.layers.0.mlp.gate.weight', 'model.embed_tokens.weight']),
+      'model-00002-of-00002.safetensors': safetensorsHeader([
+        'model.layers.1.mlp.gate.weight',
+        'model.layers.1.mlp.gate.e_score_correction_bias',
+      ]),
+    })
+    const names = await readWeightNames(
+      [shard('model-00001-of-00002.safetensors'), shard('model-00002-of-00002.safetensors'), { path: 'config.json', size: 1, sha256: null }],
+      resolve,
+      undefined,
+      fetch
+    )
+    expect(names).toEqual([
+      'model.embed_tokens.weight',
+      'model.layers.*.mlp.gate.e_score_correction_bias',
+      'model.layers.*.mlp.gate.weight',
+    ])
+    // One request per shard: the header fits the first probe.
+    expect(ranges).toHaveLength(2)
+  })
+
+  it('asks for the rest of a header that is longer than the first probe', async () => {
+    const long = Array.from({ length: 4_000 }, (_, i) => `model.extra_${i}.weight`)
+    const { fetch, ranges } = rangeHub({ 'model.safetensors': safetensorsHeader(long) })
+    const names = await readWeightNames([shard('model.safetensors')], resolve, undefined, fetch)
+    expect(names).toHaveLength(4_000)
+    expect(ranges).toHaveLength(2)
+  })
+
+  it('gives up, never downloads the file, when the server ignores Range (no 206)', async () => {
+    const { fetch } = rangeHub({ 'model.safetensors': safetensorsHeader(['a.weight']) }, { ignoreRange: true })
+    expect(await readWeightNames([shard('model.safetensors')], resolve, undefined, fetch)).toBeUndefined()
+  })
+
+  it('is undefined, not an error, for a file that is not safetensors', async () => {
+    const { fetch } = rangeHub({ 'model.safetensors': new TextEncoder().encode('not a safetensors file at all') })
+    expect(await readWeightNames([shard('model.safetensors')], resolve, undefined, fetch)).toBeUndefined()
+  })
+
+  it('ignores consolidated weights next to standard shards, as the core counts weights', async () => {
+    const { fetch, ranges } = rangeHub({
+      'model.safetensors': safetensorsHeader(['a.weight']),
+      'consolidated.safetensors': safetensorsHeader(['b.weight']),
+    })
+    await readWeightNames([shard('model.safetensors'), shard('consolidated.safetensors')], resolve, undefined, fetch)
+    expect(ranges.every((range) => range.startsWith('model.safetensors'))).toBe(true)
+  })
+})
+
+describe('foldTensorName', () => {
+  it('folds numeric path segments only', () => {
+    expect(foldTensorName('model.layers.12.mlp.experts.7.w1.weight')).toBe('model.layers.*.mlp.experts.*.w1.weight')
+    expect(foldTensorName('model.layers.3.self_attn.q_proj2.weight')).toBe('model.layers.*.self_attn.q_proj2.weight')
   })
 })

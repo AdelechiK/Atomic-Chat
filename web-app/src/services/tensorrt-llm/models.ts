@@ -4,8 +4,9 @@
  *
  * 1. Read the repository at a revision from Hugging Face — pinned to its commit, so every file is
  *    read and downloaded from the same tree: `config.json`, `hf_quant_config.json` when the
- *    repository has one, and every file with its size and LFS sha256. A refusal means the model is
- *    gated and its terms were not accepted: the person is sent to the model page.
+ *    repository has one, every file with its size and LFS sha256, and the tensor names in the
+ *    headers of its weight files (a range request each; no weights are downloaded). A refusal means
+ *    the model is gated and its terms were not accepted: the person is sent to the model page.
  * 2. Ask the core (`POST /models/tensorrt-llm/check`, no network on its side). Incompatible means
  *    nothing is downloaded, and the reason — with numbers, and the other cards it would fit on —
  *    goes back to the person.
@@ -100,6 +101,11 @@ export interface HfRevision {
   config_json: unknown
   hf_quant_config_json: unknown | null
   files: CheckpointFile[]
+  /**
+   * The tensor names in the weight files' safetensors headers, numeric path segments folded to `*`;
+   * absent when any header could not be read — the core then skips the checks that need them.
+   */
+  weight_names?: string[]
 }
 
 interface HfSibling {
@@ -124,6 +130,111 @@ async function hfJson(
     throw new Error(`Hugging Face answered ${response.status} for ${url}`)
   }
   return response.json()
+}
+
+/** `model.safetensors` or a standard shard (`model-00001-of-00003.safetensors`), at the repository root. */
+const MODEL_SHARD = /^model(-\d+-of-\d+)?\.safetensors$/i
+
+/**
+ * The files whose headers name the checkpoint's tensors: the standard shards when there are any,
+ * otherwise every root-level `.safetensors` — the core's own weight-file rule (`compatibility.ts`).
+ */
+function weightSafetensors(files: readonly CheckpointFile[]): CheckpointFile[] {
+  const root = files.filter((file) => !file.path.includes('/') && file.path.toLowerCase().endsWith('.safetensors'))
+  const shards = root.filter((file) => MODEL_SHARD.test(file.path))
+  return shards.length > 0 ? shards : root
+}
+
+/** Most headers fit in the first request, so a shard costs one round trip, not two. */
+const HEADER_PROBE_BYTES = 256 * 1024
+/** Beyond this, not a header the app reads (real ones are kilobytes to a few megabytes). */
+const MAX_HEADER_BYTES = 100 * 1024 * 1024
+/** Header requests in flight at once: a 47-shard checkpoint reads in a few rounds, not 47. */
+const HEADER_CONCURRENCY = 8
+
+/**
+ * `bytes=from-to` of one file, or null when Hugging Face did not answer with that range (`206`):
+ * a server that ignores `Range` would otherwise start sending gigabytes of weights.
+ */
+async function rangeBytes(
+  url: string,
+  from: number,
+  to: number,
+  token: string | undefined,
+  fetchImpl: typeof fetch
+): Promise<Uint8Array | null> {
+  const response = await fetchImpl(url, { headers: { ...headers(token), Range: `bytes=${from}-${to}` } })
+  if (response.status !== 206) {
+    await response.body?.cancel().catch(() => undefined)
+    return null
+  }
+  return new Uint8Array(await response.arrayBuffer())
+}
+
+/** The tensor names in one `.safetensors` file's header (8-byte little-endian length, then JSON). */
+async function headerTensorNames(
+  url: string,
+  token: string | undefined,
+  fetchImpl: typeof fetch
+): Promise<string[] | null> {
+  const first = await rangeBytes(url, 0, HEADER_PROBE_BYTES - 1, token, fetchImpl)
+  if (first === null || first.length < 8) return null
+  const length = Number(new DataView(first.buffer, first.byteOffset, 8).getBigUint64(0, true))
+  if (length <= 0 || length > MAX_HEADER_BYTES) return null
+  const header =
+    first.length >= 8 + length
+      ? first.subarray(8, 8 + length)
+      : await rangeBytes(url, 8, 8 + length - 1, token, fetchImpl)
+  if (header === null || header.length !== length) return null
+  const parsed: unknown = JSON.parse(new TextDecoder().decode(header))
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  return Object.keys(parsed).filter((key) => key !== '__metadata__')
+}
+
+/** `model.layers.12.mlp.experts.7.w1` → `model.layers.*.mlp.experts.*.w1`: a 90k-name MoE index folds to hundreds. */
+export function foldTensorName(name: string): string {
+  return name.replace(/(?<=^|\.)\d+(?=\.|$)/g, '*')
+}
+
+/**
+ * Every weight file's tensor names, folded and de-duplicated; undefined when there is no weight
+ * file or any header cannot be read — never an error: the names only sharpen the core's check.
+ */
+export async function readWeightNames(
+  files: readonly CheckpointFile[],
+  resolve: (path: string) => string,
+  token: string | undefined,
+  fetchImpl: typeof fetch
+): Promise<string[] | undefined> {
+  const weights = weightSafetensors(files)
+  if (weights.length === 0) return undefined
+  const names = new Set<string>()
+  try {
+    for (let start = 0; start < weights.length; start += HEADER_CONCURRENCY) {
+      const batch = weights.slice(start, start + HEADER_CONCURRENCY)
+      const results = await Promise.all(batch.map((file) => headerTensorNames(resolve(file.path), token, fetchImpl)))
+      for (const own of results) {
+        if (own === null) return undefined
+        for (const name of own) names.add(foldTensorName(name))
+      }
+    }
+  } catch {
+    return undefined
+  }
+  return [...names].sort()
+}
+
+/** The body of `POST /models/tensorrt-llm/check` for a revision read by `fetchHfRevision`. */
+export function checkRequestFor(meta: HfRevision, gpuId?: string): Parameters<InstallDeps['check']>[0] {
+  return {
+    repository: meta.repository,
+    revision: meta.revision,
+    config_json: meta.config_json,
+    hf_quant_config_json: meta.hf_quant_config_json,
+    files: meta.files,
+    ...(gpuId ? { gpu_id: gpuId } : {}),
+    ...(meta.weight_names ? { weight_names: meta.weight_names } : {}),
+  }
 }
 
 /** Normalises what a person pastes: a repo id or its huggingface.co URL. */
@@ -155,6 +266,7 @@ export async function fetchHfRevision(
   }))
   const resolve = (path: string) => `${HF}/${repository}/resolve/${listing.sha}/${path}`
   const has = (path: string) => files.some((file) => file.path === path)
+  const weightNames = await readWeightNames(files, resolve, token, fetchImpl)
   return {
     repository,
     revision: listing.sha,
@@ -163,6 +275,7 @@ export async function fetchHfRevision(
       ? await hfJson(resolve('hf_quant_config.json'), repository, token, fetchImpl)
       : null,
     files,
+    ...(weightNames ? { weight_names: weightNames } : {}),
   }
 }
 
@@ -175,6 +288,8 @@ export interface InstallDeps {
     hf_quant_config_json: unknown | null
     files: CheckpointFile[]
     gpu_id?: string
+    /** Needs a core that knows the field (it refuses fields it does not know with `INVALID_ARGUMENT`). */
+    weight_names?: string[]
   }) => Promise<ModelCompatibility>
   /** Where the core keeps the models, and the room there. */
   location: () => Promise<TensorrtLlmModelLocation>
@@ -213,14 +328,7 @@ export async function installTensorrtModel(
 ): Promise<{ modelId: string; compatibility: ModelCompatibility }> {
   const repository = normalizeRepository(request.repository)
   const meta = await fetchHfRevision(repository, request.revision, request.token, deps.fetch)
-  const compatibility = await deps.check({
-    repository,
-    revision: meta.revision,
-    config_json: meta.config_json,
-    hf_quant_config_json: meta.hf_quant_config_json,
-    files: meta.files,
-    ...(request.gpuId ? { gpu_id: request.gpuId } : {}),
-  })
+  const compatibility = await deps.check(checkRequestFor(meta, request.gpuId))
   if (!compatibility.verdict.ok) throw new IncompatibleModelError(compatibility)
 
   // Only for a model that can run here; before Atomic Chat's distribution exists on Windows the
