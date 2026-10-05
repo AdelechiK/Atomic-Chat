@@ -228,6 +228,17 @@ mod tests {
         String::from_utf8_lossy(&output.stdout).trim().to_string()
     }
 
+    /// How a reported SDDL may spell the user: Windows writes the built-in Administrator
+    /// (RID 500, the account GitHub's Windows runners run as) as its alias `LA`, any other
+    /// account as its SID.
+    fn sddl_names(sid: &str) -> Vec<String> {
+        let mut names = vec![sid.to_string()];
+        if sid.ends_with("-500") {
+            names.push("LA".to_string());
+        }
+        names
+    }
+
     #[test]
     fn the_user_sid_is_a_string_sid() {
         let sid = current_user_sid().unwrap();
@@ -247,9 +258,10 @@ mod tests {
         assert_eq!(prepared.request.file_name().unwrap(), "step-w.request.json");
         assert_eq!(prepared.result.file_name().unwrap(), "step-w.result.json");
 
-        let sid = current_user_sid().unwrap();
+        let user = sddl_names(&current_user_sid().unwrap());
         let sddl = sddl_of(&prepared.dir);
-        assert!(sddl.starts_with(&format!("O:{sid}")), "{sddl}");
+        let owner = sddl.strip_prefix("O:").and_then(|rest| rest.split("G:").next()).unwrap_or_default();
+        assert!(user.iter().any(|name| name == owner), "the owner is the user: {sddl}");
         assert!(sddl.contains("D:P"), "the DACL is protected from inheritance: {sddl}");
         let trustees: Vec<&str> = sddl
             .split('(')
@@ -258,7 +270,7 @@ mod tests {
             .collect();
         for trustee in &trustees {
             assert!(
-                *trustee == sid || *trustee == "SY" || *trustee == "BA",
+                user.iter().any(|name| name == trustee) || *trustee == "SY" || *trustee == "BA",
                 "an entry for {trustee} in {sddl}"
             );
         }
