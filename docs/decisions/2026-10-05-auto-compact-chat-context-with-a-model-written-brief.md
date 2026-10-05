@@ -39,7 +39,7 @@ title: "Auto-compact chat context with a model-written brief"
   Telemetry fields (`ctx_compacted`) are a follow-up too; for now the
   transport logs to the console and the marker store is the surface.
 - **Owner:** @adelzaripov
-- **Links:** PR (auto-compaction), AtomicBot-ai/Atomic-Chat#294,
+- **Links:** AtomicBot-ai/Atomic-Chat#334, AtomicBot-ai/Atomic-Chat#294,
   `web-app/src/lib/context-compaction.ts`,
   `web-app/src/lib/custom-chat-transport.ts`,
   `web-app/src/stores/compaction-marker-store.ts`
