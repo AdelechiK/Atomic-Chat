@@ -412,8 +412,8 @@ else
 	@[ -e src-tauri/resources/bin/jan-cli ] || touch src-tauri/resources/bin/jan-cli
 	@[ -e src-tauri/resources/bin/atomic-chat-app-core ] || touch src-tauri/resources/bin/atomic-chat-app-core
 	@[ -e src-tauri/resources/bin/sqlite-vec.so ] || touch src-tauri/resources/bin/sqlite-vec.so
-	@[ -e src-tauri/resources/bin/uv-x86_64-unknown-linux-gnu ] || touch src-tauri/resources/bin/uv-x86_64-unknown-linux-gnu
-	@[ -e src-tauri/resources/bin/cloudflared-x86_64-unknown-linux-gnu ] || touch src-tauri/resources/bin/cloudflared-x86_64-unknown-linux-gnu
+	@[ -e src-tauri/resources/bin/uv-$(shell uname -m)-unknown-linux-gnu ] || touch src-tauri/resources/bin/uv-$(shell uname -m)-unknown-linux-gnu
+	@[ -e src-tauri/resources/bin/cloudflared-$(shell uname -m)-unknown-linux-gnu ] || touch src-tauri/resources/bin/cloudflared-$(shell uname -m)-unknown-linux-gnu
 	@[ -e src-tauri/resources/llamacpp-backend/test-placeholder ] || touch src-tauri/resources/llamacpp-backend/test-placeholder
 	@[ -e src-tauri/resources/llamacpp-backend-upstream/test-placeholder ] || touch src-tauri/resources/llamacpp-backend-upstream/test-placeholder
 endif
@@ -881,6 +881,11 @@ ifeq ($(shell uname -s),Darwin)
 	fi
 else ifeq ($(OS),Windows_NT)
 	@$(MAKE) download-llamacpp-backend-win-cpu
+else ifeq ($(shell uname -s)-$(shell uname -m),Linux-aarch64)
+	@mkdir -p src-tauri/resources/llamacpp-backend
+	@# The fork has no portable Linux arm64 build (only CUDA 13.3), so the
+	@# Linux arm64 app ships without TurboQuant and bundles nothing here.
+	@echo "Skipping TurboQuant backend on Linux arm64 (the provider is hidden there)"
 else ifeq ($(shell uname -s),Linux)
 	@mkdir -p src-tauri/resources/llamacpp-backend
 	@# TurboQuant ships on Linux as the second provider alongside
@@ -1077,6 +1082,22 @@ else
 	@echo "This target is for Windows only."
 endif
 
+# Publish a draft release as latest and repoint the landing page's download
+# manifest (atomic-chat-conf app/latest.json) at its installers:
+#   make release-prod 2.1.3            publish v2.1.3
+#   make release-prod 2.1.3 DRY_RUN=1  show what would happen, change nothing
+# On a release that is already latest it only rewrites the manifest.
+ifeq (release-prod,$(firstword $(MAKECMDGOALS)))
+RELEASE_VERSION := $(word 2,$(MAKECMDGOALS))
+ifneq ($(RELEASE_VERSION),)
+$(eval $(RELEASE_VERSION):;@:)
+endif
+endif
+.PHONY: release-prod
+release-prod:
+	@test -n "$(RELEASE_VERSION)" || { echo "Usage: make release-prod 2.1.3"; exit 1; }
+	node scripts/release-prod.mjs --tag $(RELEASE_VERSION) $(if $(DRY_RUN),--dry-run)
+
 # Download upstream ggml-org/llama.cpp backend for bundling alongside the
 # turboquant fork on macOS. We ship BOTH backends in the DMG so users can pick
 # the "Llama.cpp" provider (vanilla upstream) or the "llama.cpp" provider
@@ -1233,13 +1254,13 @@ else ifeq ($(OS),Windows_NT)
 	echo "Downloaded and extracted upstream llamacpp backend ($$BACKEND) for Windows successfully"
 else ifeq ($(shell uname -s),Linux)
 	@mkdir -p src-tauri/resources/llamacpp-backend-upstream
-	@# Upstream remains the Linux default and bundles its CPU-only build.
-	@# NVIDIA / AMD / Intel users
-	@# get `linux-vulkan-x64` at runtime through the "Find optimal
-	@# backend" flow — we deliberately do NOT auto-detect GPU at build
-	@# time, since the bundled artefact is meant to be the offline
-	@# fallback that works on any host.
-	@BACKEND="linux-cpu-x64"; \
+	@# Upstream remains the Linux default and bundles its CPU-only build
+	@# for the host arch. NVIDIA / AMD / Intel users
+	@# get `linux-vulkan-*` (and on arm64 `linux-cuda-13.*-arm64`) at runtime
+	@# through the "Find optimal backend" flow — we deliberately do NOT
+	@# auto-detect GPU at build time, since the bundled artefact is meant to
+	@# be the offline fallback that works on any host.
+	@if [ "$$(uname -m)" = "aarch64" ]; then BACKEND="linux-cpu-arm64"; else BACKEND="linux-cpu-x64"; fi; \
 	echo "Platform: $$BACKEND (upstream / Linux)"; \
 	RESOLVED=$$(node scripts/resolve-upstream-backend.mjs --backend "$$BACKEND" $(UPSTREAM_TAG_ARG)) || exit 1; \
 	eval "$$RESOLVED"; \
