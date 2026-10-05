@@ -12,6 +12,7 @@ import { routeTree } from './routeTree.gen'
 import './index.css'
 import './i18n'
 import { installCodeBlockDownloadHandler } from './lib/codeBlockDownload'
+import { installInternalNavigationHandler } from './lib/internal-navigation'
 import { runWindowsLlamacppProviderMigration } from './lib/windowsProviderMigration'
 import { runMacosLlamacppDefaultMigration } from './lib/macosLlamacppDefaultMigration'
 import { runTurboquantDefaultMigration } from './lib/turboquantDefaultMigration'
@@ -202,6 +203,12 @@ if (IS_TAURI) {
 
 // Create a new router instance
 const router = createRouter({ routeTree })
+
+if (IS_TAURI && !IS_IOS && !IS_ANDROID) {
+  installInternalNavigationHandler((href) => {
+    void router.navigate({ href })
+  })
+}
 
 // Register the router instance for type safety
 declare module '@tanstack/react-router' {
